@@ -1,0 +1,24 @@
+[ZERODHA_MASTER]
+api_key = YOUR_API_KEY
+api_secret = YOUR_API_SECRET
+account_id = YOUR_ACCOUNT_ID
+# After the one-time login process, this token will be generated.
+# The application should be designed to save and reuse it.
+access_token =
+
+[ZERODHA_CHILD_1]
+api_key = YOUR_API_KEY
+api_secret = YOUR_API_SECRET
+account_id = YOUR_ACCOUNT_ID
+access_token =
+
+[DHAN_MASTER]
+client_id = YOUR_CLIENT_ID
+access_token = YOUR_ACCESS_TOKEN
+
+[DHAN_CHILD_1]
+client_id = YOUR_CLIENT_ID
+access_token = YOUR_ACCESS_TOKEN
+
+# Add more child accounts as needed, following the pattern:
+# [BROKER_CHILD_2], [BROKER_CHILD_3], etc.

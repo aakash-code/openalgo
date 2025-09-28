@@ -1,57 +1,69 @@
-venopenalgo
-.venv/
-.env
-openalgo.db
-*.db-shm
-*.db-wal
-.env
-.flaskenv
-*.pyc
+# Byte-compiled / optimized / DLL files
 __pycache__/
-instance/
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
-.python-version
-config.ini
-.venvv
+*.py[cod]
+*$py.class
 
-#DB Files, CSV Files and Log/Tmp Files
+# C extensions
+*.so
 
+# Distribution / packaging
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+share/python-wheels/
 *.egg-info/
-*.db
-*.sqlite
+.installed.cfg
+*.egg
+MANIFEST
+
+# PyInstaller
+#  Usually these files are written by a python script from a template
+#  before PyInstaller builds the exe, so as to inject date/other infos into it.
+*.manifest
+*.spec
+
+# Installer logs
+pip-log.txt
+pip-delete-this-directory.txt
+
+# Unit test / coverage reports
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+
+# Environments
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# IDEs
+.idea/
+.vscode/
+
+# Custom
+# Ignore sensitive configuration files
+config/config.ini
+
+# Log files
 *.log
-*.tmp
-checkpoint.txt
-checkpoints.json
-
-# Strategy encryption key
-db/strategy_encryption.key
-
-# CSV Files (except symbols.csv)
-*.csv
-!symbols.csv
-!all_symbols.csv
-
-# Environments 
-.env 
-.venv 
-env/ 
-venv/ 
-ENV/ 
-env.bak/ 
-venv.bak/ 
-
-# Node modules
-/node_modules/
-
-# Build output
-/dist/
-/build/
-/.next/
-/out/
-
-# Tailwind CSS output
-# **/output.css
+logs/
