@@ -2,11 +2,43 @@ import configparser
 import time
 import logging
 from src.brokers.zerodha_broker import ZerodhaBroker
+from src.brokers.dhan_broker import DhanBroker
 from src.core.master_account import MasterAccount
 from src.core.child_account import ChildAccount
 
 # --- Configuration ---
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
+def initialize_broker(config_section):
+    """
+    Initializes and returns a broker instance based on the config section name.
+    """
+    section_name = config_section.name
+
+    if section_name.startswith('ZERODHA'):
+        api_key = config_section.get('api_key')
+        api_secret = config_section.get('api_secret')
+        access_token = config_section.get('access_token')
+
+        if not all([api_key, api_secret, access_token]):
+            logging.error(f"Section '{section_name}' is missing api_key, api_secret, or access_token.")
+            return None
+
+        return ZerodhaBroker(api_key=api_key, api_secret=api_secret, access_token=access_token)
+
+    elif section_name.startswith('DHAN'):
+        client_id = config_section.get('client_id')
+        access_token = config_section.get('access_token')
+
+        if not all([client_id, access_token]):
+            logging.error(f"Section '{section_name}' is missing client_id or access_token.")
+            return None
+
+        return DhanBroker(client_id=client_id, access_token=access_token)
+
+    else:
+        logging.warning(f"Unknown broker type for section: {section_name}")
+        return None
 
 def main():
     """
@@ -14,60 +46,41 @@ def main():
     """
     config = configparser.ConfigParser()
     try:
-        # NOTE: The user must rename this file to 'config.ini' and fill in their details.
         config.read_file(open('config/config.ini'))
     except FileNotFoundError:
         logging.error("Configuration file 'config/config.ini' not found. "
                       "Please copy 'config.ini.template' to 'config.ini' and fill it out.")
         return
 
-    # --- Initialize Master Account ---
-    try:
-        master_api_key = config['ZERODHA_MASTER']['api_key']
-        master_api_secret = config['ZERODHA_MASTER']['api_secret']
-        master_access_token = config['ZERODHA_MASTER']['access_token']
-
-        if not all([master_api_key, master_api_secret, master_access_token]):
-            logging.error("Master account 'api_key', 'api_secret', or 'access_token' is missing in config.ini.")
-            return
-
-        master_broker = ZerodhaBroker(
-            api_key=master_api_key,
-            api_secret=master_api_secret,
-            access_token=master_access_token
-        )
-        master_account = MasterAccount(broker=master_broker)
-        logging.info("Master account initialized successfully.")
-
-    except (KeyError, AttributeError) as e:
-        logging.error(f"Error initializing master account from config: {e}. "
-                      "Ensure [ZERODHA_MASTER] section is correct and complete.")
-        return
-
-    # --- Initialize Child Accounts ---
+    master_account = None
     child_accounts = []
-    for section in config.sections():
-        if section.startswith('ZERODHA_CHILD'):
-            try:
-                child_api_key = config[section]['api_key']
-                child_api_secret = config[section]['api_secret']
-                child_access_token = config[section]['access_token']
 
-                if not all([child_api_key, child_api_secret, child_access_token]):
-                    logging.warning(f"Skipping {section} due to missing 'api_key', 'api_secret', or 'access_token'.")
-                    continue
+    # --- Initialize Master and Child Accounts ---
+    for section_name in config.sections():
+        config_section = config[section_name]
 
-                child_broker = ZerodhaBroker(
-                    api_key=child_api_key,
-                    api_secret=child_api_secret,
-                    access_token=child_access_token
-                )
-                child_account = ChildAccount(broker=child_broker, account_id=section)
+        if section_name.endswith('_MASTER'):
+            if master_account:
+                logging.error("Multiple master accounts defined in config.ini. Only one is allowed.")
+                return
+
+            logging.info(f"Initializing master account: {section_name}")
+            master_broker = initialize_broker(config_section)
+            if master_broker:
+                master_account = MasterAccount(broker=master_broker)
+                logging.info(f"Master account {section_name} initialized successfully.")
+
+        elif section_name.endswith('_CHILD'):
+            logging.info(f"Initializing child account: {section_name}")
+            child_broker = initialize_broker(config_section)
+            if child_broker:
+                child_account = ChildAccount(broker=child_broker, account_id=section_name)
                 child_accounts.append(child_account)
-                logging.info(f"Child account {section} initialized successfully.")
+                logging.info(f"Child account {section_name} initialized successfully.")
 
-            except (KeyError, AttributeError) as e:
-                logging.error(f"Error initializing child account {section}: {e}.")
+    if not master_account:
+        logging.error("No master account was initialized. Please check your config.ini file.")
+        return
 
     if not child_accounts:
         logging.warning("No child accounts were initialized. The application will run but not copy any trades.")

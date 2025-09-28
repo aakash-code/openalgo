@@ -1,24 +1,30 @@
+# This is a template for the configuration file.
+# 1. Rename this file to 'config.ini'.
+# 2. Fill in the details for your accounts.
+# 3. You must define ONE master account (ending in _MASTER) and one or more child accounts (ending in _CHILD).
+
 [ZERODHA_MASTER]
 api_key = YOUR_API_KEY
 api_secret = YOUR_API_SECRET
-account_id = YOUR_ACCOUNT_ID
-# After the one-time login process, this token will be generated.
-# The application should be designed to save and reuse it.
+# For Zerodha master, leave access_token blank and run `python generate_token.py` once.
 access_token =
 
 [ZERODHA_CHILD_1]
-api_key = YOUR_API_KEY
-api_secret = YOUR_API_SECRET
-account_id = YOUR_ACCOUNT_ID
-access_token =
+api_key = YOUR_ZERODHA_CHILD_API_KEY
+api_secret = YOUR_ZERODHA_CHILD_API_SECRET
+access_token = YOUR_ZERODHA_CHILD_ACCESS_TOKEN
+# For Zerodha child accounts, you must generate the access token manually and paste it here.
 
-[DHAN_MASTER]
-client_id = YOUR_CLIENT_ID
-access_token = YOUR_ACCESS_TOKEN
+# --- Example Dhan Configuration ---
+
+# [DHAN_MASTER]
+# client_id = YOUR_DHAN_CLIENT_ID
+# # For Dhan, get the access token from the DhanHQ developer portal and paste it here.
+# access_token = YOUR_DHAN_ACCESS_TOKEN
 
 [DHAN_CHILD_1]
-client_id = YOUR_CLIENT_ID
-access_token = YOUR_ACCESS_TOKEN
+client_id = YOUR_DHAN_CLIENT_ID
+access_token = YOUR_DHAN_ACCESS_TOKEN
 
-# Add more child accounts as needed, following the pattern:
-# [BROKER_CHILD_2], [BROKER_CHILD_3], etc.
+# Add more child accounts as needed, following the patterns above.
+# e.g., [ZERODHA_CHILD_2], [DHAN_CHILD_2], etc.
