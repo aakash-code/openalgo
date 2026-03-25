@@ -858,4 +858,4 @@ if __name__ == "__main__":
             "*.bak",
         ]
     }
-    socketio.run(app, host=host_ip, port=port, debug=debug, reloader_options=reloader_options)
+    socketio.run(app, host=host_ip, port=port, debug=debug, allow_unsafe_werkzeug=True, reloader_options=reloader_options)
