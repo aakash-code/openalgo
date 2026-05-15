@@ -109,6 +109,52 @@ class TelegramBotService:
             logger.exception(f"Error making SDK call: {e}")
             return None
 
+    def _render_plotly_png(self, fig) -> bytes:
+        """Render a Plotly figure to PNG bytes using Kaleido on a real OS thread.
+
+        Kaleido 1.x's fig.to_image() internally calls asyncio.run(), which
+        raises RuntimeError when invoked from a thread that already has a
+        running event loop — which is exactly our situation inside a PTB
+        command handler (self.bot_loop is a live asyncio loop on self.bot_thread).
+
+        Dispatching via asyncio's run_in_executor does NOT escape this under
+        gunicorn + eventlet: the default ThreadPoolExecutor spawns workers
+        through threading.Thread, which is monkey-patched by eventlet into
+        greenlets that still share the PTB loop's context. So Kaleido's
+        asyncio.run() still sees a running loop and still blows up.
+
+        The reliable escape hatch — the same one the bot itself uses to
+        isolate from eventlet — is original_threading.Thread, the real,
+        unpatched OS-level threading module. A brand-new OS thread has no
+        event loop of its own, so asyncio.run() inside Kaleido gets a clean
+        slate and can spawn Chromium (installed in the Docker image).
+
+        The caller blocks on t.join() for the duration of the render
+        (~1-3 s per chart). This briefly pauses the PTB event loop, which
+        is acceptable for personal / low-volume bot usage.
+        """
+        import queue as _queue
+
+        result_q: "_queue.Queue[tuple[str, object]]" = _queue.Queue()
+
+        def _worker() -> None:
+            try:
+                png = fig.to_image(format="png", engine="kaleido")
+                result_q.put(("ok", png))
+            except BaseException as exc:  # noqa: BLE001 - propagate across thread
+                result_q.put(("err", exc))
+
+        t = original_threading.Thread(
+            target=_worker, daemon=True, name="openalgo-kaleido-render"
+        )
+        t.start()
+        t.join()
+
+        status, payload = result_q.get_nowait()
+        if status == "err":
+            raise payload  # type: ignore[misc]
+        return payload  # type: ignore[return-value]
+
     async def _generate_intraday_chart(
         self, symbol: str, exchange: str, interval: str, days: int, telegram_id: int
     ) -> bytes | None:
@@ -271,8 +317,10 @@ class TelegramBotService:
             # Clean up axes
             fig.update_yaxes(title_text="")
 
-            # Convert to image bytes
-            img_bytes = fig.to_image(format="png", engine="kaleido")
+            # Convert to image bytes via a real OS thread — see
+            # self._render_plotly_png for why asyncio.run_in_executor is
+            # not usable here under gunicorn + eventlet + PTB.
+            img_bytes = self._render_plotly_png(fig)
             return img_bytes
 
         except Exception as e:
@@ -445,8 +493,10 @@ class TelegramBotService:
             # Clean up axes
             fig.update_yaxes(title_text="")
 
-            # Convert to image bytes
-            img_bytes = fig.to_image(format="png", engine="kaleido")
+            # Convert to image bytes via a real OS thread — see
+            # self._render_plotly_png for why asyncio.run_in_executor is
+            # not usable here under gunicorn + eventlet + PTB.
+            img_bytes = self._render_plotly_png(fig)
             return img_bytes
 
         except Exception as e:
@@ -493,11 +543,11 @@ class TelegramBotService:
         # Check if we're in eventlet environment
         if "eventlet" in sys.modules:
             logger.info("Using synchronous initialization for eventlet environment")
-            # Use synchronous requests to validate token
-            import requests
+            # Use synchronous httpx to validate token
+            from utils.httpx_client import get_httpx_client
 
             try:
-                response = requests.get(f"https://api.telegram.org/bot{token}/getMe", timeout=10)
+                response = get_httpx_client().get(f"https://api.telegram.org/bot{token}/getMe", timeout=10)
 
                 if response.status_code == 200:
                     data = response.json()
@@ -583,7 +633,7 @@ class TelegramBotService:
             try:
                 if self.http_client:
                     loop.run_until_complete(self.http_client.aclose())
-            except:
+            except Exception:
                 pass
             loop.close()
             self.bot_loop = None  # Clear the reference
@@ -615,7 +665,7 @@ class TelegramBotService:
                     chat_id=update.effective_chat.id,
                     text="⚠️ An error occurred. Please try again later.",
                 )
-            except:
+            except Exception:
                 pass  # If we can't send the message, just ignore
 
     async def _start_bot_isolated(self):
@@ -651,6 +701,9 @@ class TelegramBotService:
                 self.application.add_handler(CommandHandler("pnl", self.cmd_pnl))
                 self.application.add_handler(CommandHandler("quote", self.cmd_quote))
                 self.application.add_handler(CommandHandler("chart", self.cmd_chart))
+                self.application.add_handler(CommandHandler("closeall", self.cmd_closeall))
+                self.application.add_handler(CommandHandler("stoppython", self.cmd_stoppython))
+                self.application.add_handler(CommandHandler("mode", self.cmd_mode))
                 self.application.add_handler(CommandHandler("menu", self.cmd_menu))
 
                 # Add callback query handler for inline buttons
@@ -864,6 +917,11 @@ class TelegramBotService:
   • interval: 1m, 5m, 15m, 30m, 1h, D (default: 5m for intraday, D for daily)
   • days: number of days (default: 5 for intraday, 252 for daily)
 
+*Remote Actions:*
+/closeall - Close all open positions (with confirmation)
+/stoppython - Stop running Python strategies (with confirmation)
+/mode - View or toggle trading mode (Live / Analyze)
+
 *Navigation:*
 /menu - Show interactive menu
 /help - Show this help message
@@ -1024,7 +1082,7 @@ class TelegramBotService:
                         status = "🟢 Connected"
                     else:
                         status = "🔴 Connection Failed"
-                except:
+                except Exception:
                     status = "🔴 Connection Failed"
             else:
                 status = "🔴 Client Error"
@@ -1777,7 +1835,7 @@ class TelegramBotService:
             logger.exception(f"Error generating charts: {e}")
             try:
                 await loading_msg.delete()
-            except:
+            except Exception:
                 pass
             await update.message.reply_text(f"❌ Error generating charts: {str(e)}")
 
@@ -1848,11 +1906,11 @@ class TelegramBotService:
             try:
                 price = float(order.get("price", 0))
                 price_str = "Market" if price == 0 else f"{cs}{price}"
-            except:
+            except Exception:
                 price_str = f"{cs}{order.get('price', 0)}"
             try:
                 quantity = int(order.get("quantity", 0))
-            except:
+            except Exception:
                 quantity = order.get("quantity", 0)
             message += (
                 f"{status_emoji} *{order.get('symbol', 'N/A')}* ({order.get('exchange', 'N/A')})\n"
@@ -1877,12 +1935,12 @@ class TelegramBotService:
             action_emoji = "📈" if trade.get("action") == "BUY" else "📉"
             try:
                 quantity = int(trade.get("quantity", 0))
-            except:
+            except Exception:
                 quantity = trade.get("quantity", 0)
             try:
                 avg_price = float(trade.get("average_price", 0))
                 avg_price_str = f"{cs}{avg_price:,.2f}"
-            except:
+            except Exception:
                 avg_price_str = f"{cs}{trade.get('average_price', 0)}"
             message += (
                 f"{action_emoji} *{trade.get('symbol', 'N/A')}* ({trade.get('exchange', 'N/A')})\n"
@@ -1907,7 +1965,7 @@ class TelegramBotService:
         for pos in active_positions[:10]:
             try:
                 quantity = int(pos.get("quantity", 0))
-            except:
+            except Exception:
                 quantity = 0
             position_emoji = "🟢" if quantity > 0 else "🔴"
             position_type = "LONG 📈" if quantity > 0 else "SHORT 📉"
@@ -1934,7 +1992,7 @@ class TelegramBotService:
             try:
                 pnl = float(holding.get("pnl", 0))
                 pnl_percent = float(holding.get("pnlpercent", 0))
-            except:
+            except Exception:
                 pnl, pnl_percent = 0.0, 0.0
             pnl_emoji = "🟢" if pnl > 0 else "🔴" if pnl < 0 else "⚪"
             message += f"{pnl_emoji} *{holding.get('symbol', 'N/A')}*\n"
@@ -1953,7 +2011,7 @@ class TelegramBotService:
             available = float(funds.get("availablecash", 0))
             collateral = float(funds.get("collateral", 0))
             utilized = float(funds.get("utiliseddebits", 0))
-        except:
+        except Exception:
             available, collateral, utilized = 0.0, 0.0, 0.0
 
         return (
@@ -1975,11 +2033,142 @@ class TelegramBotService:
             try:
                 pnl = float(pos.get("pnl", 0))
                 total_pnl += pnl
-            except:
+            except Exception:
                 pass
 
         pnl_emoji = "🟢" if total_pnl > 0 else "🔴" if total_pnl < 0 else "⚪"
         return f"💹 *PROFIT & LOSS*\n━━━━━━━━━━━━━━━\n\n{pnl_emoji} *Day P&L*\n└ {cs}{total_pnl:,.2f}"
+
+    async def cmd_closeall(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle /closeall command — close all open positions with confirmation"""
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        from telegram.constants import ParseMode
+
+        user = update.effective_user
+        telegram_user = get_telegram_user(user.id)
+
+        if not telegram_user:
+            await update.message.reply_text("❌ Please link your account first using /link")
+            return
+
+        keyboard = [
+            [
+                InlineKeyboardButton("✅ Yes, close all", callback_data="confirm_closeall"),
+            ],
+            [
+                InlineKeyboardButton(
+                    "⚠️ Close all + Stop strategies",
+                    callback_data="confirm_closeall_with_strategies",
+                ),
+            ],
+            [
+                InlineKeyboardButton("❌ Cancel", callback_data="cancel_action"),
+            ],
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await update.message.reply_text(
+            "⚠️ *Close All Positions*\n"
+            "━━━━━━━━━━━━━━━\n\n"
+            "This will close ALL open positions across all strategies.\n\n"
+            "Choose *Close all + Stop strategies* to also stop every running "
+            "Python strategy after closing positions.\n\n"
+            "Are you sure?",
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        log_command(user.id, "closeall", update.effective_chat.id)
+
+    async def cmd_stoppython(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle /stoppython command — list running Python strategies and stop selected/all"""
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        from telegram.constants import ParseMode
+
+        user = update.effective_user
+        telegram_user = get_telegram_user(user.id)
+
+        if not telegram_user:
+            await update.message.reply_text("❌ Please link your account first using /link")
+            return
+
+        from blueprints.python_strategy import RUNNING_STRATEGIES, STRATEGY_CONFIGS
+
+        # Snapshot the running strategies (id, display name) at the moment of invocation.
+        # Using user_data for index→id mapping keeps callback_data within Telegram's 64-byte cap.
+        running = [
+            (sid, STRATEGY_CONFIGS.get(sid, {}).get("name", sid))
+            for sid in list(RUNNING_STRATEGIES.keys())
+        ]
+
+        if not running:
+            await update.message.reply_text(
+                "ℹ️ *No Python strategies running.*",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            log_command(user.id, "stoppython", update.effective_chat.id)
+            return
+
+        context.user_data["stoppy_list"] = running
+
+        keyboard = [
+            [InlineKeyboardButton(f"🐍 {name}", callback_data=f"spy_{idx}")]
+            for idx, (_, name) in enumerate(running)
+        ]
+        keyboard.append(
+            [InlineKeyboardButton("🛑 Stop All", callback_data="spy_all")]
+        )
+        keyboard.append(
+            [InlineKeyboardButton("❌ Cancel", callback_data="cancel_action")]
+        )
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await update.message.reply_text(
+            f"🐍 *Running Python Strategies* ({len(running)})\n"
+            "━━━━━━━━━━━━━━━\n\n"
+            "Select a strategy to stop, or *Stop All* to stop every running strategy.",
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        log_command(user.id, "stoppython", update.effective_chat.id)
+
+    async def cmd_mode(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
+        """Handle /mode command — view or toggle trading mode (Live / Analyze)"""
+        from telegram import InlineKeyboardButton, InlineKeyboardMarkup
+        from telegram.constants import ParseMode
+
+        user = update.effective_user
+        telegram_user = get_telegram_user(user.id)
+
+        if not telegram_user:
+            await update.message.reply_text("❌ Please link your account first using /link")
+            return
+
+        from database.settings_db import get_analyze_mode
+
+        loop = asyncio.get_event_loop()
+        is_analyze = await loop.run_in_executor(None, get_analyze_mode)
+
+        current = "🔬 Analyze Mode" if is_analyze else "🟢 Live Mode"
+        toggle_label = "Switch to Live" if is_analyze else "Switch to Analyze"
+        toggle_data = "mode_live" if is_analyze else "mode_analyze"
+
+        keyboard = [
+            [
+                InlineKeyboardButton(f"🔄 {toggle_label}", callback_data=toggle_data),
+            ]
+        ]
+        reply_markup = InlineKeyboardMarkup(keyboard)
+
+        await update.message.reply_text(
+            f"⚙️ *Trading Mode*\n"
+            f"━━━━━━━━━━━━━━━\n\n"
+            f"Current: {current}\n\n"
+            f"• *Live Mode* — Orders execute with real broker\n"
+            f"• *Analyze Mode* — Sandbox mode (no real orders)\n",
+            reply_markup=reply_markup,
+            parse_mode=ParseMode.MARKDOWN,
+        )
+        log_command(user.id, "mode", update.effective_chat.id)
 
     async def button_callback(self, update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
         """Handle inline button callbacks"""
@@ -1992,6 +2181,273 @@ class TelegramBotService:
         user = query.from_user
         chat_id = query.message.chat.id
         callback_data = query.data
+
+        # Handle cancel action
+        if callback_data == "cancel_action":
+            await query.edit_message_text("❌ Action cancelled.")
+            return
+
+        # Handle close all positions confirmation
+        if callback_data == "confirm_closeall":
+            telegram_user = get_telegram_user(user.id)
+            if not telegram_user:
+                await query.edit_message_text("❌ Please link your account first using /link")
+                return
+
+            client = self._get_sdk_client(user.id)
+            if not client:
+                await query.edit_message_text("❌ Failed to connect to OpenAlgo")
+                return
+
+            await query.edit_message_text("⏳ Closing all positions...")
+
+            try:
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(None, client.closeposition)
+
+                if response and response.get("status") == "success":
+                    msg = response.get("message", "All positions closed")
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=f"✅ *Positions Closed*\n━━━━━━━━━━━━━━━\n\n{msg}",
+                        parse_mode=ParseMode.MARKDOWN,
+                    )
+                else:
+                    error = response.get("message", "Unknown error") if response else "No response"
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=f"❌ *Failed to close positions*\n\n{error}",
+                        parse_mode=ParseMode.MARKDOWN,
+                    )
+            except Exception as e:
+                logger.exception(f"Error in closeall: {e}")
+                await context.bot.send_message(
+                    chat_id=chat_id, text="❌ Error closing positions. Check server logs."
+                )
+            log_command(user.id, "confirm_closeall", chat_id)
+            return
+
+        # Handle close all + stop strategies
+        if callback_data == "confirm_closeall_with_strategies":
+            telegram_user = get_telegram_user(user.id)
+            if not telegram_user:
+                await query.edit_message_text("❌ Please link your account first using /link")
+                return
+
+            client = self._get_sdk_client(user.id)
+            if not client:
+                await query.edit_message_text("❌ Failed to connect to OpenAlgo")
+                return
+
+            await query.edit_message_text("⏳ Closing all positions and stopping strategies...")
+
+            close_msg = ""
+            try:
+                loop = asyncio.get_event_loop()
+                response = await loop.run_in_executor(None, client.closeposition)
+                if response and response.get("status") == "success":
+                    close_msg = f"✅ {response.get('message', 'All positions closed')}"
+                else:
+                    err = response.get("message", "Unknown error") if response else "No response"
+                    close_msg = f"❌ Failed to close positions: {err}"
+            except Exception as e:
+                logger.exception(f"Error in confirm_closeall_with_strategies (close): {e}")
+                close_msg = "❌ Error closing positions. Check server logs."
+
+            stop_msg = ""
+            try:
+                from blueprints.python_strategy import RUNNING_STRATEGIES, stop_strategy_process
+
+                running_ids = list(RUNNING_STRATEGIES.keys())
+                if not running_ids:
+                    stop_msg = "ℹ️ No Python strategies were running."
+                else:
+                    loop = asyncio.get_event_loop()
+                    stopped, failed = 0, 0
+                    for sid in running_ids:
+                        try:
+                            ok, _ = await loop.run_in_executor(None, stop_strategy_process, sid)
+                            if ok:
+                                stopped += 1
+                            else:
+                                failed += 1
+                        except Exception:
+                            logger.exception(f"Error stopping strategy {sid}")
+                            failed += 1
+                    stop_msg = f"🛑 Strategies stopped: {stopped}"
+                    if failed:
+                        stop_msg += f" (failed: {failed})"
+            except Exception as e:
+                logger.exception(f"Error in confirm_closeall_with_strategies (stop): {e}")
+                stop_msg = "❌ Error stopping strategies. Check server logs."
+
+            await context.bot.send_message(
+                chat_id=chat_id,
+                text=f"*Close All + Stop Strategies*\n━━━━━━━━━━━━━━━\n\n{close_msg}\n\n{stop_msg}",
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            log_command(user.id, "confirm_closeall_with_strategies", chat_id)
+            return
+
+        # Handle /stoppython single-strategy selection → confirmation
+        if callback_data.startswith("spy_") and callback_data != "spy_all":
+            try:
+                idx = int(callback_data.removeprefix("spy_"))
+            except ValueError:
+                await query.edit_message_text("❌ Invalid selection.")
+                return
+
+            stoppy_list = context.user_data.get("stoppy_list", [])
+            if idx < 0 or idx >= len(stoppy_list):
+                await query.edit_message_text(
+                    "❌ Selection expired. Please run /stoppython again."
+                )
+                return
+
+            sid, name = stoppy_list[idx]
+            keyboard = [
+                [
+                    InlineKeyboardButton("✅ Yes, stop", callback_data=f"csy_{idx}"),
+                    InlineKeyboardButton("❌ Cancel", callback_data="cancel_action"),
+                ]
+            ]
+            await query.edit_message_text(
+                f"⚠️ *Stop Strategy*\n━━━━━━━━━━━━━━━\n\nStop *{name}*?",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+
+        # Handle /stoppython "Stop All" → confirmation
+        if callback_data == "spy_all":
+            stoppy_list = context.user_data.get("stoppy_list", [])
+            count = len(stoppy_list)
+            if count == 0:
+                await query.edit_message_text(
+                    "❌ Selection expired. Please run /stoppython again."
+                )
+                return
+
+            keyboard = [
+                [
+                    InlineKeyboardButton("✅ Yes, stop all", callback_data="csy_all"),
+                    InlineKeyboardButton("❌ Cancel", callback_data="cancel_action"),
+                ]
+            ]
+            await query.edit_message_text(
+                f"⚠️ *Stop All Strategies*\n━━━━━━━━━━━━━━━\n\n"
+                f"This will stop *{count}* running Python "
+                f"{'strategy' if count == 1 else 'strategies'}.\n\nAre you sure?",
+                reply_markup=InlineKeyboardMarkup(keyboard),
+                parse_mode=ParseMode.MARKDOWN,
+            )
+            return
+
+        # Handle confirmed stop of a single strategy
+        if callback_data.startswith("csy_") and callback_data != "csy_all":
+            try:
+                idx = int(callback_data.removeprefix("csy_"))
+            except ValueError:
+                await query.edit_message_text("❌ Invalid selection.")
+                return
+
+            stoppy_list = context.user_data.get("stoppy_list", [])
+            if idx < 0 or idx >= len(stoppy_list):
+                await query.edit_message_text(
+                    "❌ Selection expired. Please run /stoppython again."
+                )
+                return
+
+            sid, name = stoppy_list[idx]
+            await query.edit_message_text(f"⏳ Stopping *{name}*...", parse_mode=ParseMode.MARKDOWN)
+            try:
+                from blueprints.python_strategy import stop_strategy_process
+
+                loop = asyncio.get_event_loop()
+                ok, msg = await loop.run_in_executor(None, stop_strategy_process, sid)
+                emoji = "✅" if ok else "❌"
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"{emoji} *{name}*\n{msg}",
+                    parse_mode=ParseMode.MARKDOWN,
+                )
+            except Exception as e:
+                logger.exception(f"Error stopping strategy {sid}: {e}")
+                await context.bot.send_message(
+                    chat_id=chat_id,
+                    text=f"❌ Error stopping *{name}*. Check server logs.",
+                    parse_mode=ParseMode.MARKDOWN,
+                )
+            log_command(user.id, "confirm_stoppython", chat_id)
+            return
+
+        # Handle confirmed stop of all strategies
+        if callback_data == "csy_all":
+            await query.edit_message_text("⏳ Stopping all running strategies...")
+            try:
+                from blueprints.python_strategy import RUNNING_STRATEGIES, stop_strategy_process
+
+                running_ids = list(RUNNING_STRATEGIES.keys())
+                if not running_ids:
+                    await context.bot.send_message(
+                        chat_id=chat_id, text="ℹ️ No Python strategies were running."
+                    )
+                else:
+                    loop = asyncio.get_event_loop()
+                    stopped, failed = 0, 0
+                    for sid in running_ids:
+                        try:
+                            ok, _ = await loop.run_in_executor(None, stop_strategy_process, sid)
+                            if ok:
+                                stopped += 1
+                            else:
+                                failed += 1
+                        except Exception:
+                            logger.exception(f"Error stopping strategy {sid}")
+                            failed += 1
+                    summary = f"🛑 *Strategies Stopped*\n━━━━━━━━━━━━━━━\n\nStopped: {stopped}"
+                    if failed:
+                        summary += f"\nFailed: {failed}"
+                    await context.bot.send_message(
+                        chat_id=chat_id,
+                        text=summary,
+                        parse_mode=ParseMode.MARKDOWN,
+                    )
+            except Exception as e:
+                logger.exception(f"Error in csy_all: {e}")
+                await context.bot.send_message(
+                    chat_id=chat_id, text="❌ Error stopping strategies. Check server logs."
+                )
+            log_command(user.id, "confirm_stoppython_all", chat_id)
+            return
+
+        # Handle remote logout confirmation
+        # Handle mode toggle
+        if callback_data in ("mode_live", "mode_analyze"):
+            try:
+                from database.settings_db import set_analyze_mode, get_analyze_mode
+
+                new_mode = callback_data == "mode_analyze"
+                loop = asyncio.get_event_loop()
+                await loop.run_in_executor(None, set_analyze_mode, new_mode)
+
+                # Sync mode to frontend via SocketIO
+                try:
+                    from extensions import socketio
+                    socketio.emit("app_mode_changed", {"analyze_mode": new_mode})
+                except Exception:
+                    pass
+
+                mode_label = "🔬 Analyze Mode" if new_mode else "🟢 Live Mode"
+                await query.edit_message_text(
+                    f"✅ *Mode Changed*\n━━━━━━━━━━━━━━━\n\nNow in: {mode_label}",
+                    parse_mode=ParseMode.MARKDOWN,
+                )
+            except Exception as e:
+                logger.exception(f"Error toggling mode: {e}")
+                await query.edit_message_text("❌ Failed to change mode. Check server logs.")
+            log_command(user.id, callback_data, chat_id)
+            return
 
         # Handle menu refresh separately - edit the existing message
         if callback_data == "menu":

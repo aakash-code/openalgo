@@ -10,6 +10,7 @@ from flask import current_app as app
 from flask import jsonify, redirect, request, session, url_for
 
 from database.auth_db import get_feed_token as db_get_feed_token
+from utils.ip_helper import get_real_ip
 from database.auth_db import upsert_auth
 from database.master_contract_status_db import (
     get_exchange_stats_from_db,
@@ -237,19 +238,34 @@ def validate_password_strength(password):
 
 def mask_api_credential(credential, show_chars=4):
     """
-    Mask API credentials for display purposes, showing only the first few characters.
+    Mask API credentials for display, returning a fixed-length output.
+
+    Returns ``credential[:show_chars] + '*' * 8`` regardless of the
+    credential's actual length. The fixed-length suffix matters because:
+
+    1. It hides the secret's true length so an over-the-shoulder viewer
+       (or screenshot) cannot infer "this is a 64-char Zerodha secret"
+       vs "this is a 32-char Fyers secret" from the asterisk count.
+    2. It bounds the rendered string so a long token (some brokers issue
+       80+ char keys) cannot overflow a UI column layout.
+
+    Mirrors ``blueprints/broker_credentials.mask_secret``.
 
     Args:
         credential (str): The credential to mask
         show_chars (int): Number of characters to show from the beginning
 
     Returns:
-        str: Masked credential string
+        str: Masked credential string of fixed length, or "" if input is empty.
     """
-    if not credential or len(credential) <= show_chars:
-        return "*" * 8  # Return generic mask for short/empty credentials
+    if not credential:
+        return ""
+    if len(credential) <= show_chars:
+        # Edge case: credential shorter than the prefix budget. Show only
+        # the mask suffix to avoid revealing the entire short value.
+        return "*" * 8
 
-    return credential[:show_chars] + "*" * (len(credential) - show_chars)
+    return credential[:show_chars] + "*" * 8
 
 
 def async_master_contract_download(broker):
@@ -287,7 +303,7 @@ def async_master_contract_download(broker):
             from database.token_db import get_symbol_count
 
             total_symbols = get_symbol_count()
-        except:
+        except Exception:
             total_symbols = None
 
         # Since socketio.emit doesn't return a meaningful value, we check if no exception was raised
@@ -342,7 +358,11 @@ def handle_auth_success(auth_token, user_session_key, broker, feed_token=None, u
     """
     # Set session parameters
     session["logged_in"] = True
-    session["AUTH_TOKEN"] = auth_token
+    # NOTE: do NOT store the broker auth_token in the Flask session. Flask's
+    # default session is a signed-but-unencrypted client-side cookie, so any
+    # value placed here is readable by anyone who obtains the cookie (XSS,
+    # browser-extension, HAR/profile leak). The encrypted DB copy retrieved
+    # via get_auth_token() is the single source of truth for broker calls.
     if feed_token:
         session["FEED_TOKEN"] = feed_token  # Store feed token in session if available
     if user_id:
@@ -355,7 +375,43 @@ def handle_auth_success(auth_token, user_session_key, broker, feed_token=None, u
     session.permanent = True
     set_session_login_time()  # Set the login timestamp
 
+    # Register active session for multi-device tracking
+    import secrets
+    session_id = secrets.token_hex(32)
+    session["session_id"] = session_id  # Store in cookie for logout cleanup
+
+    from database.auth_db import register_session, get_active_sessions
+    register_session(
+        username=user_session_key,
+        session_id=session_id,
+        device_info=request.headers.get("User-Agent", "")[:500],
+        ip_address=get_real_ip(),
+        broker=broker,
+    )
+
+    # Emit session count update via SocketIO (event-driven, no polling)
+    from extensions import socketio
+    active = get_active_sessions(user_session_key)
+    socketio.emit("active_sessions_update", {
+        "count": len(active),
+        "sessions": active,
+    })
+
     logger.info(f"User {user_session_key} logged in successfully with broker {broker}")
+
+    # Log OAuth login attempt (resume logins are logged separately in auth.py)
+    try:
+        from database.auth_db import log_login_attempt
+        log_login_attempt(
+            username=user_session_key,
+            ip_address=get_real_ip(),
+            device_info=request.headers.get("User-Agent", ""),
+            status="success",
+            login_type="oauth",
+            broker=broker,
+        )
+    except Exception:
+        pass  # Don't block login if logging fails
 
     # Store auth token in database
     inserted_id = upsert_auth(

@@ -8,8 +8,11 @@ import {
   Settings2,
   X,
   XCircle,
+  ArrowUp,
+  ArrowDown,
 } from 'lucide-react'
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { type OrderEventType, useOrderEventRefresh } from '@/hooks/useOrderEventRefresh'
 import { showToast } from '@/utils/toast'
 import { type QuotesData, tradingApi } from '@/api/trading'
 import {
@@ -45,6 +48,8 @@ import {
   TableHeader,
   TableRow,
 } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import GttTab from '@/components/trading/GttTab'
 import { cn, makeFormatCurrency, sanitizeCSV } from '@/lib/utils'
 // Note: AlertDialog still used for Cancel All Orders
 import { useSupportedExchanges } from '@/hooks/useSupportedExchanges'
@@ -52,10 +57,23 @@ import { useAuthStore } from '@/stores/authStore'
 import { onModeChange } from '@/stores/themeStore'
 import type { Order, OrderStats } from '@/types/trading'
 
-function formatTime(timestamp: string): string {
-  if (!timestamp) return '-'
+// Sort configuration types
+type SortKey = 'timestamp' | 'symbol' | 'action' | 'order_status';
+interface SortConfig {
+  key: SortKey;
+  direction: 'asc' | 'desc';
+}
 
-  // Try native Date parsing first (handles ISO and standard formats)
+// Fixed: Defined outside component to prevent effect dependency churn and repeated socket re-subscriptions
+const ORDER_BOOK_EVENTS: OrderEventType[] = ['order_event', 'analyzer_update', 'cancel_order_event', 'modify_order_event'];
+
+/**
+ * Helper to convert various broker timestamp formats into a sortable number.
+ * Ensures chronological accuracy for non-ISO formats.
+ */
+function parseTimestamp(timestamp: string): number {
+  if (!timestamp) return 0
+
   let date = new Date(timestamp)
 
   // If invalid, try "HH:MM:SS DD-MM-YYYY" (Flattrade/Shoonya/Zebu/Firstock norentm format)
@@ -74,19 +92,25 @@ function formatTime(timestamp: string): string {
     }
   }
 
-  if (!Number.isNaN(date.getTime())) {
-    return date.toLocaleTimeString('en-IN', {
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit',
-    })
+  return date.getTime() || 0
+}
+
+function formatTime(timestamp: string): string {
+  if (!timestamp) return '-'
+
+  const timeValue = parseTimestamp(timestamp)
+  if (timeValue === 0) {
+     // Last resort: extract HH:MM:SS if embedded in the string
+    const timeMatch = timestamp.match(/(\d{2}:\d{2}:\d{2})/)
+    return timeMatch ? timeMatch[1] : timestamp
   }
 
-  // Last resort: extract HH:MM:SS if embedded in the string
-  const timeMatch = timestamp.match(/(\d{2}:\d{2}:\d{2})/)
-  if (timeMatch) return timeMatch[1]
-
-  return timestamp
+  const date = new Date(timeValue)
+  return date.toLocaleTimeString('en-IN', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  })
 }
 
 const statusConfig: Record<string, { icon: typeof CheckCircle2; color: string; label: string }> = {
@@ -110,6 +134,12 @@ export default function OrderBook() {
   const [statusFilter, setStatusFilter] = useState<string[]>([])
   const [settingsOpen, setSettingsOpen] = useState(false)
 
+  // Sort state - Default: most recent first
+  const [sortConfig, setSortConfig] = useState<SortConfig>({
+    key: 'timestamp',
+    direction: 'desc',
+  })
+
   // Modify order state
   const [modifyDialogOpen, setModifyDialogOpen] = useState(false)
   const [modifyingOrder, setModifyingOrder] = useState<Order | null>(null)
@@ -123,11 +153,37 @@ export default function OrderBook() {
     product: 'MIS' as string,
   })
 
-  // Filter orders based on status
-  const filteredOrders = useMemo(() => {
-    if (statusFilter.length === 0) return orders
-    return orders.filter((order) => statusFilter.includes(order.order_status))
-  }, [orders, statusFilter])
+  // Filter and Sort orders
+  const sortedAndFilteredOrders = useMemo(() => {
+    // 1. Filter Logic
+    const filtered = statusFilter.length === 0 
+      ? orders 
+      : orders.filter((order) => statusFilter.includes(order.order_status))
+
+    // 2. Sort Logic
+    return [...filtered].sort((a, b) => {
+      const aValue = a[sortConfig.key]
+      const bValue = b[sortConfig.key]
+
+      if (sortConfig.key === 'timestamp') {
+        const aTime = parseTimestamp(aValue as string)
+        const bTime = parseTimestamp(bValue as string)
+        return sortConfig.direction === 'asc' ? aTime - bTime : bTime - aTime
+      }
+
+      // Standard string comparison for Symbol, Action, and Status
+      if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1
+      if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1
+      return 0
+    })
+  }, [orders, statusFilter, sortConfig])
+
+  const requestSort = (key: SortKey) => {
+    setSortConfig((prev) => ({
+      key,
+      direction: prev.key === key && prev.direction === 'asc' ? 'desc' : 'asc',
+    }))
+  }
 
   const hasActiveFilters = statusFilter.length > 0
 
@@ -174,9 +230,12 @@ export default function OrderBook() {
 
   useEffect(() => {
     fetchOrders()
-    const interval = setInterval(() => fetchOrders(), 10000)
-    return () => clearInterval(interval)
   }, [fetchOrders])
+
+  // Refresh on order events instead of polling
+  useOrderEventRefresh(fetchOrders, {
+    events: ORDER_BOOK_EVENTS,
+  })
 
   // Listen for mode changes (live/analyze) and refresh data
   useEffect(() => {
@@ -252,16 +311,20 @@ export default function OrderBook() {
   const handleModifyOrder = async () => {
     if (!modifyingOrder) return
 
+    const pt = modifyForm.pricetype
+    const sendsPrice = pt === 'LIMIT' || pt === 'SL'
+    const sendsTrigger = pt === 'SL' || pt === 'SL-M'
+
     try {
       const response = await tradingApi.modifyOrder(modifyingOrder.orderid, {
         symbol: modifyingOrder.symbol,
         exchange: modifyingOrder.exchange,
         action: modifyingOrder.action,
         product: modifyingOrder.product,
-        pricetype: modifyForm.pricetype,
-        price: modifyForm.price,
+        pricetype: pt,
         quantity: modifyForm.quantity,
-        trigger_price: modifyForm.trigger_price,
+        ...(sendsPrice && { price: modifyForm.price }),
+        ...(sendsTrigger && { trigger_price: modifyForm.trigger_price }),
       })
       if (response.status === 'success') {
         showToast.success(`Order modified: ${modifyingOrder.orderid}`, 'orders')
@@ -278,7 +341,7 @@ export default function OrderBook() {
   }
 
   const exportToCSV = () => {
-    if (filteredOrders.length === 0) {
+    if (sortedAndFilteredOrders.length === 0) {
       showToast.error('No data to export', 'system')
       return
     }
@@ -297,7 +360,7 @@ export default function OrderBook() {
         'Status',
         'Time',
       ]
-      const rows = filteredOrders.map((o) => [
+      const rows = sortedAndFilteredOrders.map((o) => [
         sanitizeCSV(o.symbol),
         sanitizeCSV(o.exchange),
         sanitizeCSV(o.action),
@@ -344,13 +407,25 @@ export default function OrderBook() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold tracking-tight">Order Book</h1>
-          <p className="text-muted-foreground">View and manage your orders</p>
-        </div>
-        <div className="flex items-center gap-2 flex-wrap">
+      {/* Page Header */}
+      <div>
+        <h1 className="text-3xl font-bold tracking-tight">Order Book</h1>
+        <p className="text-muted-foreground">View and manage your orders</p>
+      </div>
+
+      <Tabs defaultValue="orders" className="space-y-6">
+        <TabsList className="h-10">
+          <TabsTrigger value="orders" className="min-w-[110px] text-sm">
+            Orders
+          </TabsTrigger>
+          <TabsTrigger value="gtt" className="min-w-[110px] text-sm">
+            GTT
+          </TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="orders" className="space-y-6">
+      {/* Orders tab toolbar */}
+      <div className="flex items-center justify-end gap-2 flex-wrap">
           {/* Settings Button */}
           <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
             <DialogTrigger asChild>
@@ -430,7 +505,6 @@ export default function OrderBook() {
               </AlertDialogFooter>
             </AlertDialogContent>
           </AlertDialog>
-        </div>
       </div>
 
       {/* Active Filters Bar */}
@@ -499,14 +573,14 @@ export default function OrderBook() {
 
       {/* Orders Table */}
       <Card>
-        <CardContent className="p-0">
+        <CardContent className="py-0">
           {isLoading ? (
             <div className="flex items-center justify-center py-12">
               <Loader2 className="h-8 w-8 animate-spin" />
             </div>
           ) : error ? (
             <div className="text-center py-12 text-muted-foreground">{error}</div>
-          ) : filteredOrders.length === 0 ? (
+          ) : sortedAndFilteredOrders.length === 0 ? (
             <div className="text-center py-12 text-muted-foreground">
               {hasActiveFilters ? (
                 <div>
@@ -524,23 +598,63 @@ export default function OrderBook() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="w-[120px]">Symbol</TableHead>
+                    <TableHead 
+                      className="w-[120px] cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => requestSort('symbol')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Symbol
+                        {sortConfig.key === 'symbol' && (
+                          sortConfig.direction === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        )}
+                      </div>
+                    </TableHead>
                     <TableHead className="w-[80px]">Exchange</TableHead>
-                    <TableHead className="w-[70px]">Action</TableHead>
+                    <TableHead 
+                      className="w-[70px] cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => requestSort('action')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Action
+                        {sortConfig.key === 'action' && (
+                          sortConfig.direction === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        )}
+                      </div>
+                    </TableHead>
                     <TableHead className="w-[70px] text-right">Qty</TableHead>
                     <TableHead className="w-[100px] text-right">Price</TableHead>
                     <TableHead className="w-[100px] text-right">Trigger</TableHead>
                     <TableHead className="w-[80px]">Type</TableHead>
                     {!isCrypto && <TableHead className="w-[70px]">Product</TableHead>}
                     <TableHead className="w-[140px]">Order ID</TableHead>
-                    <TableHead className="w-[100px]">Status</TableHead>
-                    <TableHead className="w-[100px]">Time</TableHead>
+                    <TableHead 
+                      className="w-[100px] cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => requestSort('order_status')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Status
+                        {sortConfig.key === 'order_status' && (
+                          sortConfig.direction === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        )}
+                      </div>
+                    </TableHead>
+                    <TableHead 
+                      className="w-[100px] cursor-pointer hover:bg-muted/50 transition-colors"
+                      onClick={() => requestSort('timestamp')}
+                    >
+                      <div className="flex items-center gap-1">
+                        Time
+                        {sortConfig.key === 'timestamp' && (
+                          sortConfig.direction === 'asc' ? <ArrowUp className="h-3 w-3" /> : <ArrowDown className="h-3 w-3" />
+                        )}
+                      </div>
+                    </TableHead>
                     <TableHead className="w-[60px]">Cancel</TableHead>
                     <TableHead className="w-[60px]">Modify</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {filteredOrders.map((order, index) => {
+                  {sortedAndFilteredOrders.map((order, index) => {
                     const status = statusConfig[order.order_status] || statusConfig.open
                     const StatusIcon = status.icon
                     const canCancel = order.order_status === 'open'
@@ -619,6 +733,12 @@ export default function OrderBook() {
           )}
         </CardContent>
       </Card>
+        </TabsContent>
+
+        <TabsContent value="gtt" className="space-y-6">
+          <GttTab />
+        </TabsContent>
+      </Tabs>
 
       {/* Modify Order Dialog */}
       <Dialog open={modifyDialogOpen} onOpenChange={setModifyDialogOpen}>
@@ -720,6 +840,27 @@ export default function OrderBook() {
 
           {/* Editable Fields - Based on Order Type */}
           <div className="grid gap-4 py-2">
+            {/* Quantity field - shown for all modifiable order types (LIMIT, SL, SL-M) */}
+            {modifyForm.pricetype !== 'MARKET' && (
+              <div className="grid grid-cols-4 items-center gap-4">
+                <Label htmlFor="quantity" className="text-right">
+                  Quantity
+                </Label>
+                <Input
+                  id="quantity"
+                  type="number"
+                  step={isCrypto ? 'any' : '1'}
+                  min="0"
+                  value={modifyForm.quantity}
+                  onChange={(e) => {
+                    const raw = e.target.value
+                    const parsed = isCrypto ? parseFloat(raw) : parseInt(raw, 10)
+                    setModifyForm({ ...modifyForm, quantity: Number.isFinite(parsed) ? parsed : 0 })
+                  }}
+                  className="col-span-3"
+                />
+              </div>
+            )}
             {/* Price field - shown for LIMIT and SL orders */}
             {(modifyForm.pricetype === 'LIMIT' || modifyForm.pricetype === 'SL') && (
               <div className="grid grid-cols-4 items-center gap-4">
@@ -774,5 +915,3 @@ export default function OrderBook() {
     </div>
   )
 }
-
-

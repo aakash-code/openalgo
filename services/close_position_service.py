@@ -1,6 +1,5 @@
 import copy
 import importlib
-import traceback
 from typing import Any, Dict, Optional, Tuple
 
 from database.auth_db import get_auth_token_broker
@@ -141,8 +140,7 @@ def close_position_with_auth(
         api_key = position_data.get("apikey", "")
         response_code, status_code = broker_module.close_all_positions(api_key, auth_token)
     except Exception as e:
-        logger.error(f"Error in broker_module.close_all_positions: {e}")
-        traceback.print_exc()
+        logger.exception(f"Error in broker_module.close_all_positions: {e}")
         error_response = {
             "status": "error",
             "message": "Failed to close positions due to internal error",
@@ -218,7 +216,7 @@ def close_position(
     # Case 1: API-based authentication
     if api_key and not (auth_token and broker):
         # Check if user is in semi-auto mode (closeposition is blocked in semi-auto)
-        # BUT allow execution in analyze/sandbox mode (virtual trading should always work)
+        # BUT allow execution in analyze/sandbox mode (sandbox trading should always work)
         from database.auth_db import get_order_mode, verify_api_key
 
         # Check analyze mode first - if in analyze mode, allow execution

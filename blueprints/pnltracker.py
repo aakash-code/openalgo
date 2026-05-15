@@ -1,6 +1,5 @@
 import threading
 import time as time_module
-import traceback
 from datetime import datetime, timedelta
 from datetime import time as dt_time
 from importlib import import_module
@@ -144,12 +143,12 @@ def convert_timestamp_to_ist(df, symbol=""):
             try:
                 df["datetime"] = pd.to_datetime(df["timestamp"], unit="s", utc=True)
                 df["datetime"] = df["datetime"].dt.tz_convert(ist)
-            except:
+            except Exception:
                 # Try as milliseconds
                 try:
                     df["datetime"] = pd.to_datetime(df["timestamp"], unit="ms", utc=True)
                     df["datetime"] = df["datetime"].dt.tz_convert(ist)
-                except:
+                except Exception:
                     # Try as string datetime
                     df["datetime"] = pd.to_datetime(df["timestamp"])
                     if df["datetime"].dt.tz is None:
@@ -1045,7 +1044,7 @@ def get_pnl_data():
                 if not portfolio_pnl.empty
                 else None
             )
-        except:
+        except Exception:
             max_mtm_time = None
             min_mtm_time = None
 
@@ -1102,6 +1101,5 @@ def get_pnl_data():
         ), 200
 
     except Exception as e:
-        logger.error(f"Error calculating intraday PnL: {e}")
-        traceback.print_exc()
+        logger.exception(f"Error calculating intraday PnL: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500

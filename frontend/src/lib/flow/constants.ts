@@ -13,13 +13,18 @@ export const EXCHANGES = [
   { value: 'CDS', label: 'CDS' },
   { value: 'BCD', label: 'BCD' },
   { value: 'MCX', label: 'MCX' },
+  { value: 'NCO', label: 'NCO' },
   { value: 'NSE_INDEX', label: 'NSE_INDEX' },
   { value: 'BSE_INDEX', label: 'BSE_INDEX' },
+  { value: 'MCX_INDEX', label: 'MCX_INDEX' },
+  { value: 'GLOBAL_INDEX', label: 'GLOBAL_INDEX' },
 ] as const
 
 export const INDEX_EXCHANGES = [
   { value: 'NSE_INDEX', label: 'NSE_INDEX' },
   { value: 'BSE_INDEX', label: 'BSE_INDEX' },
+  { value: 'MCX_INDEX', label: 'MCX_INDEX' },
+  { value: 'GLOBAL_INDEX', label: 'GLOBAL_INDEX' },
 ] as const
 
 // =============================================================================

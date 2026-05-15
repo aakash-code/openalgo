@@ -546,7 +546,7 @@ def process_definedge_allmaster_csv(path):
 
                 expiry_date = datetime.strptime(str(expiry_str), "%d%m%Y")
                 return expiry_date.strftime("%d-%b-%y").upper()
-            except:
+            except Exception:
                 return str(expiry_str)
 
         # Apply expiry formatting for derivatives
@@ -700,10 +700,7 @@ def process_definedge_allmaster_csv(path):
         return processed_df
 
     except Exception as e:
-        logger.error(f"Error processing allmaster.csv: {e}")
-        import traceback
-
-        logger.error(f"Traceback: {traceback.format_exc()}")
+        logger.exception(f"Error processing allmaster.csv: {e}")
         return pd.DataFrame()
 
 
@@ -797,7 +794,7 @@ def master_contract_download():
                 "master_contract_download",
                 {"status": "success", "message": "Successfully Downloaded"},
             )
-        except:
+        except Exception:
             return True
 
     except Exception as e:
@@ -811,9 +808,9 @@ def master_contract_download():
                 return socketio.emit(
                     "master_contract_download", {"status": "error", "message": str(e)}
                 )
-            except:
+            except Exception:
                 return False
-        except:
+        except Exception:
             return False
 
 

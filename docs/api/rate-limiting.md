@@ -89,7 +89,7 @@ LOGIN_RATE_LIMIT_HOUR="25 per hour"
 # API rate limits
 API_RATE_LIMIT="50 per second"
 ORDER_RATE_LIMIT="10 per second"
-SMART_ORDER_RATE_LIMIT="2 per second"
+SMART_ORDER_RATE_LIMIT="10 per second"
 WEBHOOK_RATE_LIMIT="100 per minute"
 STRATEGY_RATE_LIMIT="200 per minute"
 ```
@@ -98,6 +98,7 @@ These limits follow [Flask-Limiter syntax](https://flask-limiter.readthedocs.io/
 - `10 per second`
 - `100 per minute`
 - `1000 per day`
+- `10 per second;40 per minute` (compound — both limits enforced simultaneously)
 
 ## What Happens When Limits Are Exceeded
 

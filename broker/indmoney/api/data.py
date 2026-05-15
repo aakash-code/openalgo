@@ -710,7 +710,7 @@ class BrokerData:
                         if total_sell
                         else sum(ask["quantity"] for ask in asks)
                     )
-                except:
+                except Exception:
                     # Fallback to calculation from depth
                     totalbuyqty = sum(bid["quantity"] for bid in bids)
                     totalsellqty = sum(ask["quantity"] for ask in asks)
@@ -956,9 +956,7 @@ class BrokerData:
                     )
                     logger.error(f"Chunk error type: {type(chunk_error).__name__}")
                     logger.error(f"Chunk error details: {repr(chunk_error)}")
-                    import traceback
-
-                    logger.error(f"Full traceback: {traceback.format_exc()}")
+                    logger.exception("Full traceback for chunk error")
                     continue
 
             logger.info(f"Total candles collected from all chunks: {len(all_candles)}")

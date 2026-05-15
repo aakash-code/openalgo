@@ -13,8 +13,16 @@ from database.token_db import get_br_symbol, get_oa_symbol, get_token
 from utils.httpx_client import get_httpx_client
 from utils.logging import get_logger
 
-# Toggle between async and threaded approach
-USE_ASYNC = True  # Set to True to use asyncio (better performance)
+# Auto-detect eventlet environment (Docker/standalone uses gunicorn+eventlet)
+# asyncio.run() cannot be called under eventlet's monkey-patched event loop
+def _is_eventlet_patched():
+    try:
+        import eventlet.patcher
+        return eventlet.patcher.is_monkey_patched("socket")
+    except (ImportError, AttributeError):
+        return False
+
+USE_ASYNC = not _is_eventlet_patched()
 
 logger = get_logger(__name__)
 
@@ -24,7 +32,9 @@ def get_api_response(endpoint, auth, method="POST", payload=None):
     Common function to make API calls to Zebu using httpx with connection pooling
     """
     AUTH_TOKEN = auth
-    api_key = os.getenv("BROKER_API_KEY")
+    # BROKER_API_KEY format: userid:::client_id (e.g., Z56004:::Z56004_U)
+    full_api_key = os.getenv("BROKER_API_KEY")
+    api_key = full_api_key.split(":::")[0]  # Trading user ID
 
     if payload is None:
         data = {"uid": api_key}
@@ -32,12 +42,15 @@ def get_api_response(endpoint, auth, method="POST", payload=None):
         data = payload
         data["uid"] = api_key
 
-    payload_str = "jData=" + json.dumps(data) + "&jKey=" + AUTH_TOKEN
+    payload_str = "jData=" + json.dumps(data)
 
     # Get the shared httpx client
     client = get_httpx_client()
 
-    headers = {"Content-Type": "application/x-www-form-urlencoded"}
+    headers = {
+        "Content-Type": "text/plain",
+        "Authorization": f"Bearer {AUTH_TOKEN}",
+    }
     url = f"https://go.mynt.in{endpoint}"
 
     response = client.request(method, url, content=payload_str, headers=headers)
@@ -89,10 +102,10 @@ class BrokerData:
             elif exchange == "BSE_INDEX":
                 api_exchange = "BSE"
 
-            payload = {"uid": os.getenv("BROKER_API_KEY"), "exch": api_exchange, "token": token}
+            payload = {"exch": api_exchange, "token": token}
 
             response = get_api_response(
-                "/NorenWClientTP/GetQuotes", self.auth_token, payload=payload
+                "/NorenWClientAPI/GetQuotes", self.auth_token, payload=payload
             )
 
             if response.get("stat") != "Ok":
@@ -109,6 +122,7 @@ class BrokerData:
                 "prev_close": float(response.get("c", 0)) if "c" in response else 0,
                 "volume": int(response.get("v", 0)),
                 "oi": int(response.get("oi", 0)),
+                "tick_size": float(response.get("ti", 0)) if response.get("ti") else None,
             }
 
         except Exception as e:
@@ -168,9 +182,12 @@ class BrokerData:
         try:
             data = {"uid": api_key, "exch": api_exchange, "token": token}
 
-            payload_str = "jData=" + json.dumps(data) + "&jKey=" + self.auth_token
-            headers = {"Content-Type": "application/x-www-form-urlencoded"}
-            url = "https://go.mynt.in/NorenWClientTP/GetQuotes"
+            payload_str = "jData=" + json.dumps(data)
+            headers = {
+                "Content-Type": "text/plain",
+                "Authorization": f"Bearer {self.auth_token}",
+            }
+            url = "https://go.mynt.in/NorenWClientAPI/GetQuotes"
 
             # Use httpx.post for sync requests
             http_response = httpx.post(url, content=payload_str, headers=headers, timeout=10.0)
@@ -217,9 +234,12 @@ class BrokerData:
         try:
             data = {"uid": api_key, "exch": api_exchange, "token": token}
 
-            payload_str = "jData=" + json.dumps(data) + "&jKey=" + self.auth_token
-            headers = {"Content-Type": "application/x-www-form-urlencoded"}
-            url = "https://go.mynt.in/NorenWClientTP/GetQuotes"
+            payload_str = "jData=" + json.dumps(data)
+            headers = {
+                "Content-Type": "text/plain",
+                "Authorization": f"Bearer {self.auth_token}",
+            }
+            url = "https://go.mynt.in/NorenWClientAPI/GetQuotes"
 
             # Use async httpx client
             http_response = await client.post(url, content=payload_str, headers=headers)
@@ -304,8 +324,9 @@ class BrokerData:
         skipped_symbols = []
         prepared_symbols = []
 
-        # Pre-fetch API key
-        api_key = os.getenv("BROKER_API_KEY")
+        # Pre-fetch API key (userid part)
+        full_api_key = os.getenv("BROKER_API_KEY")
+        api_key = full_api_key.split(":::")[0]  # Trading user ID
 
         # Step 1: Pre-resolve all tokens sequentially (database access)
         for item in symbols:
@@ -349,7 +370,17 @@ class BrokerData:
             return skipped_symbols
 
         # Step 2: Make concurrent API calls
-        if USE_ASYNC:
+        # Runtime check: even if USE_ASYNC is True, asyncio.run() will crash
+        # if called from within an already-running event loop
+        use_async = USE_ASYNC
+        if use_async:
+            try:
+                asyncio.get_running_loop()
+                use_async = False
+            except RuntimeError:
+                pass
+
+        if use_async:
             # Async approach with httpx.AsyncClient
             results = asyncio.run(self._process_quotes_batch_async(prepared_symbols, api_key))
         else:
@@ -391,10 +422,10 @@ class BrokerData:
             elif exchange == "BSE_INDEX":
                 api_exchange = "BSE"
 
-            payload = {"uid": os.getenv("BROKER_API_KEY"), "exch": api_exchange, "token": token}
+            payload = {"exch": api_exchange, "token": token}
 
             response = get_api_response(
-                "/NorenWClientTP/GetQuotes", self.auth_token, payload=payload
+                "/NorenWClientAPI/GetQuotes", self.auth_token, payload=payload
             )
 
             if response.get("stat") != "Ok":
@@ -506,7 +537,7 @@ class BrokerData:
                 logger.debug(f"EOD Payload: {payload}")  # Debug print
                 try:
                     response = get_api_response(
-                        "/NorenWClientTP/EODChartData", self.auth_token, payload=payload
+                        "/NorenWClientAPI/EODChartData", self.auth_token, payload=payload
                     )
                     logger.debug(f"EOD Response: {response}")  # Debug print
                 except Exception as e:
@@ -515,7 +546,6 @@ class BrokerData:
             else:
                 # For intraday data, use TPSeries endpoint
                 payload = {
-                    "uid": os.getenv("BROKER_API_KEY"),
                     "exch": api_exchange,
                     "token": token,
                     "st": str(start_ts),
@@ -525,7 +555,7 @@ class BrokerData:
 
                 logger.debug(f"Intraday Payload: {payload}")  # Debug print
                 response = get_api_response(
-                    "/NorenWClientTP/TPSeries", self.auth_token, payload=payload
+                    "/NorenWClientAPI/TPSeries", self.auth_token, payload=payload
                 )
                 logger.debug(f"Intraday Response: {response}")  # Debug print
 
@@ -598,7 +628,7 @@ class BrokerData:
                             # Get today's data from quotes
                             payload = {"exch": api_exchange, "token": token}
                             quotes_response = get_api_response(
-                                "/NorenWClientTP/GetQuotes", self.auth_token, payload=payload
+                                "/NorenWClientAPI/GetQuotes", self.auth_token, payload=payload
                             )
                             logger.debug(f"Quotes Response: {quotes_response}")  # Debug print
 

@@ -1,7 +1,21 @@
 # Mapping OpenAlgo API Request https://openalgo.in/docs
-# Mapping Angel Broking Parameters https://smartapi.angelbroking.com/docs/Orders
+# Mapping Kotak Neo API Parameters
 
 from database.token_db import get_br_symbol
+from utils.logging import get_logger
+
+logger = get_logger(__name__)
+
+
+def _fmt_price(value):
+    """Kotak rejects '0.0' on numeric fields — emit '0' for zero, otherwise stringified value."""
+    try:
+        f = float(value)
+    except (TypeError, ValueError):
+        return str(value) if value is not None else "0"
+    if f == 0:
+        return "0"
+    return str(value)
 
 
 def transform_data(data, token):
@@ -10,29 +24,32 @@ def transform_data(data, token):
     ALL values must be strings for Kotak API.
     """
     symbol = get_br_symbol(data["symbol"], data["exchange"])
-    # Basic mapping - ALL values must be strings for Kotak API
+
+    order_type = map_order_type(data["pricetype"])
+    action = data["action"].upper()
+
     transformed = {
         "am": "NO",
         "dq": str(data.get("disclosed_quantity", "0")),
-        "bc": "1",
         "es": reverse_map_exchange(data["exchange"]),
         "mp": "0",
         "pc": data.get("product", "MIS"),
         "pf": "N",
-        "pr": str(data.get("price", "0")),
-        "pt": map_order_type(data["pricetype"]),
+        "pr": _fmt_price(data.get("price", 0)),
+        "pt": order_type,
         "qt": str(data["quantity"]),
         "rt": "DAY",
-        "tp": str(data.get("trigger_price", "0")),
+        "tp": _fmt_price(data.get("trigger_price", 0)),
         "ts": symbol,
-        "tt": "B" if data["action"] == "BUY" else ("S" if data["action"] == "SELL" else "None"),
+        "tt": "B" if action == "BUY" else ("S" if action == "SELL" else "None"),
     }
+
+    logger.info(f"Transformed order data: {transformed}")
     return transformed
 
 
 def transform_modify_order_data(data, token):
     symbol = get_br_symbol(data["symbol"], data["exchange"])
-    # Basic mapping - ALL values must be strings for Kotak API
     transformed = {
         "tk": str(token),
         "dq": str(data.get("disclosed_quantity", "0")),
@@ -41,10 +58,10 @@ def transform_modify_order_data(data, token):
         "dd": "NA",
         "vd": "DAY",
         "pc": data.get("product", "MIS"),
-        "pr": str(data.get("price", "0")),
+        "pr": _fmt_price(data.get("price", 0)),
         "pt": map_order_type(data["pricetype"]),
         "qt": str(data["quantity"]),
-        "tp": str(data.get("trigger_price", "0")),
+        "tp": _fmt_price(data.get("trigger_price", 0)),
         "ts": symbol,
         "no": str(data["orderid"]),
         "tt": "B" if data["action"] == "BUY" else ("S" if data["action"] == "SELL" else "None"),

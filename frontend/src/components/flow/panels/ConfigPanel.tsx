@@ -197,8 +197,9 @@ export function ConfigPanel() {
         </div>
       </div>
 
-      <ScrollArea className="flex-1">
-        <div className="space-y-4 p-4">
+      <div className="flex-1 min-h-0">
+        <ScrollArea className="h-full">
+          <div className="space-y-4 p-4">
 
           {/* ===== SCHEDULE/START ===== */}
           {nodeType === 'start' && (<>
@@ -209,7 +210,7 @@ export function ConfigPanel() {
               </Select></div>
             {nodeData.scheduleType !== 'interval' && (<div className="space-y-2"><Label className="text-xs">Time</Label><Input type="time" className="h-8" value={(nodeData.time as string) || '09:15'} onChange={(e) => handleDataChange('time', e.target.value)} /></div>)}
             {nodeData.scheduleType === 'interval' && (<div className="space-y-2"><Label className="text-xs">Repeat Every</Label><div className="flex gap-2"><Input type="number" min="1" className="h-8 w-20" value={(nodeData.intervalValue as number) || 1} onChange={(e) => handleDataChange('intervalValue', parseInt(e.target.value, 10) || 1)} /><Select value={(nodeData.intervalUnit as string) || 'minutes'} onValueChange={(v) => handleDataChange('intervalUnit', v)}><SelectTrigger className="h-8 flex-1"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="seconds">Seconds</SelectItem><SelectItem value="minutes">Minutes</SelectItem><SelectItem value="hours">Hours</SelectItem></SelectContent></Select></div></div>)}
-            {(nodeData.scheduleType === 'daily' || nodeData.scheduleType === 'weekly') && (<div className="space-y-2"><Label className="text-xs">Run On Days</Label><div className="flex flex-wrap gap-1 mb-2"><button type="button" onClick={() => handleDataChange('days', [0,1,2,3,4])} className="rounded-md bg-muted px-2 py-1 text-[10px] hover:bg-accent">Weekdays</button><button type="button" onClick={() => handleDataChange('days', [5,6])} className="rounded-md bg-muted px-2 py-1 text-[10px] hover:bg-accent">Weekends</button><button type="button" onClick={() => handleDataChange('days', [0,1,2,3,4,5,6])} className="rounded-md bg-muted px-2 py-1 text-[10px] hover:bg-accent">All</button></div><div className="flex flex-wrap gap-1">{DAYS_OF_WEEK.map((day) => { const days = (nodeData.days as number[]) || [0,1,2,3,4]; const sel = days.includes(day.value); return (<button key={day.value} type="button" onClick={() => handleDataChange('days', sel ? days.filter(d => d !== day.value) : [...days, day.value].sort())} className={cn('flex h-8 w-8 items-center justify-center rounded-md text-xs font-medium', sel ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent')}>{day.label}</button>)})}</div></div>)}
+            {(nodeData.scheduleType === 'daily' || nodeData.scheduleType === 'weekly') && (<div className="space-y-2"><Label className="text-xs">Run On Days</Label><div className="flex flex-wrap gap-1 mb-2"><button type="button" onClick={() => handleDataChange('days', [0, 1, 2, 3, 4])} className="rounded-md bg-muted px-2 py-1 text-[10px] hover:bg-accent">Weekdays</button><button type="button" onClick={() => handleDataChange('days', [5, 6])} className="rounded-md bg-muted px-2 py-1 text-[10px] hover:bg-accent">Weekends</button><button type="button" onClick={() => handleDataChange('days', [0, 1, 2, 3, 4, 5, 6])} className="rounded-md bg-muted px-2 py-1 text-[10px] hover:bg-accent">All</button></div><div className="flex flex-wrap gap-1">{DAYS_OF_WEEK.map((day) => { const days = (nodeData.days as number[]) || [0, 1, 2, 3, 4]; const sel = days.includes(day.value); return (<button key={day.value} type="button" onClick={() => handleDataChange('days', sel ? days.filter(d => d !== day.value) : [...days, day.value].sort())} className={cn('flex h-8 w-8 items-center justify-center rounded-md text-xs font-medium', sel ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground hover:bg-accent')}>{day.label}</button>) })}</div></div>)}
             {nodeData.scheduleType === 'once' && (<div className="space-y-2"><Label className="text-xs">Date</Label><Input type="date" className="h-8" value={(nodeData.executeAt as string) || ''} onChange={(e) => handleDataChange('executeAt', e.target.value)} /></div>)}
           </>)}
 
@@ -229,7 +230,7 @@ export function ConfigPanel() {
           {nodeType === 'webhookTrigger' && (<>
             <div className="space-y-2"><Label className="text-xs">Label</Label><Input className="h-8" placeholder="TradingView Alert" value={(nodeData.label as string) || ''} onChange={(e) => handleDataChange('label', e.target.value)} /></div>
             <div className="space-y-2"><Label className="text-xs">Symbol</Label><Input className="h-8" placeholder="RELIANCE" value={(nodeData.symbol as string) || ''} onChange={(e) => handleDataChange('symbol', e.target.value)} /></div>
-            <div className="space-y-2"><Label className="text-xs">Exchange</Label><Select value={(nodeData.exchange as string) || 'NSE'} onValueChange={(v) => handleDataChange('exchange', v)}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="NSE">NSE</SelectItem><SelectItem value="BSE">BSE</SelectItem><SelectItem value="NFO">NFO</SelectItem><SelectItem value="CDS">CDS</SelectItem><SelectItem value="MCX">MCX</SelectItem></SelectContent></Select></div>
+            <div className="space-y-2"><Label className="text-xs">Exchange</Label><Select value={(nodeData.exchange as string) || 'NSE'} onValueChange={(v) => handleDataChange('exchange', v)}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent>{EXCHANGES.map((e) => (<SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>))}</SelectContent></Select></div>
             <Separator />
             {webhookQuery.isLoading ? (<div className="flex justify-center py-4"><Loader2 className="h-5 w-5 animate-spin" /></div>) : webhookQuery.data ? (<>
               <div className="space-y-2"><Label className="text-xs">Webhook URL</Label><div className="flex gap-1"><Input readOnly value={nodeData.symbol ? `${webhookQuery.data.webhook_url}/${nodeData.symbol}` : webhookQuery.data.webhook_url} className="font-mono text-[10px] h-8" /><Button variant="outline" size="icon" className="h-8 w-8" onClick={() => copyToClipboard(nodeData.symbol ? `${webhookQuery.data.webhook_url}/${nodeData.symbol}` : webhookQuery.data.webhook_url, 'URL')}><Copy className="h-3 w-3" /></Button></div></div>
@@ -303,7 +304,7 @@ export function ConfigPanel() {
           {/* ===== BASKET ORDER ===== */}
           {nodeType === 'basketOrder' && (<>
             <div className="space-y-2"><Label className="text-xs">Basket Name</Label><Input className="h-8" placeholder="Morning Portfolio" value={(nodeData.basketName as string) || ''} onChange={(e) => handleDataChange('basketName', e.target.value)} /></div>
-            <div className="space-y-2"><Label className="text-xs">Orders (SYMBOL,EXCHANGE,ACTION,QTY)</Label><Textarea className="min-h-[100px] text-xs font-mono" placeholder="RELIANCE,NSE,BUY,10&#10;INFY,NSE,BUY,5&#10;SBIN,NSE,SELL,20" value={(nodeData.orders as string) || ''} onChange={(e) => handleDataChange('orders', e.target.value)} /><p className="text-[10px] text-muted-foreground">Supported exchanges: NSE, BSE, NFO, BFO, CDS, BCD, MCX</p></div>
+            <div className="space-y-2"><Label className="text-xs">Orders (SYMBOL,EXCHANGE,ACTION,QTY)</Label><Textarea className="min-h-[100px] text-xs font-mono" placeholder="RELIANCE,NSE,BUY,10&#10;INFY,NSE,BUY,5&#10;SBIN,NSE,SELL,20" value={(nodeData.orders as string) || ''} onChange={(e) => handleDataChange('orders', e.target.value)} /><p className="text-[10px] text-muted-foreground">Supported exchanges: NSE, BSE, NFO, BFO, CDS, BCD, MCX, NCO</p></div>
             <div className="space-y-2"><Label className="text-xs">Product</Label><Select value={(nodeData.product as string) || 'MIS'} onValueChange={(v) => handleDataChange('product', v)}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent>{PRODUCT_TYPES.map((t) => (<SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>))}</SelectContent></Select></div>
             <div className="space-y-2"><Label className="text-xs">Price Type</Label><Select value={(nodeData.priceType as string) || 'MARKET'} onValueChange={(v) => handleDataChange('priceType', v)}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent>{PRICE_TYPES.map((t) => (<SelectItem key={t.value} value={t.value}>{t.label}</SelectItem>))}</SelectContent></Select></div>
             <div className="space-y-2"><Label className="text-xs">Output Variable</Label><Input className="h-8" placeholder="basketResult" value={(nodeData.outputVariable as string) || ''} onChange={(e) => handleDataChange('outputVariable', e.target.value)} /><p className="text-[10px] text-muted-foreground">Use {`{{basketResult.results}}`} in other nodes</p></div>
@@ -371,7 +372,8 @@ export function ConfigPanel() {
 
           {nodeType === 'expiry' && (<>
             <div className="space-y-2"><Label className="text-xs">Symbol</Label><Input className="h-8" placeholder="NIFTY" value={(nodeData.symbol as string) || ''} onChange={(e) => handleDataChange('symbol', e.target.value)} /></div>
-            <div className="space-y-2"><Label className="text-xs">Exchange</Label><Select value={(nodeData.exchange as string) || 'NFO'} onValueChange={(v) => handleDataChange('exchange', v)}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="NFO">NFO</SelectItem><SelectItem value="BFO">BFO</SelectItem><SelectItem value="MCX">MCX</SelectItem><SelectItem value="CDS">CDS</SelectItem></SelectContent></Select></div>
+            <div className="space-y-2"><Label className="text-xs">Exchange</Label><Select value={(nodeData.exchange as string) || 'NFO'} onValueChange={(v) => handleDataChange('exchange', v)}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="NFO">NFO</SelectItem><SelectItem value="BFO">BFO</SelectItem><SelectItem value="MCX">MCX</SelectItem><SelectItem value="NCO">NCO</SelectItem><SelectItem value="CDS">CDS</SelectItem></SelectContent></Select></div>
+            <div className="space-y-2"><Label className="text-xs">Instrument Type</Label><Select value={(nodeData.instrumenttype as string) || 'options'} onValueChange={(v) => handleDataChange('instrumenttype', v)}><SelectTrigger className="h-8"><SelectValue /></SelectTrigger><SelectContent><SelectItem value="options">Options</SelectItem><SelectItem value="futures">Futures</SelectItem></SelectContent></Select><p className="text-[10px] text-muted-foreground">Futures and options have different expiry calendars</p></div>
             <div className="space-y-2"><Label className="text-xs">Output Variable</Label><Input className="h-8" placeholder="expiries" value={(nodeData.outputVariable as string) || ''} onChange={(e) => handleDataChange('outputVariable', e.target.value)} /><p className="text-[10px] text-muted-foreground">Use {`{{expiries.data[0]}}`}</p></div>
           </>)}
 
@@ -559,8 +561,9 @@ export function ConfigPanel() {
 
           <Separator />
           <div className="space-y-2"><Label className="text-xs text-muted-foreground">Node ID</Label><code className="block text-[10px] bg-muted px-2 py-1 rounded font-mono">{selectedNode.id}</code></div>
-        </div>
-      </ScrollArea>
+          </div>
+        </ScrollArea>
+      </div>
     </div>
   )
 }
