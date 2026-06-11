@@ -1631,13 +1631,15 @@ def fetch_expired_expiries():
 def get_expired_expiries():
     """Get cached expiry dates for an underlying from DuckDB."""
     try:
+        from database.auth_db import get_api_key_for_tradingview
         from services.expired_fno_service import get_cached_expiries
 
         underlying = request.args.get("underlying", "").upper()
         if not underlying:
             return jsonify({"status": "error", "message": "underlying is required"}), 400
 
-        success, response, status_code = get_cached_expiries(underlying)
+        api_key = get_api_key_for_tradingview(session.get("user"))
+        success, response, status_code = get_cached_expiries(underlying, api_key)
         return jsonify(response), status_code
     except Exception as e:
         logger.error(f"Error getting cached expiries: {e}")
@@ -1685,6 +1687,7 @@ def fetch_expired_contracts():
 def get_expired_contracts():
     """Get cached contracts for an underlying + expiry from DuckDB."""
     try:
+        from database.auth_db import get_api_key_for_tradingview
         from services.expired_fno_service import get_cached_contracts
 
         underlying = request.args.get("underlying", "").upper()
@@ -1697,7 +1700,8 @@ def get_expired_contracts():
                 {"status": "error", "message": "underlying and expiry_dates are required"}
             ), 400
 
-        success, response, status_code = get_cached_contracts(underlying, expiry_dates)
+        api_key = get_api_key_for_tradingview(session.get("user"))
+        success, response, status_code = get_cached_contracts(underlying, expiry_dates, api_key)
         return jsonify(response), status_code
     except Exception as e:
         logger.error(f"Error getting cached contracts: {e}")
@@ -1754,6 +1758,31 @@ def start_expired_fno_job():
     except Exception as e:
         logger.error(f"Error starting expired F&O job: {e}")
         traceback.print_exc()
+        return jsonify({"status": "error", "message": str(e)}), 500
+
+
+@historify_bp.route("/api/expired/harvest", methods=["POST"])
+@check_session_validity
+def start_expired_fno_harvest():
+    """Dhan only: kick off a multi-year monthly harvest (all ATM±N strikes) for backtest."""
+    try:
+        from database.auth_db import get_api_key_for_tradingview
+        from services.expired_fno_service import start_dhan_harvest
+
+        data = request.get_json() or {}
+        underlying = data.get("underlying", "").upper()
+        years = int(data.get("years", 5))
+        if not underlying:
+            return jsonify({"status": "error", "message": "underlying is required"}), 400
+
+        api_key = get_api_key_for_tradingview(session.get("user"))
+        if not api_key:
+            return jsonify({"status": "error", "message": "No API key found."}), 400
+
+        success, response, status_code = start_dhan_harvest(underlying, api_key, years)
+        return jsonify(response), status_code
+    except Exception as e:
+        logger.exception(f"Error starting expired F&O harvest: {e}")
         return jsonify({"status": "error", "message": str(e)}), 500
 
 

@@ -24,7 +24,13 @@ import pytz
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from database.auth_db import get_auth_token_broker
-from database.sandbox_db import SandboxOrders, SandboxPositions, SandboxTrades, db_session
+from database.sandbox_db import (
+    SandboxOrders,
+    SandboxPositions,
+    SandboxTrades,
+    db_session,
+    get_config,
+)
 from database.token_db import get_symbol_info
 from sandbox.fund_manager import FundManager, reconcile_margin, validate_margin_consistency
 from services.quotes_service import get_multiquotes, get_quotes
@@ -459,6 +465,12 @@ class ExecutionEngine:
                     pnl_percent=Decimal("0.00"),
                     accumulated_realized_pnl=Decimal("0.00"),
                     margin_blocked=order_margin,  # Store exact margin from order
+                    margin_source=(
+                        order.margin_source if hasattr(order, "margin_source") else "internal"
+                    ),
+                    margin_snapshot=(
+                        order.margin_snapshot if hasattr(order, "margin_snapshot") else None
+                    ),
                     created_at=datetime.now(pytz.timezone("Asia/Kolkata")),
                 )
                 db_session.add(position)
@@ -489,6 +501,12 @@ class ExecutionEngine:
                         else Decimal("0.00")
                     )
                     position.margin_blocked = order_margin
+                    position.margin_source = (
+                        order.margin_source if hasattr(order, "margin_source") else "internal"
+                    )
+                    position.margin_snapshot = (
+                        order.margin_snapshot if hasattr(order, "margin_snapshot") else None
+                    )
                     logger.info(
                         f"Reopened position: {order.symbol} {order.action} {order.quantity} (accumulated realized P&L: ₹{position.accumulated_realized_pnl}) (margin blocked: ₹{order_margin})"
                     )
@@ -565,6 +583,12 @@ class ExecutionEngine:
                         if hasattr(position, "margin_blocked") and position.margin_blocked
                         else Decimal("0.00")
                     ) + order_margin
+                    position.margin_source = (
+                        order.margin_source if hasattr(order, "margin_source") else "internal"
+                    )
+                    position.margin_snapshot = (
+                        order.margin_snapshot if hasattr(order, "margin_snapshot") else None
+                    )
                     logger.info(
                         f"Added to position: {order.symbol}, New qty: {final_quantity}, Avg: {new_average_price} (total margin blocked: ₹{position.margin_blocked})"
                     )
@@ -642,6 +666,16 @@ class ExecutionEngine:
                             )
                             new_position_margin = order_margin * excess_proportion
                             position.margin_blocked = new_position_margin
+                            position.margin_source = (
+                                order.margin_source
+                                if hasattr(order, "margin_source")
+                                else "internal"
+                            )
+                            position.margin_snapshot = (
+                                order.margin_snapshot
+                                if hasattr(order, "margin_snapshot")
+                                else None
+                            )
                             logger.info(
                                 f"Position reversed: {order.symbol}, New qty: {position.quantity} (new margin: ₹{new_position_margin})"
                             )

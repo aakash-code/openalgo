@@ -218,5 +218,5 @@ export async function getFnoStocks(): Promise<FnoStock[]> {
   const response = await webClient.get<{ status: string; data: FnoStock[]; count: number }>(
     '/historify/api/fno/stocks'
   )
-  return response.data.data
+  return response.data.data ?? []
 }

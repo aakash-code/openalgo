@@ -6,6 +6,7 @@ High-performance columnar storage for historical market data.
 Optimized for backtesting and analytical queries.
 """
 
+from __future__ import annotations
 import os
 from contextlib import contextmanager
 from datetime import date, datetime
@@ -292,6 +293,35 @@ def init_database():
             )
         """)
 
+        # Rolling expired-options data (Dhan model): stored in RELATIVE coordinates
+        # (strike_label = ATM / ATM±n) with the drifting actual strike kept as data.
+        # This matches Dhan's continuous rolling-option API and the ExpiryFlow
+        # reference; ideal for dynamic-ATM straddle/strangle backtests.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS expired_options_rolling (
+                underlying       VARCHAR NOT NULL,
+                exchange_segment VARCHAR NOT NULL,
+                instrument       VARCHAR NOT NULL,
+                expiry_flag      VARCHAR NOT NULL,
+                expiry_code      INTEGER NOT NULL,
+                interval         VARCHAR NOT NULL,
+                strike_label     VARCHAR NOT NULL,
+                strike_price     DOUBLE,
+                option_type      VARCHAR NOT NULL,
+                timestamp        BIGINT  NOT NULL,
+                open             DOUBLE,
+                high             DOUBLE,
+                low              DOUBLE,
+                close            DOUBLE,
+                volume           BIGINT,
+                oi               BIGINT,
+                iv               DOUBLE,
+                spot             DOUBLE,
+                PRIMARY KEY (underlying, expiry_flag, expiry_code, interval,
+                             strike_label, option_type, timestamp)
+            )
+        """)
+
         # Create indexes for common query patterns
         conn.execute("""
             CREATE INDEX IF NOT EXISTS idx_market_data_timestamp
@@ -337,6 +367,23 @@ def init_database():
             CREATE INDEX IF NOT EXISTS idx_expired_jobs_status
             ON expired_fno_jobs (status)
         """)
+        conn.execute("""
+            CREATE INDEX IF NOT EXISTS idx_rolling_lookup
+            ON expired_options_rolling
+               (underlying, expiry_flag, expiry_code, interval, timestamp)
+        """)
+
+        # Add retry tracking columns (safe on existing DBs)
+        for col, typedef in [
+            ("retry_count", "INTEGER DEFAULT 0"),
+            ("last_error", "VARCHAR"),
+        ]:
+            try:
+                conn.execute(
+                    f"ALTER TABLE expired_fno_contracts ADD COLUMN {col} {typedef}"
+                )
+            except Exception:
+                pass  # Column already exists
 
         # Reset any jobs left in 'running'/'pending' state from a previous session.
         # These are orphaned — their background threads were killed on app restart.
@@ -605,6 +652,8 @@ def upsert_market_data(df: pd.DataFrame, symbol: str, exchange: str, interval: s
         return 0
 
     try:
+        original_count = len(df)
+
         # Prepare DataFrame
         df = df.copy()
         df["symbol"] = symbol.upper()
@@ -618,6 +667,61 @@ def upsert_market_data(df: pd.DataFrame, symbol: str, exchange: str, interval: s
         # Ensure timestamp is integer (epoch seconds)
         if df["timestamp"].dtype != "int64":
             df["timestamp"] = pd.to_datetime(df["timestamp"]).astype("int64") // 10**9
+
+        # Sanitize incoming candles so broker quirks do not pollute Historify.
+        price_columns = ["open", "high", "low", "close"]
+        numeric_columns = price_columns + ["volume", "oi"]
+        df[numeric_columns] = df[numeric_columns].apply(pd.to_numeric, errors="coerce")
+
+        invalid_price_mask = df[price_columns].isna().any(axis=1) | (df[price_columns] <= 0).any(axis=1)
+        invalid_price_rows = int(invalid_price_mask.sum())
+        if invalid_price_rows:
+            logger.warning(
+                "Dropping %s invalid price row(s) for %s:%s:%s before insert",
+                invalid_price_rows,
+                symbol.upper(),
+                exchange.upper(),
+                interval,
+            )
+            df = df.loc[~invalid_price_mask].copy()
+
+        if df.empty:
+            logger.warning(
+                "All %s incoming row(s) were invalid for %s:%s:%s",
+                original_count,
+                symbol.upper(),
+                exchange.upper(),
+                interval,
+            )
+            return 0
+
+        negative_volume_rows = int((df["volume"] < 0).sum())
+        if negative_volume_rows:
+            logger.warning(
+                "Normalizing %s negative volume row(s) to zero for %s:%s:%s",
+                negative_volume_rows,
+                symbol.upper(),
+                exchange.upper(),
+                interval,
+            )
+            df.loc[df["volume"] < 0, "volume"] = 0
+
+        negative_oi_rows = int((df["oi"] < 0).sum())
+        if negative_oi_rows:
+            logger.warning(
+                "Normalizing %s negative oi row(s) to zero for %s:%s:%s",
+                negative_oi_rows,
+                symbol.upper(),
+                exchange.upper(),
+                interval,
+            )
+            df.loc[df["oi"] < 0, "oi"] = 0
+
+        # Keep candle envelopes internally consistent.
+        df["high"] = df[price_columns].max(axis=1)
+        df["low"] = df[price_columns].min(axis=1)
+        df["volume"] = df["volume"].fillna(0).astype("int64")
+        df["oi"] = df["oi"].fillna(0).astype("int64")
 
         # Select only required columns in correct order
         df = df[
@@ -725,6 +829,112 @@ def upsert_market_data(df: pd.DataFrame, symbol: str, exchange: str, interval: s
     except Exception as e:
         logger.exception(f"Error upserting market data: {e}")
         raise
+
+
+def repair_market_data_quality() -> dict[str, int]:
+    """
+    Repair a small set of bad historical candles already stored in Historify.
+
+    Fixes applied:
+    - negative volume -> 0
+    - negative oi -> 0
+    - inconsistent high/low envelope -> recomputed from OHLC
+    - non-positive OHLC rows -> deleted
+    """
+    with get_connection() as conn:
+        pre = conn.execute(
+            """
+            SELECT
+                SUM(CASE WHEN volume < 0 THEN 1 ELSE 0 END) AS negative_volume_rows,
+                SUM(CASE WHEN oi < 0 THEN 1 ELSE 0 END) AS negative_oi_rows,
+                SUM(CASE WHEN open <= 0 OR high <= 0 OR low <= 0 OR close <= 0 THEN 1 ELSE 0 END)
+                    AS nonpositive_price_rows,
+                SUM(CASE WHEN high < GREATEST(open, close, low) THEN 1 ELSE 0 END)
+                    AS high_below_ohlc_rows,
+                SUM(CASE WHEN low > LEAST(open, close, high) THEN 1 ELSE 0 END)
+                    AS low_above_ohlc_rows
+            FROM market_data
+            """
+        ).fetchone()
+
+        negative_volume_rows = int(pre[0] or 0)
+        negative_oi_rows = int(pre[1] or 0)
+        nonpositive_price_rows = int(pre[2] or 0)
+        high_below_ohlc_rows = int(pre[3] or 0)
+        low_above_ohlc_rows = int(pre[4] or 0)
+
+        if negative_volume_rows:
+            conn.execute("UPDATE market_data SET volume = 0 WHERE volume < 0")
+
+        if negative_oi_rows:
+            conn.execute("UPDATE market_data SET oi = 0 WHERE oi < 0")
+
+        envelope_fix_rows = high_below_ohlc_rows + low_above_ohlc_rows
+        if envelope_fix_rows:
+            conn.execute(
+                """
+                UPDATE market_data
+                SET
+                    high = GREATEST(open, high, low, close),
+                    low = LEAST(open, high, low, close)
+                WHERE high < GREATEST(open, close, low)
+                   OR low > LEAST(open, close, high)
+                """
+            )
+
+        if nonpositive_price_rows:
+            conn.execute(
+                """
+                DELETE FROM market_data
+                WHERE open <= 0 OR high <= 0 OR low <= 0 OR close <= 0
+                """
+            )
+
+        # Rebuild catalog to keep counts and ranges aligned after repairs.
+        conn.execute(
+            """
+            DELETE FROM data_catalog
+            WHERE NOT EXISTS (
+                SELECT 1
+                FROM market_data md
+                WHERE md.symbol = data_catalog.symbol
+                  AND md.exchange = data_catalog.exchange
+                  AND md.interval = data_catalog.interval
+            )
+            """
+        )
+
+        conn.execute(
+            """
+            UPDATE data_catalog AS dc
+            SET
+                first_timestamp = agg.first_timestamp,
+                last_timestamp = agg.last_timestamp,
+                record_count = agg.record_count,
+                last_download_at = current_timestamp
+            FROM (
+                SELECT
+                    symbol,
+                    exchange,
+                    interval,
+                    MIN(timestamp) AS first_timestamp,
+                    MAX(timestamp) AS last_timestamp,
+                    COUNT(*) AS record_count
+                FROM market_data
+                GROUP BY symbol, exchange, interval
+            ) AS agg
+            WHERE dc.symbol = agg.symbol
+              AND dc.exchange = agg.exchange
+              AND dc.interval = agg.interval
+            """
+        )
+
+        return {
+            "negative_volume_rows_fixed": negative_volume_rows,
+            "negative_oi_rows_fixed": negative_oi_rows,
+            "envelope_rows_fixed": envelope_fix_rows,
+            "nonpositive_price_rows_deleted": nonpositive_price_rows,
+        }
 
 
 # Storage intervals - only these are physically stored
@@ -1301,6 +1511,33 @@ def get_data_range(symbol: str, exchange: str, interval: str) -> dict[str, Any] 
     except Exception as e:
         logger.exception(f"Error fetching data range: {e}")
         return None
+
+
+def get_existing_dates(
+    symbol: str, exchange: str, interval: str,
+    start_ts: int, end_ts: int,
+) -> set:
+    """
+    Get the set of dates (as date objects) that have data in market_data
+    for a given symbol/exchange/interval within a timestamp range.
+    """
+    from datetime import date as date_type
+
+    try:
+        with get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT DISTINCT CAST(to_timestamp(timestamp) AS DATE) AS d
+                FROM market_data
+                WHERE symbol = ? AND exchange = ? AND interval = ?
+                  AND timestamp >= ? AND timestamp <= ?
+                """,
+                [symbol.upper(), exchange.upper(), interval, start_ts, end_ts],
+            ).fetchall()
+        return {r[0] if isinstance(r[0], date_type) else r[0].date() for r in rows}
+    except Exception as e:
+        logger.exception(f"Error fetching existing dates: {e}")
+        return set()
 
 
 def delete_market_data(symbol: str, exchange: str, interval: str | None = None) -> tuple[bool, str]:
@@ -3876,6 +4113,116 @@ def mark_expired_fno_contract_done(
             )
     except Exception as e:
         logger.exception(f"Error marking contract done: {e}")
+
+
+def resolve_expired_fno_contract(
+    expired_instrument_key: str,
+    openalgo_symbol: str,
+    strike_price: float | None,
+    expiry_date: str,
+) -> None:
+    """Finalise a synthetic contract once its real symbol/strike/expiry are known.
+
+    Dhan's rolling-option contracts are created with placeholder symbols (the
+    real strike and expiry are only known after download). This updates the row
+    with the resolved values inferred from the downloaded candles. Also rolls
+    the parent expiry row's anchor date forward to the real expiry.
+    """
+    try:
+        with get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE expired_fno_contracts
+                SET openalgo_symbol = ?, strike_price = ?, expiry_date = ?
+                WHERE expired_instrument_key = ?
+                """,
+                [openalgo_symbol, strike_price, expiry_date, expired_instrument_key],
+            )
+    except Exception as e:
+        logger.exception(f"Error resolving expired F&O contract: {e}")
+
+
+def increment_expired_fno_retry(
+    expired_instrument_key: str, error_msg: str | None = None
+) -> None:
+    """Increment retry count and record error for a failed contract download."""
+    try:
+        with get_connection() as conn:
+            conn.execute(
+                """
+                UPDATE expired_fno_contracts
+                SET retry_count = COALESCE(retry_count, 0) + 1,
+                    last_error = ?
+                WHERE expired_instrument_key = ?
+                """,
+                [error_msg, expired_instrument_key],
+            )
+    except Exception as e:
+        logger.exception(f"Error incrementing retry count: {e}")
+
+
+def upsert_rolling_options(rows: list[dict[str, Any]]) -> int:
+    """Bulk insert/replace rolling expired-option bars (relative coordinates).
+
+    Each row dict must have: underlying, exchange_segment, instrument, expiry_flag,
+    expiry_code, interval, strike_label, strike_price, option_type, timestamp (epoch
+    int, IST), open, high, low, close, volume, oi, iv, spot.
+    """
+    if not rows:
+        return 0
+    cols = [
+        "underlying", "exchange_segment", "instrument", "expiry_flag", "expiry_code",
+        "interval", "strike_label", "strike_price", "option_type", "timestamp",
+        "open", "high", "low", "close", "volume", "oi", "iv", "spot",
+    ]
+    placeholders = ", ".join("?" for _ in cols)
+    try:
+        with get_connection() as conn:
+            conn.executemany(
+                f"INSERT OR REPLACE INTO expired_options_rolling ({', '.join(cols)}) "
+                f"VALUES ({placeholders})",
+                [[r.get(c) for c in cols] for r in rows],
+            )
+        return len(rows)
+    except Exception as e:
+        logger.exception(f"Error upserting rolling options: {e}")
+        return 0
+
+
+def delete_market_data_symbols(pairs: list[tuple[str, str]], interval: str = "1m") -> int:
+    """Delete specific (symbol, exchange) series from market_data + data_catalog.
+
+    Used to purge the mislabeled fixed-strike symbols from the first (incorrect)
+    Dhan harvest. Returns number of (symbol, exchange) pairs processed.
+    """
+    if not pairs:
+        return 0
+    try:
+        with get_connection() as conn:
+            # Bulk semi-join delete: register the pairs once, scan each table once.
+            # (market_data has no index on `symbol`, so per-row deletes would each
+            # full-scan a multi-GB table — a single pass is orders of magnitude faster.)
+            conn.execute(
+                "CREATE TEMP TABLE _del_syms (symbol VARCHAR, exchange VARCHAR)"
+            )
+            conn.executemany(
+                "INSERT INTO _del_syms VALUES (?, ?)", [[s, e] for s, e in pairs]
+            )
+            conn.execute(
+                "DELETE FROM market_data WHERE interval = ? AND (symbol, exchange) IN "
+                "(SELECT symbol, exchange FROM _del_syms)",
+                [interval],
+            )
+            conn.execute(
+                "DELETE FROM data_catalog WHERE interval = ? AND (symbol, exchange) IN "
+                "(SELECT symbol, exchange FROM _del_syms)",
+                [interval],
+            )
+            conn.execute("DROP TABLE _del_syms")
+        return len(pairs)
+    except Exception as e:
+        logger.exception(f"Error deleting market_data symbols: {e}")
+        return 0
 
 
 def create_expired_fno_job(job: dict[str, Any]) -> bool:

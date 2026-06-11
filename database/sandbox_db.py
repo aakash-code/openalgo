@@ -18,6 +18,8 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     create_engine,
+    inspect,
+    text,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import relationship, scoped_session, sessionmaker
@@ -78,6 +80,8 @@ class SandboxOrders(Base):
     margin_blocked = Column(
         DECIMAL(10, 2), nullable=True, default=0.00
     )  # Margin blocked at order placement
+    margin_source = Column(String(30), nullable=True, default="internal")
+    margin_snapshot = Column(Text, nullable=True)
     order_timestamp = Column(DateTime, nullable=False, default=func.now())
     update_timestamp = Column(DateTime, nullable=False, default=func.now(), onupdate=func.now())
 
@@ -147,6 +151,8 @@ class SandboxPositions(Base):
     # Margin tracking - stores exact margin blocked for this position
     # This prevents margin release bugs when execution price differs from order placement price
     margin_blocked = Column(DECIMAL(15, 2), default=0.00)  # Total margin blocked for this position
+    margin_source = Column(String(30), nullable=True, default="internal")
+    margin_snapshot = Column(Text, nullable=True)
 
     # Timestamps
     created_at = Column(DateTime, nullable=False, default=func.now())
@@ -398,9 +404,53 @@ def init_db():
     from database.db_init_helper import init_db_with_logging
 
     init_db_with_logging(Base, engine, "Sandbox DB", logger)
+    _migrate_margin_audit_columns()
 
     # Initialize default configuration
     init_default_config()
+
+
+def _migrate_margin_audit_columns():
+    """Add analyzer margin audit columns to existing sandbox tables."""
+    table_columns = {
+        "sandbox_orders": [
+            ("margin_source", "VARCHAR(30)"),
+            ("margin_snapshot", "TEXT"),
+        ],
+        "sandbox_positions": [
+            ("margin_source", "VARCHAR(30)"),
+            ("margin_snapshot", "TEXT"),
+        ],
+    }
+
+    try:
+        inspector = inspect(engine)
+        table_names = set(inspector.get_table_names())
+
+        with engine.connect() as conn:
+            added_columns = []
+            for table_name, columns in table_columns.items():
+                if table_name not in table_names:
+                    continue
+
+                existing_columns = {col["name"] for col in inspector.get_columns(table_name)}
+                for column_name, column_type in columns:
+                    if column_name in existing_columns:
+                        continue
+
+                    conn.execute(
+                        text(f"ALTER TABLE {table_name} ADD COLUMN {column_name} {column_type}")
+                    )
+                    added_columns.append(f"{table_name}.{column_name}")
+
+            if added_columns:
+                conn.commit()
+                logger.info(
+                    "Migration: added sandbox margin audit column(s): %s",
+                    ", ".join(added_columns),
+                )
+    except Exception as e:
+        logger.debug(f"Migration check for sandbox margin audit columns: {e}")
 
 
 def init_default_config():
@@ -476,7 +526,32 @@ def init_default_config():
         {
             "config_key": "option_sell_leverage",
             "config_value": "1",
-            "description": "Leverage for selling options (same as buying - full premium) - Range: 1-50x",
+            "description": "Leverage for selling options in 'premium' mode (legacy) - Range: 1-50x. Ignored when option_sell_margin_mode is span_approx or broker_api_with_span_fallback.",
+        },
+        {
+            "config_key": "analyzer_broker_margin_mode",
+            "config_value": "broker_with_fallback",
+            "description": "Analyzer derivative margin mode: 'strict_broker' rejects orders if broker margin API is unavailable, 'broker_with_fallback' falls back to internal sandbox margin.",
+        },
+        {
+            "config_key": "option_sell_margin_mode",
+            "config_value": "broker_api_with_span_fallback",
+            "description": "Margin mode for naked short options: 'premium' (qty×premium/leverage, legacy), 'span_approx' (SEBI SPAN estimate), 'broker_api_with_span_fallback' (real broker API first, SPAN on failure).",
+        },
+        {
+            "config_key": "span_margin_pct",
+            "config_value": "15",
+            "description": "SPAN risk charge as % of underlying notional for short options (SEBI: ~15% index, ~20% stock). Default: 15.",
+        },
+        {
+            "config_key": "min_margin_pct",
+            "config_value": "7.5",
+            "description": "Minimum margin as % of underlying notional for short options (SEBI minimum). Default: 7.5.",
+        },
+        {
+            "config_key": "exposure_margin_pct",
+            "config_value": "3",
+            "description": "Exposure margin as % of underlying notional for short options (SEBI mandated: 3% for index). Default: 3.",
         },
         {
             "config_key": "order_rate_limit",

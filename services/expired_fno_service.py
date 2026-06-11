@@ -17,11 +17,12 @@ import re
 import threading
 import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime
+from datetime import datetime, timedelta
 from typing import Any
 
 import pandas as pd
 
+from broker.dhan.api import expired_data as dhan_expired
 from broker.upstox.api.expired_data import (
     SUPPORTED_UNDERLYINGS,
     UNDERLYING_EXCHANGE,
@@ -39,7 +40,9 @@ from database.historify_db import (
     get_expired_fno_stats,
     get_last_candle_timestamp,
     get_pending_expired_fno_contracts,
+    increment_expired_fno_retry,
     mark_expired_fno_contract_done,
+    resolve_expired_fno_contract,
     update_expired_fno_job,
     upsert_expired_fno_contracts,
     upsert_expired_fno_expiries,
@@ -49,8 +52,10 @@ from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-# Brokers with verified expired F&O API support
-EXPIRED_FNO_CAPABLE_BROKERS: set[str] = {"upstox"}
+# Brokers with verified expired F&O API support.
+#   upstox - /expired-instruments/ API (options + futures), requires Plus Plan
+#   dhan   - /v2/charts/rollingoption API (options only), requires Data API plan
+EXPIRED_FNO_CAPABLE_BROKERS: set[str] = {"upstox", "dhan"}
 
 # Job cancellation signal: set of job IDs that have been cancelled
 _cancelled_jobs: set[str] = set()
@@ -149,6 +154,532 @@ def _candles_to_df(candles: list[list]) -> pd.DataFrame:
 
 
 # =============================================================================
+# Dhan support (rolling-option model)
+# =============================================================================
+#
+# Dhan diverges from Upstox: options only, addressed by (expiry_flag, expiry_code)
+# + ATM-relative strike offset rather than per-contract instrument keys, with a
+# column-oriented response. We pack the rolling coordinates into the synthetic
+# contract key (broker/dhan/api/expired_data.encode_contract_key) and infer the
+# real strike/expiry — and thus the OpenAlgo symbol — AFTER download.
+#
+# To fit the date-keyed expiries/contracts tables we partition by a flag-qualified
+# underlying key ("DHAN:sid:seg:WEEK" / ":MONTH") so weekly and monthly slots that
+# share a calendar date never collide on UNIQUE(upstox_key, expiry_date).
+
+
+def _active_broker(api_key: str) -> str | None:
+    """Return the active broker for an API key, or None."""
+    try:
+        result = get_auth_token_broker(api_key)
+        return result[1]
+    except Exception:
+        return None
+
+
+def _dhan_flags(cfg: dict[str, Any]) -> list[str]:
+    """Expiry flags to enumerate for an underlying (indices get weekly + monthly)."""
+    return ["WEEK", "MONTH"] if cfg.get("instrument") == "OPTIDX" else ["MONTH"]
+
+
+def _dhan_flag_ukey(base_ukey: str, flag: str) -> str:
+    """Flag-qualified partition key for the expiries/contracts tables."""
+    return f"{base_ukey}:{flag}"
+
+
+def _dhan_code_for_date(flag_ukey: str, anchor_date: str) -> int | None:
+    """Recover the Dhan expiry_code for a stored anchor date.
+
+    The code is the rank of the date within its flag partition (newest = 0),
+    derived from stored rows so it is independent of when Phase 1 ran.
+    """
+    rows = get_expired_fno_expiries(flag_ukey)
+    dates = sorted({str(r["expiry_date"])[:10] for r in rows}, reverse=True)
+    target = anchor_date[:10]
+    return dates.index(target) if target in dates else None
+
+
+def _dhan_fetch_expiries(underlying: str) -> tuple[bool, dict[str, Any], int]:
+    """Phase 1 (Dhan): generate weekly/monthly expiry slots and cache them."""
+    cfg = dhan_expired.resolve_underlying(underlying)
+    if cfg is None:
+        return (
+            False,
+            {
+                "status": "error",
+                "message": f"Cannot resolve '{underlying}' for Dhan. Ensure master "
+                "contracts are downloaded. Supported indices: "
+                f"{', '.join(dhan_expired.SUPPORTED_UNDERLYINGS)}",
+            },
+            400,
+        )
+
+    base_ukey = dhan_expired.underlying_key(cfg["security_id"], cfg["exchange_segment"])
+    include_weekly = cfg["instrument"] == "OPTIDX"
+    slots = dhan_expired.generate_expiry_slots(include_weekly=include_weekly)
+
+    rows = [
+        {
+            "upstox_key": _dhan_flag_ukey(base_ukey, s["expiry_flag"]),
+            "openalgo_symbol": underlying,
+            "exchange": cfg["exchange"],
+            "expiry_date": s["anchor_date"],
+            "is_weekly": s["is_weekly"],
+        }
+        for s in slots
+    ]
+    upsert_expired_fno_expiries(rows)
+
+    return (
+        True,
+        {
+            "status": "success",
+            "underlying": underlying,
+            "expiry_count": len(slots),
+            "expiries": [s["anchor_date"] for s in slots],
+            "note": "Dhan expiry dates are approximate anchors; the true expiry is "
+            "resolved from downloaded data.",
+        },
+        200,
+    )
+
+
+def _dhan_get_cached_expiries(underlying: str) -> tuple[bool, dict[str, Any], int]:
+    """Return cached Dhan expiry slots, merged across flag partitions."""
+    from database.historify_db import get_expired_fno_expiry_stats
+
+    cfg = dhan_expired.resolve_underlying(underlying)
+    if cfg is None:
+        return False, {"status": "error", "message": f"Unsupported underlying '{underlying}'"}, 400
+
+    base_ukey = dhan_expired.underlying_key(cfg["security_id"], cfg["exchange_segment"])
+    expiries: list[dict[str, Any]] = []
+    for flag in _dhan_flags(cfg):
+        flag_ukey = _dhan_flag_ukey(base_ukey, flag)
+        rows = get_expired_fno_expiries(flag_ukey)
+        stats = get_expired_fno_expiry_stats(flag_ukey)
+        for exp in rows:
+            exp_stats = stats.get(exp["expiry_date"], {})
+            exp["total_contracts"] = exp_stats.get("total_contracts", 0)
+            exp["downloaded_contracts"] = exp_stats.get("downloaded_contracts", 0)
+            exp["expiry_flag"] = flag
+        expiries.extend(rows)
+
+    return (
+        True,
+        {"status": "success", "underlying": underlying, "expiries": expiries, "count": len(expiries)},
+        200,
+    )
+
+
+def _dhan_get_cached_contracts(
+    underlying: str, expiry_dates: list[str]
+) -> tuple[bool, dict[str, Any], int]:
+    """Return cached Dhan contracts for selected anchor dates, merged across flags."""
+    cfg = dhan_expired.resolve_underlying(underlying)
+    if cfg is None:
+        return False, {"status": "error", "message": f"Unsupported underlying '{underlying}'"}, 400
+
+    base_ukey = dhan_expired.underlying_key(cfg["security_id"], cfg["exchange_segment"])
+    contracts: list[dict[str, Any]] = []
+    for flag in _dhan_flags(cfg):
+        flag_ukey = _dhan_flag_ukey(base_ukey, flag)
+        for exp in expiry_dates:
+            contracts.extend(get_expired_fno_contracts(flag_ukey, exp))
+
+    return (
+        True,
+        {
+            "status": "success",
+            "underlying": underlying,
+            "expiry_dates": expiry_dates,
+            "contracts": contracts,
+            "count": len(contracts),
+        },
+        200,
+    )
+
+
+def _dhan_fetch_contracts(
+    underlying: str, expiry_dates: list[str], contract_types: list[str]
+) -> tuple[bool, dict[str, Any], int]:
+    """Phase 2 (Dhan): synthesize contracts across strike offsets × option types."""
+    cfg = dhan_expired.resolve_underlying(underlying)
+    if cfg is None:
+        return False, {"status": "error", "message": f"Unsupported underlying '{underlying}'"}, 400
+
+    option_types = [t for t in contract_types if t in ("CE", "PE")] or ["CE", "PE"]
+    if "FUT" in contract_types:
+        logger.info("Dhan expired data is options-only; ignoring FUT request.")
+
+    base_ukey = dhan_expired.underlying_key(cfg["security_id"], cfg["exchange_segment"])
+    offsets = dhan_expired.strike_offsets(cfg["instrument"])
+
+    contract_rows: list[dict[str, Any]] = []
+    for sel_date in expiry_dates:
+        for flag in _dhan_flags(cfg):
+            flag_ukey = _dhan_flag_ukey(base_ukey, flag)
+            code = _dhan_code_for_date(flag_ukey, sel_date)
+            if code is None:
+                continue
+            for offset in offsets:
+                for ot in option_types:
+                    drv = "CALL" if ot == "CE" else "PUT"
+                    key = dhan_expired.encode_contract_key(
+                        cfg["security_id"], cfg["exchange_segment"], cfg["instrument"],
+                        flag, code, offset, drv,
+                    )
+                    # Placeholder symbol; underlying prefix is parsed back at download.
+                    placeholder = f"{underlying}-{flag}{code}-{offset}-{ot}"
+                    contract_rows.append(
+                        {
+                            "expired_instrument_key": key,
+                            "upstox_key": flag_ukey,
+                            "openalgo_symbol": placeholder,
+                            "exchange": cfg["exchange"],
+                            "expiry_date": sel_date,
+                            "contract_type": ot,
+                            "strike_price": None,
+                            "trading_symbol": placeholder,
+                            "lot_size": None,
+                        }
+                    )
+
+    upsert_expired_fno_contracts(contract_rows)
+    return (
+        True,
+        {
+            "status": "success",
+            "underlying": underlying,
+            "expiry_dates": expiry_dates,
+            "contract_count": len(contract_rows),
+        },
+        200,
+    )
+
+
+def _dhan_pending_contracts(
+    underlying: str,
+    expiry_dates: list[str] | None,
+    contract_types: list[str],
+    incremental: bool,
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    """Gather pending Dhan contracts across both flag partitions.
+
+    Returns (cfg, pending_rows). cfg is None if the underlying can't be resolved.
+    """
+    cfg = dhan_expired.resolve_underlying(underlying)
+    if cfg is None:
+        return None, []
+    base_ukey = dhan_expired.underlying_key(cfg["security_id"], cfg["exchange_segment"])
+    types = [t for t in contract_types if t in ("CE", "PE")] or ["CE", "PE"]
+    pending: list[dict[str, Any]] = []
+    for flag in _dhan_flags(cfg):
+        pending.extend(
+            get_pending_expired_fno_contracts(
+                _dhan_flag_ukey(base_ukey, flag),
+                expiry_dates,
+                types,
+                include_downloaded=incremental,
+            )
+        )
+    return cfg, pending
+
+
+def _dhan_download_one(
+    client: "dhan_expired.DhanExpiredDataClient",
+    contract: dict[str, Any],
+    look_back: str,
+    incremental: bool,
+    db_lock: "threading.Lock",
+) -> tuple[str, str, int]:
+    """Download one Dhan contract, infer its real symbol, and store candles.
+
+    Network fetch runs lock-free (the adapter's rate-limiter serialises calls);
+    only DuckDB mutations are guarded by ``db_lock``.
+
+    Returns ('ok'|'fail', resolved_or_placeholder_symbol, candle_count).
+    """
+    expired_key = contract["expired_instrument_key"]
+    placeholder = contract["openalgo_symbol"]
+    exchange = contract["exchange"]
+    anchor_expiry = str(contract["expiry_date"])[:10]
+    option_type = contract["contract_type"]  # CE / PE
+    underlying = placeholder.split("-")[0]
+
+    params = dhan_expired.decode_contract_key(expired_key)
+    if params is None:
+        with db_lock:
+            increment_expired_fno_retry(expired_key, "Bad Dhan contract key")
+        return ("fail", placeholder, 0)
+
+    # Incremental top-up keys off the resolved symbol if we already have one.
+    last_ts = (
+        get_last_candle_timestamp(placeholder, exchange, "1m") if incremental else None
+    )
+    to_date, from_date = _calculate_date_range(anchor_expiry, look_back, last_ts)
+    # Widen the window forward to catch the real expiry day (anchor is approximate).
+    to_dt = min(datetime.strptime(to_date, "%Y-%m-%d") + timedelta(days=7), datetime.utcnow())
+    to_date = to_dt.strftime("%Y-%m-%d")
+
+    all_rows: list[list] = []
+    resolved_strike: float | None = None
+    for chunk_from, chunk_to in dhan_expired.chunk_date_range(from_date, to_date):
+        resp = client.get_expired_option_data(
+            security_id=params["security_id"],
+            exchange_segment=params["exchange_segment"],
+            instrument=params["instrument"],
+            expiry_flag=params["expiry_flag"],
+            expiry_code=params["expiry_code"],
+            strike=params["strike_offset"],
+            option_type=params["option_type"],
+            from_date=chunk_from,
+            to_date=chunk_to,
+            interval="1",
+        )
+        if resp is None:
+            with db_lock:
+                increment_expired_fno_retry(expired_key, "Dhan API failure after retries")
+            return ("fail", placeholder, 0)
+        rows, strike = dhan_expired.normalize_candles(resp, option_type)
+        all_rows.extend(rows)
+        if strike is not None:
+            resolved_strike = strike
+
+    if not all_rows:
+        with db_lock:
+            mark_expired_fno_contract_done(expired_key, 0)
+        return ("ok", placeholder, 0)
+
+    # Infer the real expiry from the last candle's IST date.
+    real_expiry = max(r[0][:10] for r in all_rows)
+    if resolved_strike is not None:
+        symbol = _generate_option_symbol(underlying, real_expiry, resolved_strike, option_type)
+    else:
+        symbol = placeholder  # no strike came back; keep placeholder
+
+    df = _candles_to_df(all_rows)
+    if df.empty:
+        with db_lock:
+            mark_expired_fno_contract_done(expired_key, 0)
+        return ("ok", symbol, 0)
+
+    with db_lock:
+        records = upsert_market_data(df, symbol, exchange, "1m")
+        mark_expired_fno_contract_done(expired_key, records)
+        if resolved_strike is not None:
+            resolve_expired_fno_contract(expired_key, symbol, resolved_strike, real_expiry)
+    return ("ok", symbol, records)
+
+
+# =============================================================================
+# Dhan rolling harvester (relative coordinates — ExpiryFlow model)
+# =============================================================================
+#
+# Dhan's expired-options API serves CONTINUOUS rolling ATM-relative series, not
+# fixed-strike contracts (the per-bar `strike` drifts with spot). So we store in
+# relative coordinates: key = (underlying, expiry_flag, expiry_code, interval,
+# strike_label, option_type, timestamp); the drifting actual strike + spot are
+# kept as data columns. This matches the ExpiryFlow reference and is ideal for
+# dynamic-ATM straddle/strangle backtests.
+#
+# 5-year depth comes from sweeping fromDate/toDate across the range in 30-day
+# chunks — no expiry calendar needed (the rolling series handles expiries),
+# which also makes WEEKLY trivial. expiryCode 0 is rejected by Dhan; we use 1
+# (near/next). Strikes: ATM-10..ATM+10 (indices) / ±3 (stocks).
+
+DHAN_DEFAULT_FLAGS = ["WEEK", "MONTH"]
+DHAN_DEFAULT_CODES = [1]
+
+
+def start_dhan_harvest(
+    underlying: str,
+    api_key: str,
+    years: int = 5,
+    flags: list[str] | None = None,
+    codes: list[int] | None = None,
+) -> tuple[bool, dict[str, Any], int]:
+    """Kick off a background N-year rolling harvest for one underlying (Dhan)."""
+    try:
+        underlying = underlying.upper()
+        flags = flags or DHAN_DEFAULT_FLAGS
+        codes = codes or DHAN_DEFAULT_CODES
+        result = get_auth_token_broker(api_key)
+        auth_token, broker = result[0], result[1]
+        if not auth_token or broker != "dhan":
+            return (
+                False,
+                {"status": "error", "message": "Requires an active Dhan broker session."},
+                400,
+            )
+        cfg = dhan_expired.resolve_underlying(underlying)
+        if cfg is None:
+            return (
+                False,
+                {"status": "error", "message": f"Unsupported underlying '{underlying}'"},
+                400,
+            )
+
+        chunks = dhan_expired.chunk_date_range(
+            (datetime.utcnow() - timedelta(days=365 * years)).strftime("%Y-%m-%d"),
+            datetime.utcnow().strftime("%Y-%m-%d"),
+        )
+        offsets = dhan_expired.strike_offsets(cfg["instrument"])
+        total = len(flags) * len(codes) * len(offsets) * 2 * len(chunks)  # ×CE/PE
+
+        job_id = str(uuid.uuid4())
+        create_expired_fno_job(
+            {
+                "id": job_id,
+                "underlying": underlying,
+                "exchange": cfg["exchange"],
+                "expiry_date": f"{years}Y rolling {','.join(flags)} code{codes}",
+                "contract_types": "CE,PE",
+                "interval": "1m",
+                "status": "pending",
+                "total_contracts": total,
+            }
+        )
+        _get_executor().submit(
+            _run_dhan_harvest_job, job_id, auth_token, underlying, cfg, chunks, offsets, flags, codes
+        )
+        return (
+            True,
+            {
+                "status": "success",
+                "job_id": job_id,
+                "underlying": underlying,
+                "flags": flags,
+                "codes": codes,
+                "date_chunks": len(chunks),
+                "strikes": len(offsets),
+                "total_requests": total,
+            },
+            200,
+        )
+    except Exception as e:
+        logger.exception(f"Error starting Dhan harvest: {e}")
+        return False, {"status": "error", "message": str(e)}, 500
+
+
+def _run_dhan_harvest_job(
+    job_id: str,
+    auth_token: str,
+    underlying: str,
+    cfg: dict[str, Any],
+    chunks: list[tuple[str, str]],
+    offsets: list[str],
+    flags: list[str],
+    codes: list[int],
+) -> None:
+    """Background worker: sweep date chunks × flags × codes × strikes × CE/PE,
+    storing rolling bars in relative coordinates."""
+    from extensions import socketio
+    from database.historify_db import upsert_rolling_options
+
+    NUM_WORKERS = 4
+    update_expired_fno_job(job_id, {"status": "running", "started_at": _now_iso()})
+    client = dhan_expired.DhanExpiredDataClient(auth_token)
+    db_lock = threading.Lock()
+
+    # work item: (flag, code, offset, oa_type, dhan_type, chunk_from, chunk_to)
+    work = [
+        (flag, code, off, ot, drv, cf, ct)
+        for flag in flags
+        for code in codes
+        for off in offsets
+        for (ot, drv) in (("CE", "CALL"), ("PE", "PUT"))
+        for (cf, ct) in chunks
+    ]
+    total = len(work)
+    completed = 0
+    failed = 0
+    rows_stored = 0
+
+    def _one(item) -> tuple[str, int]:
+        flag, code, offset, ot, drv, cf, ct = item
+        if job_id in _cancelled_jobs:
+            return ("cancel", 0)
+        resp = client.get_expired_option_data(
+            security_id=cfg["security_id"],
+            exchange_segment=cfg["exchange_segment"],
+            instrument=cfg["instrument"],
+            expiry_flag=flag,
+            expiry_code=code,
+            strike=offset,
+            option_type=drv,
+            from_date=cf,
+            to_date=ct,
+            interval="1",
+        )
+        if resp is None:
+            return ("fail", 0)
+        bars = dhan_expired.normalize_rolling(resp, ot)
+        if not bars:
+            return ("empty", 0)
+        rows = [
+            {
+                "underlying": underlying,
+                "exchange_segment": cfg["exchange_segment"],
+                "instrument": cfg["instrument"],
+                "expiry_flag": flag,
+                "expiry_code": code,
+                "interval": "1m",
+                "strike_label": offset,
+                "option_type": ot,
+                **b,
+            }
+            for b in bars
+        ]
+        with db_lock:
+            n = upsert_rolling_options(rows)
+        return ("ok", n)
+
+    try:
+        with ThreadPoolExecutor(max_workers=NUM_WORKERS) as pool:
+            futures = {pool.submit(_one, w): w for w in work}
+            for fut in as_completed(futures):
+                status, n = fut.result()
+                if status == "cancel":
+                    for f in futures:
+                        f.cancel()
+                    update_expired_fno_job(job_id, {"status": "cancelled", "completed_at": _now_iso()})
+                    return
+                completed += 1
+                rows_stored += n
+                if status == "fail":
+                    failed += 1
+                if completed % 50 == 0 or completed == total:
+                    update_expired_fno_job(
+                        job_id, {"completed_contracts": completed, "failed_contracts": failed}
+                    )
+                    try:
+                        socketio.emit("historify_progress", {
+                            "job_id": job_id, "job_type": "expired_fno",
+                            "current": completed, "total": total,
+                            "completed": completed, "failed": failed,
+                            "percent": int(completed / total * 100),
+                            "symbol": f"{underlying} rolling ({rows_stored:,} bars)",
+                        })
+                    except Exception:
+                        pass
+
+        if job_id not in _cancelled_jobs:
+            update_expired_fno_job(job_id, {
+                "status": "completed", "completed_at": _now_iso(),
+                "completed_contracts": completed, "failed_contracts": failed,
+            })
+            logger.info(f"[harvest:{job_id}] {underlying} done: {rows_stored:,} bars stored, "
+                        f"{failed} failed / {total} requests")
+    except Exception as e:
+        logger.exception(f"[harvest:{job_id}] crashed: {e}")
+        update_expired_fno_job(job_id, {"status": "failed", "error_message": str(e)[:200],
+                                        "completed_at": _now_iso()})
+    finally:
+        _cancelled_jobs.discard(job_id)
+
+
+# =============================================================================
 # Broker Capability
 # =============================================================================
 
@@ -168,16 +699,23 @@ def get_expired_fno_capability(api_key: str) -> tuple[bool, dict[str, Any], int]
         auth_token, broker = result[0], result[1]
 
         supported = broker in EXPIRED_FNO_CAPABLE_BROKERS if broker else False
+        note = None
+        underlyings: list[str] = []
+        if supported:
+            if broker == "upstox":
+                note = "Requires Upstox Plus Plan"
+                underlyings = SUPPORTED_UNDERLYINGS
+            elif broker == "dhan":
+                note = "Requires Dhan Data API subscription (options only)"
+                underlyings = dhan_expired.SUPPORTED_UNDERLYINGS
         return (
             True,
             {
                 "status": "success",
                 "supported": supported,
                 "broker": broker,
-                "note": (
-                    "Requires Upstox Plus Plan" if broker == "upstox" and supported else None
-                ),
-                "supported_underlyings": SUPPORTED_UNDERLYINGS if supported else [],
+                "note": note,
+                "supported_underlyings": underlyings,
             },
             200,
         )
@@ -206,6 +744,21 @@ def fetch_expiries(
     """
     try:
         underlying = underlying.upper()
+
+        result = get_auth_token_broker(api_key)
+        auth_token, broker = result[0], result[1]
+        if not auth_token or broker not in EXPIRED_FNO_CAPABLE_BROKERS:
+            return (
+                False,
+                {
+                    "status": "error",
+                    "message": "Expired F&O data requires an active Upstox or Dhan broker session.",
+                },
+                400,
+            )
+        if broker == "dhan":
+            return _dhan_fetch_expiries(underlying)
+
         resolved = resolve_underlying_key(underlying)
         if resolved is None:
             return (
@@ -219,18 +772,6 @@ def fetch_expiries(
                 400,
             )
         upstox_key, exchange = resolved
-
-        result = get_auth_token_broker(api_key)
-        auth_token, broker = result[0], result[1]
-        if not auth_token or broker not in EXPIRED_FNO_CAPABLE_BROKERS:
-            return (
-                False,
-                {
-                    "status": "error",
-                    "message": "Expired F&O data requires an active Upstox broker session.",
-                },
-                400,
-            )
 
         client = UpstoxExpiredDataClient(auth_token)
         expiries = client.get_expiries(upstox_key)
@@ -275,18 +816,23 @@ def fetch_expiries(
         return False, {"status": "error", "message": str(e)}, 500
 
 
-def get_cached_expiries(underlying: str) -> tuple[bool, dict[str, Any], int]:
+def get_cached_expiries(
+    underlying: str, api_key: str | None = None
+) -> tuple[bool, dict[str, Any], int]:
     """
     Return expiry dates cached in DuckDB for an underlying.
 
     Args:
         underlying: OpenAlgo underlying symbol
+        api_key: OpenAlgo API key (used to detect the active broker for dispatch)
 
     Returns:
         Tuple of (success, response_data, status_code)
     """
     try:
         underlying = underlying.upper()
+        if api_key and _active_broker(api_key) == "dhan":
+            return _dhan_get_cached_expiries(underlying)
         resolved = resolve_underlying_key(underlying)
         if resolved is None:
             return (
@@ -352,6 +898,20 @@ def fetch_contracts_for_expiry(
         # Keep compat: first expiry_date for legacy single-expiry callers
         expiry_date = expiry_dates[0]
 
+        result = get_auth_token_broker(api_key)
+        auth_token, broker = result[0], result[1]
+        if not auth_token or broker not in EXPIRED_FNO_CAPABLE_BROKERS:
+            return (
+                False,
+                {
+                    "status": "error",
+                    "message": "Expired F&O data requires an active Upstox or Dhan broker session.",
+                },
+                400,
+            )
+        if broker == "dhan":
+            return _dhan_fetch_contracts(underlying, expiry_dates, contract_types)
+
         resolved = resolve_underlying_key(underlying)
         if resolved is None:
             return (
@@ -360,18 +920,6 @@ def fetch_contracts_for_expiry(
                 400,
             )
         upstox_key, exchange = resolved
-
-        result = get_auth_token_broker(api_key)
-        auth_token, broker = result[0], result[1]
-        if not auth_token or broker not in EXPIRED_FNO_CAPABLE_BROKERS:
-            return (
-                False,
-                {
-                    "status": "error",
-                    "message": "Expired F&O data requires an active Upstox broker session.",
-                },
-                400,
-            )
 
         client = UpstoxExpiredDataClient(auth_token)
 
@@ -447,7 +995,7 @@ def fetch_contracts_for_expiry(
 
 
 def get_cached_contracts(
-    underlying: str, expiry_dates: str | list[str]
+    underlying: str, expiry_dates: str | list[str], api_key: str | None = None
 ) -> tuple[bool, dict[str, Any], int]:
     """
     Return contracts cached in DuckDB for an underlying + one or more expiries.
@@ -455,6 +1003,7 @@ def get_cached_contracts(
     Args:
         underlying: OpenAlgo underlying symbol
         expiry_dates: One or more expiry dates in YYYY-MM-DD format
+        api_key: OpenAlgo API key (used to detect the active broker for dispatch)
 
     Returns:
         Tuple of (success, response_data, status_code)
@@ -464,6 +1013,9 @@ def get_cached_contracts(
         if isinstance(expiry_dates, str):
             expiry_dates = [expiry_dates]
         expiry_dates = [d.split("T")[0] for d in expiry_dates]
+
+        if api_key and _active_broker(api_key) == "dhan":
+            return _dhan_get_cached_contracts(underlying, expiry_dates)
 
         resolved = resolve_underlying_key(underlying)
         if resolved is None:
@@ -524,15 +1076,6 @@ def start_expired_fno_download(
         underlying = underlying.upper()
         contract_types = [c.upper() for c in contract_types]
 
-        resolved = resolve_underlying_key(underlying)
-        if resolved is None:
-            return (
-                False,
-                {"status": "error", "message": f"Unsupported underlying '{underlying}'"},
-                400,
-            )
-        upstox_key, exchange = resolved
-
         result = get_auth_token_broker(api_key)
         auth_token, broker = result[0], result[1]
         if not auth_token or broker not in EXPIRED_FNO_CAPABLE_BROKERS:
@@ -540,7 +1083,7 @@ def start_expired_fno_download(
                 False,
                 {
                     "status": "error",
-                    "message": "Expired F&O data requires an active Upstox broker session.",
+                    "message": "Expired F&O data requires an active Upstox or Dhan broker session.",
                 },
                 400,
             )
@@ -551,11 +1094,31 @@ def start_expired_fno_download(
         if expiry_dates:
             expiry_dates = [d.split("T")[0] for d in expiry_dates]
 
-        # When incremental=True include already-downloaded contracts (for top-up)
-        pending = get_pending_expired_fno_contracts(
-            upstox_key, expiry_dates, contract_types,
-            include_downloaded=incremental,
-        )
+        if broker == "dhan":
+            cfg, pending = _dhan_pending_contracts(
+                underlying, expiry_dates, contract_types, incremental
+            )
+            if cfg is None:
+                return (
+                    False,
+                    {"status": "error", "message": f"Unsupported underlying '{underlying}'"},
+                    400,
+                )
+            exchange = cfg["exchange"]
+        else:
+            resolved = resolve_underlying_key(underlying)
+            if resolved is None:
+                return (
+                    False,
+                    {"status": "error", "message": f"Unsupported underlying '{underlying}'"},
+                    400,
+                )
+            upstox_key, exchange = resolved
+            # When incremental=True include already-downloaded contracts (for top-up)
+            pending = get_pending_expired_fno_contracts(
+                upstox_key, expiry_dates, contract_types,
+                include_downloaded=incremental,
+            )
         if not pending:
             return (
                 False,
@@ -583,7 +1146,7 @@ def start_expired_fno_download(
         create_expired_fno_job(job_record)
 
         _get_executor().submit(
-            _process_expired_fno_job, job_id, auth_token, pending, look_back, incremental
+            _process_expired_fno_job, job_id, auth_token, pending, look_back, incremental, broker
         )
 
         return (
@@ -609,13 +1172,14 @@ def _process_expired_fno_job(
     contracts: list[dict[str, Any]],
     look_back: str = "6M",
     incremental: bool = True,
+    broker: str = "upstox",
 ) -> None:
     """
     Background worker: download OHLCV for each contract and store in DuckDB.
 
     Uses 4 parallel threads for API calls (I/O bound) with a shared lock
-    serialising DuckDB writes.  The Upstox rate-limiter is already thread-safe
-    so all workers share the same request budget.
+    serialising DuckDB writes.  Per-broker rate-limiters are thread-safe so all
+    workers share the same request budget.
 
     Emits historify_progress Socket.IO events so the frontend progress bar
     picks them up automatically (same event used by regular Historify jobs).
@@ -623,9 +1187,14 @@ def _process_expired_fno_job(
     from extensions import socketio
 
     NUM_WORKERS = 4
+    is_dhan = broker == "dhan"
 
     update_expired_fno_job(job_id, {"status": "running", "started_at": _now_iso()})
-    client = UpstoxExpiredDataClient(auth_token)
+    client = (
+        dhan_expired.DhanExpiredDataClient(auth_token)
+        if is_dhan
+        else UpstoxExpiredDataClient(auth_token)
+    )
     total = len(contracts)
     completed = 0
     failed = 0
@@ -637,6 +1206,10 @@ def _process_expired_fno_job(
         """Download a single contract. Returns ('ok'|'fail'|'cancel', symbol, candle_count)."""
         if job_id in _cancelled_jobs:
             return ("cancel", contract["openalgo_symbol"], 0)
+
+        # Dhan path: rolling-option fetch + post-download symbol resolution.
+        if is_dhan:
+            return _dhan_download_one(client, contract, look_back, incremental, db_lock)
 
         expired_key = contract["expired_instrument_key"]
         oa_symbol = contract["openalgo_symbol"]
@@ -654,6 +1227,12 @@ def _process_expired_fno_job(
             candles = client.get_historical_data(
                 expired_key, from_date=from_date, to_date=to_date
             )
+            if candles is None:
+                # API failure after retries — keep data_fetched=FALSE for retry
+                logger.warning(f"[job:{job_id}] API failure for {oa_symbol}, will retry later")
+                with db_lock:
+                    increment_expired_fno_retry(expired_key, "API failure after retries")
+                return ("fail", oa_symbol, 0)
             if candles:
                 df = _candles_to_df(candles)
                 if not df.empty:
@@ -661,12 +1240,15 @@ def _process_expired_fno_job(
                         records = upsert_market_data(df, oa_symbol, exchange, "1m")
                         mark_expired_fno_contract_done(expired_key, records)
                     return ("ok", oa_symbol, records)
-            logger.warning(f"[job:{job_id}] No candles for {oa_symbol}")
+            # API returned 200 OK but no candles — legitimately no data
+            logger.info(f"[job:{job_id}] No candles exist for {oa_symbol}")
             with db_lock:
                 mark_expired_fno_contract_done(expired_key, 0)
-            return ("fail", oa_symbol, 0)
+            return ("ok", oa_symbol, 0)
         except Exception as e:
             logger.exception(f"[job:{job_id}] Error for {oa_symbol}: {e}")
+            with db_lock:
+                increment_expired_fno_retry(expired_key, str(e)[:200])
             return ("fail", oa_symbol, 0)
 
     try:

@@ -63,6 +63,11 @@ const CAPITAL_OPTIONS = [
   { value: '10000000', label: '1,00,00,000 (1 Crore)' },
 ]
 
+const ANALYZER_BROKER_MARGIN_MODES = [
+  { value: 'strict_broker', label: 'Strict Broker Margin' },
+  { value: 'broker_with_fallback', label: 'Broker Margin With Fallback' },
+]
+
 function formatConfigLabel(key: string): string {
   return key
     .split('_')
@@ -221,6 +226,36 @@ export default function Sandbox() {
               {DAYS_OF_WEEK.map((day) => (
                 <SelectItem key={day} value={day}>
                   {day}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+          <Button
+            size="sm"
+            variant={isModified ? 'default' : 'secondary'}
+            onClick={() => saveConfig(configKey)}
+          >
+            <Save className="h-4 w-4 mr-1" />
+            Set
+          </Button>
+        </div>
+      )
+    }
+
+    if (configKey === 'analyzer_broker_margin_mode') {
+      return (
+        <div className="flex gap-2">
+          <Select
+            value={configData.value}
+            onValueChange={(value) => updateConfig(configKey, value)}
+          >
+            <SelectTrigger className="flex-1">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {ANALYZER_BROKER_MARGIN_MODES.map((mode) => (
+                <SelectItem key={mode.value} value={mode.value}>
+                  {mode.label}
                 </SelectItem>
               ))}
             </SelectContent>
