@@ -45,7 +45,7 @@ httpcore==1.0.9
 httpx[http2]==0.28.1
 httpx-sse==0.4.3
 hyperframe==6.1.0
-idna==3.11
+idna==3.15
 importlib-resources==6.5.2
 iniconfig==2.3.0
 ipykernel==6.29.5
@@ -69,13 +69,12 @@ marshmallow==3.26.2
 matplotlib-inline==0.2.1
 mcp==1.27.0
 mdurl==0.1.2
-py_lets_be_rational==1.0.1
-py_vollib==1.0.1
+opengreeks==0.2.0
 narwhals==2.19.0
 nbformat==5.10.4
 nest-asyncio==1.6.0
 numpy==2.4.4
-openalgo==1.0.50
+openalgo==2.0.1
 ordered-set==4.1.0
 orjson==3.11.8
 packaging==24.1
@@ -118,7 +117,6 @@ referencing==0.37.0
 requests==2.33.1
 rich==13.7.1
 rpds-py==0.30.0
-scipy==1.17.1
 setuptools==80.10.1
 simple-websocket==1.1.0
 simplejson==3.20.2
@@ -127,7 +125,7 @@ sniffio==1.3.1
 SQLAlchemy==2.0.49
 sse-starlette==2.4.1
 stack-data==0.6.3
-starlette==0.52.1
+starlette==1.0.1
 tornado==6.5.5
 traitlets==5.14.3
 typing-extensions>=4.12.2

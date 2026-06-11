@@ -106,6 +106,7 @@ from database.whatsapp_db import (
 from extensions import socketio  # Import SocketIO
 from limiter import limiter  # Import the Limiter instance
 from restx_api import api, api_v1_bp
+from services.broker_keepalive_service import start_broker_keepalive
 from services.telegram_bot_service import telegram_bot_service
 from utils.latency_monitor import init_latency_monitoring  # Import latency monitoring
 from utils.health_monitor import init_health_monitoring  # Import health monitoring
@@ -167,7 +168,23 @@ def create_app():
     app.jinja_env.filters["indian_number"] = format_indian_number
 
     # Environment variables
-    app.secret_key = os.getenv("APP_KEY")
+    # Security: Require APP_KEY (fail fast if missing). This is the Flask
+    # secret used to sign session cookies and generate CSRF tokens. If it
+    # were left as None, session/CSRF protection would silently break.
+    # Must be at least 32 characters for cryptographic security.
+    _app_key = os.getenv("APP_KEY")
+    if not _app_key:
+        raise RuntimeError(
+            "CRITICAL: APP_KEY environment variable is not set. "
+            "This is required to sign session cookies and CSRF tokens. "
+            'Generate one using: python -c "import secrets; print(secrets.token_hex(32))"'
+        )
+    if len(_app_key) < 32:
+        raise RuntimeError(
+            f"CRITICAL: APP_KEY must be at least 32 characters (got {len(_app_key)}). "
+            'Generate a secure key using: python -c "import secrets; print(secrets.token_hex(32))"'
+        )
+    app.secret_key = _app_key
     app.config["SQLALCHEMY_DATABASE_URI"] = os.getenv("DATABASE_URL")
 
     # Dynamic cookie security configuration based on HOST_SERVER
@@ -398,6 +415,10 @@ def create_app():
         # Initialize health monitoring (background daemon thread)
         init_health_monitoring(app)
 
+        # Keep the pooled broker HTTP connection warm during market hours so
+        # orders never pay a fresh TCP+TLS handshake after an idle gap
+        start_broker_keepalive()
+
         # NOTE: Python strategy scheduler is initialized in setup_environment()
         # AFTER database tables are created, to avoid "no such table" errors on fresh install
 
@@ -454,7 +475,15 @@ def create_app():
         # Check if user is logged in and session is expired
         if session.get("logged_in") and not is_session_valid():
             logger.info(f"Session expired for user: {session.get('user')} - revoking tokens")
-            revoke_user_tokens(revoke_db_tokens=False)
+            # Revoke the DB broker token at the daily rollover (same as manual logout).
+            # Indian broker tokens are invalidated broker-side at ~3 AM IST, so a
+            # preserved token is dead anyway; keeping it (revoke_db_tokens=False) made
+            # the next login's session-resume path reuse a stale token and skip broker
+            # OAuth, leaving the WebSocket feed dead with 403s until a restart (#1419).
+            # Revoking sets is_revoked=True so _try_resume_broker_session refuses to
+            # resume and forces a fresh broker authentication. Crypto/24-7 brokers never
+            # reach this branch (is_session_valid() stays True when expiry is disabled).
+            revoke_user_tokens(revoke_db_tokens=True)
             session.clear()
             # Don't redirect here, let individual routes handle it
 
