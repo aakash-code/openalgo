@@ -381,34 +381,80 @@ class FundManager:
                 return False, f"Error updating unrealized P&L: {str(e)}"
 
     def calculate_margin_required(self, symbol, exchange, product, quantity, price, action=None):
-        """Calculate margin required for a trade based on leverage rules"""
+        """
+        Calculate margin required for a trade.
+
+        For naked option SELL orders the priority chain is:
+          1. Real broker SPAN API       (if option_sell_margin_mode includes 'broker_api')
+          2. SEBI SPAN approximation    (if option_sell_margin_mode includes 'span_approx' or as fallback)
+          3. Legacy leverage formula    (option_sell_leverage config, always last resort)
+
+        For all other trade types the legacy leverage formula is used directly.
+        """
         try:
             quantity = abs(int(quantity))
             price = Decimal(str(price))
 
-            # Get symbol info to determine instrument type (from cache)
+            # Resolve symbol metadata (needed for SPAN approx and instrument-type routing)
             symbol_obj = get_symbol_info(symbol, exchange)
-
             if not symbol_obj:
                 logger.error(f"Symbol {symbol} not found on {exchange}")
                 return None, "Symbol not found"
 
-            # Calculate trade value (quantity × price)
+            # ── SEBI-compliant margin for naked option SELL ──────────────────────
+            if action == "SELL" and is_option(symbol, exchange):
+                margin_mode = get_config(
+                    "option_sell_margin_mode", "broker_api_with_span_fallback"
+                )
+
+                if margin_mode == "broker_api_with_span_fallback":
+                    # Attempt 1: real broker SPAN API
+                    broker_margin = self._try_broker_margin_api(
+                        symbol, exchange, product, quantity, price
+                    )
+                    if broker_margin is not None and broker_margin > 0:
+                        logger.info(
+                            f"[MARGIN] Broker API ₹{broker_margin:.2f} for {symbol} SELL"
+                        )
+                        return broker_margin, "Broker API margin (SEBI SPAN)"
+
+                    # Attempt 2: SEBI SPAN approximation
+                    span_margin = self._calculate_span_approx_margin(
+                        symbol, exchange, quantity, price, symbol_obj
+                    )
+                    if span_margin is not None and span_margin > 0:
+                        logger.info(
+                            f"[MARGIN] SPAN approx ₹{span_margin:.2f} for {symbol} SELL"
+                        )
+                        return span_margin, "SPAN approximation margin (SEBI-compliant)"
+
+                elif margin_mode == "span_approx":
+                    # SPAN approximation only (no broker call)
+                    span_margin = self._calculate_span_approx_margin(
+                        symbol, exchange, quantity, price, symbol_obj
+                    )
+                    if span_margin is not None and span_margin > 0:
+                        logger.info(
+                            f"[MARGIN] SPAN approx ₹{span_margin:.2f} for {symbol} SELL"
+                        )
+                        return span_margin, "SPAN approximation margin (SEBI-compliant)"
+
+                # 'premium' mode, or all above failed → fall through to legacy formula
+                logger.debug(
+                    f"[MARGIN] Falling back to legacy leverage formula for {symbol} SELL"
+                )
+
+            # ── Legacy leverage-based formula (BUY options / futures / equity) ──
             trade_value = quantity * price
-
-            # Determine leverage based on action, product and symbol type
             leverage = self._get_leverage(exchange, product, symbol, action)
-
             if leverage is None:
                 return None, "Unable to determine leverage"
 
-            # Calculate margin (always use leverage-based calculation)
             margin = trade_value / Decimal(str(leverage))
-
             logger.debug(
-                f"Margin for {symbol} {exchange} {product} {action}: ₹{margin} (Trade value: ₹{trade_value}, Leverage: {leverage}x)"
+                f"[MARGIN] Legacy: {symbol} {action} ₹{margin:.2f} "
+                f"(value=₹{trade_value:.2f}, leverage={leverage}x)"
             )
-
             return margin, "Margin calculated successfully"
 
         except Exception as e:
@@ -416,7 +462,8 @@ class FundManager:
             return None, f"Error calculating margin: {str(e)}"
 
     def _get_leverage(self, exchange, product, symbol, action=None):
-        """Get leverage multiplier based on exchange, product, symbol type, and action"""
+        """Get leverage multiplier based on exchange, product, symbol type, and action.
+        Used for equity, futures, option BUY, and as final fallback for option SELL."""
         try:
             # Equity exchanges
             if exchange in ["NSE", "BSE"]:
@@ -436,7 +483,7 @@ class FundManager:
                 # Options use different leverage based on BUY vs SELL
                 if action == "BUY":
                     return Decimal(get_config("option_buy_leverage", "1"))
-                else:  # SELL
+                else:  # SELL - legacy fallback only (SPAN/broker API used first)
                     return Decimal(get_config("option_sell_leverage", "1"))
 
             # Default to 1x leverage
@@ -445,6 +492,176 @@ class FundManager:
         except Exception as e:
             logger.exception(f"Error getting leverage: {e}")
             return Decimal("1")
+
+    # ── SEBI SPAN / Broker margin helpers ─────────────────────────────────────
+
+    def _try_broker_margin_api(
+        self, symbol: str, exchange: str, product: str, quantity: int, price: Decimal
+    ):
+        """
+        Call the connected broker's SPAN margin API for a single naked short-option position.
+
+        Returns the total initial margin (SPAN + Exposure) as a Decimal, or None on any
+        failure so the caller can fall through to the SPAN approximation.
+        """
+        try:
+            from services.margin_service import calculate_margin
+
+            # Build position in OpenAlgo margin API format
+            margin_data = {
+                "apikey": "_internal",  # placeholder – will be replaced below
+                "positions": [
+                    {
+                        "exchange": exchange,
+                        "symbol": symbol,
+                        "action": "SELL",
+                        "quantity": str(quantity),
+                        "product": product if product in ("NRML", "MIS", "CNC") else "NRML",
+                        "pricetype": "MARKET",
+                        "price": str(float(price)),
+                    }
+                ],
+            }
+
+            # Resolve auth token + broker from stored API key
+            from database.auth_db import ApiKeys, decrypt_token, get_auth_token_broker
+
+            api_key_obj = ApiKeys.query.first()
+            if not api_key_obj:
+                logger.debug("[MARGIN] No API key found – skipping broker margin API")
+                return None
+
+            api_key = decrypt_token(api_key_obj.api_key_encrypted)
+            if not api_key:
+                return None
+
+            margin_data["apikey"] = api_key
+
+            success, response, _ = calculate_margin(margin_data, api_key=api_key)
+            if not success:
+                logger.debug(f"[MARGIN] Broker API failed: {response.get('message', '')}")
+                return None
+
+            # ── Parse standardized OpenAlgo response ──────────────────────────
+            # All broker modules normalise to: response['data']['total_margin_required']
+            data = response.get("data", {})
+            if isinstance(data, dict):
+                for key in ("total_margin_required", "total_margin", "initialmargin", "margin"):
+                    val = data.get(key)
+                    if val is not None:
+                        amount = float(val)
+                        if amount > 0:
+                            return Decimal(str(amount))
+
+            # Some brokers return the value at the top level
+            for key in ("total_margin_required", "initialmargin", "total", "margin"):
+                val = response.get(key)
+                if val is not None:
+                    amount = float(val)
+                    if amount > 0:
+                        return Decimal(str(amount))
+
+            logger.debug(f"[MARGIN] Broker API returned no usable margin value: {response}")
+            return None
+
+        except Exception as e:
+            logger.debug(f"[MARGIN] Broker API exception for {symbol}: {e}")
+            return None
+
+    def _calculate_span_approx_margin(
+        self,
+        symbol: str,
+        exchange: str,
+        quantity: int,
+        option_premium: Decimal,
+        symbol_obj,
+    ):
+        """
+        SEBI-compliant offline SPAN approximation for naked short options.
+
+        Formula recommended by NSE/SEBI for margin estimation:
+            SPAN margin     = span_pct  % × underlying_price × lot_size × lots
+            Exposure margin = exp_pct   % × underlying_price × lot_size × lots
+            Initial margin  = SPAN + Exposure
+            Minimum margin  = min_pct   % × underlying_price × lot_size × lots
+            Final margin    = max(Initial, Minimum)
+
+        Percentages are read from sandbox config (defaults: SPAN=15, Exp=3, Min=7.5).
+        Falls back to None so the caller can use the legacy premium formula.
+        """
+        try:
+            span_pct = Decimal(get_config("span_margin_pct", "15")) / 100
+            min_pct = Decimal(get_config("min_margin_pct", "7.5")) / 100
+            exp_pct = Decimal(get_config("exposure_margin_pct", "3")) / 100
+
+            lot_size = Decimal(str(symbol_obj.lotsize or 1))
+            lots = Decimal(str(quantity)) / lot_size
+
+            # ── Step 1: Get live underlying price ─────────────────────────────
+            underlying_price = self._get_underlying_price(symbol, exchange, symbol_obj)
+
+            if underlying_price is None or underlying_price <= 0:
+                # Fallback: strike price is a reasonable proxy for deep/ATM options
+                if symbol_obj.strike and float(symbol_obj.strike) > 0:
+                    underlying_price = Decimal(str(symbol_obj.strike))
+                    logger.debug(
+                        f"[MARGIN] Using strike ₹{underlying_price} as underlying proxy for {symbol}"
+                    )
+                else:
+                    logger.warning(
+                        f"[MARGIN] Cannot determine underlying price for {symbol} – "
+                        "falling back to legacy premium formula"
+                    )
+                    return None
+
+            # ── Step 2: Compute notional and margin components ────────────────
+            notional = underlying_price * lot_size * lots
+            span_margin = span_pct * notional
+            exposure_margin = exp_pct * notional
+            initial_margin = span_margin + exposure_margin
+            minimum_margin = min_pct * notional
+            final_margin = max(initial_margin, minimum_margin)
+
+            logger.info(
+                f"[MARGIN] SPAN Approx [{symbol}]: underlying=₹{underlying_price:.2f}, "
+                f"lots={lots}, notional=₹{notional:.2f} | "
+                f"SPAN({span_pct*100:.0f}%)=₹{span_margin:.2f} + "
+                f"Exp({exp_pct*100:.0f}%)=₹{exposure_margin:.2f} | "
+                f"Min({min_pct*100:.1f}%)=₹{minimum_margin:.2f} | "
+                f"FINAL=₹{final_margin:.2f}"
+            )
+            return final_margin
+
+        except Exception as e:
+            logger.exception(f"[MARGIN] SPAN approximation error for {symbol}: {e}")
+            return None
+
+    def _get_underlying_price(self, option_symbol: str, exchange: str, symbol_obj):
+        """
+        Fetch the live underlying index / stock price for an option.
+
+        Uses the same `get_quotes` path as the execution engine.
+        Returns a Decimal or None.
+        """
+        try:
+            from sandbox.execution_engine import ExecutionEngine
+
+            underlying_name = getattr(symbol_obj, "name", None)
+            if not underlying_name:
+                return None
+
+            engine = ExecutionEngine()
+            # Most Indian F&O underlyings trade on NSE; try NSE first
+            for ex in ("NSE", "BSE"):
+                quote = engine._fetch_quote(underlying_name, ex)
+                if quote and float(quote.get("ltp", 0)) > 0:
+                    return Decimal(str(quote["ltp"]))
+
+            return None
+
+        except Exception as e:
+            logger.debug(f"[MARGIN] Error fetching underlying price for {option_symbol}: {e}")
+            return None
 
 
 def get_user_funds(user_id):

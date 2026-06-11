@@ -19,6 +19,8 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     create_engine,
+    inspect,
+    text,
 )
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
@@ -271,7 +273,15 @@ def _now_ist():
 def log_login_attempt(username, ip_address=None, device_info=None, status="failed",
                       login_type="password", broker=None, failure_reason=None):
     """Record a login attempt for audit purposes. All records are retained permanently."""
+    import json
     try:
+        # Ensure failure_reason is a string (SQLite binding error if it's a dict)
+        if failure_reason and not isinstance(failure_reason, str):
+            try:
+                failure_reason = json.dumps(failure_reason)
+            except Exception:
+                failure_reason = str(failure_reason)
+
         attempt = LoginAttempt(
             username=username,
             ip_address=ip_address,
@@ -429,6 +439,47 @@ def init_db():
     from database.db_init_helper import init_db_with_logging
 
     init_db_with_logging(Base, engine, "Auth DB", logger)
+    _migrate_auth_columns()
+
+
+def _migrate_auth_columns():
+    """Add newly introduced auth columns for existing databases."""
+    auth_columns = [
+        ("feed_token", "TEXT"),
+        ("user_id", "VARCHAR(255)"),
+        ("secret_api_key", "TEXT"),
+        ("primary_ip", "VARCHAR(45)"),
+        ("secondary_ip", "VARCHAR(45)"),
+        ("ip_updated_at", "DATETIME"),
+        ("aux_param1", "TEXT"),
+        ("aux_param2", "TEXT"),
+        ("aux_param3", "TEXT"),
+        ("aux_param4", "TEXT"),
+    ]
+
+    try:
+        inspector = inspect(engine)
+        if "auth" not in inspector.get_table_names():
+            return
+
+        existing_columns = {col["name"] for col in inspector.get_columns("auth")}
+
+        with engine.connect() as conn:
+            added_columns = []
+            for column_name, column_type in auth_columns:
+                if column_name in existing_columns:
+                    continue
+
+                conn.execute(text(f"ALTER TABLE auth ADD COLUMN {column_name} {column_type}"))
+                added_columns.append(column_name)
+
+            if added_columns:
+                conn.commit()
+                logger.info(
+                    "Migration: added missing auth column(s): %s", ", ".join(added_columns)
+                )
+    except Exception as e:
+        logger.debug(f"Migration check for auth table columns: {e}")
 
 
 def safe_decrypt_token(value):

@@ -179,32 +179,56 @@ class UpstoxExpiredDataClient:
             "Accept": "application/json",
         }
 
-    def _get(self, path: str, params: dict[str, str] | None = None) -> Any:
+    def _get(self, path: str, params: dict[str, str] | None = None, max_retries: int = 3) -> Any:
         """
-        Make a rate-limited GET request to the Upstox v2 API.
+        Make a rate-limited GET request to the Upstox v2 API with retry.
+
+        Retries on 429 (rate limit) and 5xx (server error) with exponential
+        backoff.  Returns None on non-retryable client errors (4xx excl. 429)
+        or after all retries are exhausted.
 
         Args:
             path: API path (e.g., "/expired-instruments/expiries")
             params: Query parameters
+            max_retries: Maximum number of attempts (default 3)
 
         Returns:
             Parsed JSON response or None on failure
         """
         url = f"{UPSTOX_BASE_URL}{path}"
-        _rate_limiter.acquire()
-        try:
-            response = self._client.get(url, headers=self._headers(), params=params)
-            _rate_limiter.on_response(response.status_code)
-            if response.status_code == 200:
-                return response.json()
-            logger.error(
-                f"Upstox API error {response.status_code} for {path}: "
-                f"{response.text[:200]}"
-            )
-            return None
-        except Exception as e:
-            logger.exception(f"Request failed for {path}: {e}")
-            return None
+        for attempt in range(max_retries):
+            _rate_limiter.acquire()
+            try:
+                response = self._client.get(url, headers=self._headers(), params=params)
+                _rate_limiter.on_response(response.status_code)
+                if response.status_code == 200:
+                    return response.json()
+                if response.status_code == 429:
+                    logger.warning(f"Rate limited (429) on attempt {attempt + 1} for {path}")
+                    continue  # on_response() already handled backoff sleep
+                if response.status_code >= 500:
+                    wait = 2 ** attempt
+                    logger.warning(
+                        f"Server error {response.status_code} for {path}, "
+                        f"retry {attempt + 1}/{max_retries} in {wait}s"
+                    )
+                    time.sleep(wait)
+                    continue
+                # 4xx (non-429): client error, don't retry
+                logger.error(
+                    f"Upstox API error {response.status_code} for {path}: "
+                    f"{response.text[:200]}"
+                )
+                return None
+            except Exception as e:
+                wait = 2 ** attempt
+                logger.warning(
+                    f"Request failed for {path} (attempt {attempt + 1}): {e}, "
+                    f"retry in {wait}s"
+                )
+                time.sleep(wait)
+        logger.error(f"All {max_retries} retries exhausted for {path}")
+        return None
 
     def get_expiries(self, instrument_key: str) -> list[str]:
         """
@@ -281,7 +305,7 @@ class UpstoxExpiredDataClient:
         from_date: str,
         to_date: str,
         interval: str = "1minute",
-    ) -> list[list]:
+    ) -> list[list] | None:
         """
         Fetch 1-minute OHLCV candles for an expired contract.
 
@@ -292,7 +316,8 @@ class UpstoxExpiredDataClient:
             interval: Candle interval (default: "1minute")
 
         Returns:
-            List of candles: [[timestamp, open, high, low, close, volume, oi], ...]
+            List of candles on success (may be empty if no data exists),
+            or None on API failure (caller should retry later).
         """
         path = (
             f"/expired-instruments/historical-candle"
@@ -301,7 +326,7 @@ class UpstoxExpiredDataClient:
         logger.debug(f"Fetching history for {expired_instrument_key} {from_date}→{to_date}")
         data = self._get(path)
         if data is None:
-            return []
+            return None  # API failure — don't mark contract as done
         candles = data.get("data", {}).get("candles", [])
         logger.debug(f"Received {len(candles)} candles for {expired_instrument_key}")
         return candles

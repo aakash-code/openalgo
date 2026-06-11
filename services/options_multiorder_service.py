@@ -9,14 +9,17 @@ Supports split orders per leg if splitsize is specified.
 import copy
 import os
 import time
-from typing import Any, Dict, List, Optional, Tuple
+from decimal import Decimal
+from typing import Any, Optional
 
 from database.auth_db import get_auth_token_broker
 from database.settings_db import get_analyze_mode
 from events import AnalyzerErrorEvent, MultiOrderCompletedEvent
+from sandbox.order_manager import OrderManager
 from services.option_symbol_service import get_option_symbol, parse_underlying_symbol
 from services.place_order_service import place_order
 from services.quotes_service import get_quotes
+from services.sandbox_service import get_user_id_from_apikey
 from utils.event_bus import bus
 from utils.logging import get_logger
 
@@ -452,6 +455,63 @@ def process_multiorder_with_auth(
             logger.info(f"Using single LTP fetch for all legs: {underlying_ltp}")
         else:
             logger.warning(f"Failed to fetch underlying LTP: {error_msg}. Will retry per leg.")
+
+    if get_analyze_mode():
+        precheck_orders = []
+        for leg in legs:
+            leg_expiry = leg.get("expiry_date") or common_data.get("expiry_date")
+            resolve_success, symbol_response, status_code = get_option_symbol(
+                underlying=common_data.get("underlying"),
+                exchange=common_data.get("exchange"),
+                expiry_date=leg_expiry,
+                strike_int=common_data.get("strike_int"),
+                offset=leg.get("offset"),
+                option_type=leg.get("option_type"),
+                api_key=api_key,
+                underlying_ltp=underlying_ltp,
+            )
+            if not resolve_success:
+                return False, symbol_response, status_code
+
+            precheck_orders.append(
+                {
+                    "symbol": symbol_response.get("symbol"),
+                    "exchange": symbol_response.get("exchange"),
+                    "action": leg.get("action", "").upper(),
+                    "quantity": int(leg.get("quantity", 0)),
+                    "product": leg.get("product", "MIS"),
+                    "pricetype": leg.get("pricetype", "MARKET"),
+                    "price": leg.get("price", 0) or 0,
+                }
+            )
+
+        user_id = get_user_id_from_apikey(api_key)
+        if not user_id:
+            return False, {"status": "error", "message": "Invalid API key", "mode": "analyze"}, 403
+
+        order_manager = OrderManager(user_id)
+        precheck_success, precheck_response, precheck_status = order_manager.precheck_orders(
+            precheck_orders
+        )
+        if not precheck_success:
+            return precheck_success, precheck_response, precheck_status
+
+        required_margin = Decimal(str(precheck_response.get("required_margin", "0")))
+        if required_margin > 0:
+            can_trade, margin_check_msg = order_manager.fund_manager.check_margin_available(
+                required_margin
+            )
+            if not can_trade:
+                return (
+                    False,
+                    {
+                        "status": "error",
+                        "message": margin_check_msg,
+                        "mode": "analyze",
+                        "precheck": precheck_response,
+                    },
+                    400,
+                )
 
     # Check if any leg has splitsize > 0 (requires delay between orders)
     has_split_orders = any(leg.get("splitsize", 0) > 0 for _, leg in buy_legs + sell_legs)

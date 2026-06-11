@@ -87,7 +87,15 @@ class OrderLatency(LatencyBase):
         error=None,
     ):
         """Log order execution latency"""
+        import json
         try:
+            # Ensure error is a string (SQLite binding error if it's a dict)
+            if error and not isinstance(error, str):
+                try:
+                    error = json.dumps(error)
+                except Exception:
+                    error = str(error)
+
             log = OrderLatency(
                 order_id=order_id,
                 user_id=user_id,

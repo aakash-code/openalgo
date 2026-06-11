@@ -16,6 +16,7 @@ import {
   type LucideIcon,
   MessageCircle,
   MessageSquare,
+  Radar,
   Search,
   Settings,
   TrendingUp,
@@ -42,6 +43,7 @@ export const navItems: NavItem[] = [
   { href: '/strategy', label: 'Strategy', icon: Code2 },
   { href: '/logs', label: 'Logs', icon: FileBarChart },
   { href: '/tools', label: 'Tools', icon: Wrench },
+  { href: '/scanner', label: 'Scanner', icon: Radar },
 ]
 
 // Items shown in mobile bottom navigation

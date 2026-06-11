@@ -10,6 +10,7 @@ Features:
 - Support for all order types: MARKET, LIMIT, SL, SL-M
 """
 
+import json
 import os
 import sys
 import time
@@ -22,10 +23,17 @@ import pytz
 # Add parent directory to path
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from database.sandbox_db import SandboxOrders, SandboxPositions, SandboxTrades, db_session
+from database.sandbox_db import (
+    SandboxOrders,
+    SandboxPositions,
+    SandboxTrades,
+    db_session,
+    get_config,
+)
 from database.symbol import SymToken
 from database.token_db import get_symbol_info
 from sandbox.fund_manager import FundManager
+from services.margin_service import calculate_margin_with_auth
 from utils.constants import VALID_EXCHANGES
 from utils.logging import get_logger
 from utils.symbol_utils import is_future, is_option
@@ -39,6 +47,295 @@ class OrderManager:
     def __init__(self, user_id):
         self.user_id = user_id
         self.fund_manager = FundManager(user_id)
+
+    def _should_use_broker_margin(self, symbol, exchange):
+        """Use broker margin engines for derivative contracts in analyzer mode."""
+        return is_option(symbol, exchange) or is_future(symbol, exchange)
+
+    def _get_analyzer_broker_margin_mode(self):
+        """Return analyzer broker margin mode configuration."""
+        return get_config("analyzer_broker_margin_mode", "broker_with_fallback")
+
+    def _get_broker_margin_context(self):
+        """Get the active broker auth context for analyzer broker margin calls."""
+        try:
+            from database.auth_db import get_api_key_for_tradingview, get_auth_token_broker
+
+            api_key = get_api_key_for_tradingview(self.user_id)
+            if not api_key:
+                return None, None, "No API key available for broker margin calculation"
+
+            auth_token, broker = get_auth_token_broker(api_key)
+            if not auth_token or not broker:
+                return None, None, "No active broker session available for broker margin calculation"
+
+            return auth_token, broker, None
+        except Exception as e:
+            logger.exception(f"Error getting broker margin context for user {self.user_id}: {e}")
+            return None, None, f"Error getting broker margin context: {str(e)}"
+
+    def _build_margin_position(
+        self, symbol, exchange, product, quantity, action, price, price_type="MARKET"
+    ):
+        """Build a margin API position payload in OpenAlgo's normalized shape."""
+        margin_position = {
+            "exchange": exchange,
+            "symbol": symbol,
+            "action": action,
+            "quantity": int(quantity),
+            "product": product,
+            "pricetype": price_type,
+            "price": float(price) if price is not None else 0,
+        }
+        return margin_position
+
+    def _get_derivative_margin_positions(self):
+        """Return current open derivative sandbox positions as margin API positions."""
+        margin_positions = []
+        open_positions = (
+            SandboxPositions.query.filter_by(user_id=self.user_id)
+            .filter(SandboxPositions.quantity != 0)
+            .all()
+        )
+
+        for position in open_positions:
+            if not self._should_use_broker_margin(position.symbol, position.exchange):
+                continue
+
+            quantity = abs(int(position.quantity))
+            if quantity <= 0:
+                continue
+
+            action = "BUY" if position.quantity > 0 else "SELL"
+            reference_price = (
+                Decimal(str(position.average_price))
+                if position.average_price and Decimal(str(position.average_price)) > 0
+                else Decimal(str(position.ltp or 0))
+            )
+            margin_positions.append(
+                self._build_margin_position(
+                    symbol=position.symbol,
+                    exchange=position.exchange,
+                    product=position.product,
+                    quantity=quantity,
+                    action=action,
+                    price=reference_price,
+                )
+            )
+
+        return margin_positions
+
+    def _project_margin_positions(
+        self,
+        current_positions,
+        symbol,
+        exchange,
+        product,
+        quantity,
+        action,
+        price,
+        price_type,
+    ):
+        """Apply the proposed order to the current derivative basket."""
+        projected_positions = [dict(position) for position in current_positions]
+        signed_quantity = int(quantity) if action == "BUY" else -int(quantity)
+
+        match_index = next(
+            (
+                index
+                for index, position in enumerate(projected_positions)
+                if position["symbol"] == symbol
+                and position["exchange"] == exchange
+                and position["product"] == product
+            ),
+            None,
+        )
+
+        if match_index is None:
+            projected_positions.append(
+                self._build_margin_position(
+                    symbol=symbol,
+                    exchange=exchange,
+                    product=product,
+                    quantity=abs(signed_quantity),
+                    action=action,
+                    price=price,
+                    price_type=price_type,
+                )
+            )
+            return projected_positions
+
+        matched_position = dict(projected_positions[match_index])
+        existing_signed_quantity = (
+            int(matched_position["quantity"])
+            if matched_position["action"] == "BUY"
+            else -int(matched_position["quantity"])
+        )
+        projected_signed_quantity = existing_signed_quantity + signed_quantity
+
+        if projected_signed_quantity == 0:
+            del projected_positions[match_index]
+            return projected_positions
+
+        matched_position["quantity"] = abs(projected_signed_quantity)
+        matched_position["action"] = "BUY" if projected_signed_quantity > 0 else "SELL"
+        matched_position["price"] = float(price) if price is not None else matched_position.get("price", 0)
+        matched_position["pricetype"] = price_type
+        projected_positions[match_index] = matched_position
+        return projected_positions
+
+    def _calculate_broker_margin_for_positions(self, positions):
+        """Calculate broker margin for a basket of derivative positions."""
+        if not positions:
+            return Decimal("0"), "No derivative positions"
+
+        auth_token, broker, context_error = self._get_broker_margin_context()
+        if context_error:
+            return None, context_error
+
+        try:
+            success, response, status_code = calculate_margin_with_auth(
+                positions,
+                auth_token,
+                broker,
+                {"positions": positions, "mode": "analyze"},
+            )
+
+            if not success:
+                message = response.get("message", "Failed to calculate broker margin")
+                return None, f"{message} (status {status_code})"
+
+            margin_data = response.get("data", {})
+            total_margin_required = margin_data.get("total_margin_required")
+            if total_margin_required is None:
+                return None, "Broker margin response did not include total_margin_required"
+
+            return Decimal(str(total_margin_required)), "Broker margin calculated successfully"
+        except Exception as e:
+            logger.exception(f"Error calculating broker basket margin for user {self.user_id}: {e}")
+            return None, f"Error calculating broker margin: {str(e)}"
+
+    def _serialize_margin_snapshot(self, snapshot):
+        """Serialize margin snapshot for audit storage."""
+        if not snapshot:
+            return None
+        return json.dumps(snapshot, sort_keys=True, default=str)
+
+    def precheck_orders(self, orders):
+        """Precheck projected analyzer margin impact for a basket of orders."""
+        if not orders:
+            return True, {"status": "success", "required_margin": "0", "details": []}, 200
+
+        derivative_orders = [
+            order
+            for order in orders
+            if self._should_use_broker_margin(order["symbol"], order["exchange"])
+        ]
+        if not derivative_orders:
+            return True, {"status": "success", "required_margin": "0", "details": []}, 200
+
+        current_positions = self._get_derivative_margin_positions()
+        projected_positions = [dict(position) for position in current_positions]
+        details = []
+
+        for order in derivative_orders:
+            projected_positions = self._project_margin_positions(
+                current_positions=projected_positions,
+                symbol=order["symbol"],
+                exchange=order["exchange"],
+                product=order["product"],
+                quantity=int(order["quantity"]),
+                action=order["action"],
+                price=Decimal(str(order.get("price", 0) or 0)),
+                price_type=order.get("pricetype", "MARKET"),
+            )
+            details.append(
+                {
+                    "symbol": order["symbol"],
+                    "exchange": order["exchange"],
+                    "action": order["action"],
+                    "quantity": int(order["quantity"]),
+                    "product": order["product"],
+                }
+            )
+
+        current_margin_required, current_margin_msg = self._calculate_broker_margin_for_positions(
+            current_positions
+        )
+        projected_margin_required, projected_margin_msg = (
+            self._calculate_broker_margin_for_positions(projected_positions)
+        )
+
+        broker_margin_failed = (
+            current_margin_required is None or projected_margin_required is None
+        )
+
+        if broker_margin_failed:
+            margin_mode = self._get_analyzer_broker_margin_mode()
+            broker_error = (
+                current_margin_msg if current_margin_required is None else projected_margin_msg
+            )
+            if margin_mode == "strict_broker":
+                return (
+                    False,
+                    {
+                        "status": "error",
+                        "message": broker_error,
+                        "mode": "analyze",
+                    },
+                    400,
+                )
+
+            fallback_margin = Decimal("0")
+            for order in derivative_orders:
+                internal_margin, internal_msg = self.fund_manager.calculate_margin_required(
+                    order["symbol"],
+                    order["exchange"],
+                    order["product"],
+                    int(order["quantity"]),
+                    Decimal(str(order.get("price", 0) or 0)),
+                    order["action"],
+                )
+                if internal_margin is None:
+                    return (
+                        False,
+                        {
+                            "status": "error",
+                            "message": f"Unable to calculate fallback margin: {internal_msg}",
+                            "mode": "analyze",
+                        },
+                        400,
+                    )
+                fallback_margin += internal_margin
+
+            return (
+                True,
+                {
+                    "status": "success",
+                    "required_margin": str(fallback_margin),
+                    "margin_source": "fallback_internal",
+                    "message": "Broker margin unavailable, using internal fallback",
+                    "details": details,
+                },
+                200,
+            )
+
+        incremental_margin = projected_margin_required - current_margin_required
+        if incremental_margin < 0:
+            incremental_margin = Decimal("0")
+
+        return (
+            True,
+            {
+                "status": "success",
+                "required_margin": str(incremental_margin),
+                "margin_source": "broker_api",
+                "details": details,
+                "current_margin_required": str(current_margin_required),
+                "projected_margin_required": str(projected_margin_required),
+            },
+            200,
+        )
 
     def place_order(self, order_data, prefetched_quote=None):
         """
@@ -448,52 +745,14 @@ class OrderManager:
                     400,
                 )
 
-            # Calculate required margin using the appropriate price
-            margin_required, margin_msg = self.fund_manager.calculate_margin_required(
-                symbol, exchange, product, quantity, margin_calculation_price, action
-            )
-
-            if margin_required is None:
-                return (
-                    False,
-                    {
-                        "status": "error",
-                        "message": f"Unable to calculate margin: {margin_msg}",
-                        "mode": "analyze",
-                    },
-                    400,
-                )
-
             # Check if this order will close/reduce/reverse an existing position
             existing_position = SandboxPositions.query.filter_by(
                 user_id=self.user_id, symbol=symbol, exchange=exchange, product=product
             ).first()
 
-            # Calculate margin to block based on position impact
-            actual_margin_to_block = margin_required
-
-            if existing_position and existing_position.quantity != 0:
-                # Check if order is opposite to position direction
-                if (existing_position.quantity > 0 and action == "SELL") or (
-                    existing_position.quantity < 0 and action == "BUY"
-                ):
-                    # Opposite direction - will reduce or reverse position
-                    existing_qty = abs(existing_position.quantity)
-                    order_qty = quantity
-
-                    if order_qty <= existing_qty:
-                        # Order will only reduce/close position - no new margin needed
-                        actual_margin_to_block = Decimal("0")
-                        logger.info("Order will reduce position - no margin required")
-                    else:
-                        # Order will reverse position - only block margin for excess quantity
-                        excess_qty = order_qty - existing_qty
-                        actual_margin_to_block, _ = self.fund_manager.calculate_margin_required(
-                            symbol, exchange, product, excess_qty, margin_calculation_price, action
-                        )
-                        logger.info(
-                            f"Order will reverse position - margin for {excess_qty} shares: ₹{actual_margin_to_block}"
-                        )
+            margin_source = "internal"
+            margin_snapshot = None
+            actual_margin_to_block = Decimal("0")
 
             # Check margin availability and block margin if needed
             # Margin is required for:
@@ -521,6 +780,155 @@ class OrderManager:
                 # CNC SELL doesn't need margin (selling owned shares)
 
             if should_block_margin:
+                if self._should_use_broker_margin(symbol, exchange):
+                    current_margin_positions = self._get_derivative_margin_positions()
+                    projected_margin_positions = self._project_margin_positions(
+                        current_positions=current_margin_positions,
+                        symbol=symbol,
+                        exchange=exchange,
+                        product=product,
+                        quantity=quantity,
+                        action=action,
+                        price=margin_calculation_price,
+                        price_type=price_type,
+                    )
+
+                    current_margin_required, current_margin_msg = (
+                        self._calculate_broker_margin_for_positions(current_margin_positions)
+                    )
+                    projected_margin_required, projected_margin_msg = (
+                        self._calculate_broker_margin_for_positions(projected_margin_positions)
+                    )
+                    broker_margin_failed = (
+                        current_margin_required is None or projected_margin_required is None
+                    )
+
+                    if broker_margin_failed:
+                        margin_mode = self._get_analyzer_broker_margin_mode()
+                        broker_error = current_margin_msg if current_margin_required is None else projected_margin_msg
+                        if margin_mode == "strict_broker":
+                            return (
+                                False,
+                                {
+                                    "status": "error",
+                                    "message": broker_error,
+                                    "mode": "analyze",
+                                },
+                                400,
+                            )
+
+                        margin_source = "fallback_internal"
+                        margin_snapshot = {
+                            "mode": "fallback_internal",
+                            "symbol": symbol,
+                            "exchange": exchange,
+                            "product": product,
+                            "action": action,
+                            "quantity": quantity,
+                            "reference_price": str(margin_calculation_price),
+                            "fallback_reason": broker_error,
+                            "margin_required": str(actual_margin_to_block),
+                        }
+                        logger.warning(
+                            "Broker margin failed for %s %s %s, falling back to internal margin: %s",
+                            symbol,
+                            action,
+                            quantity,
+                            broker_error,
+                        )
+                    else:
+                        actual_margin_to_block = projected_margin_required - current_margin_required
+                        if actual_margin_to_block < 0:
+                            actual_margin_to_block = Decimal("0")
+
+                        margin_source = "broker_api"
+                        margin_snapshot = {
+                            "mode": "broker_api",
+                            "symbol": symbol,
+                            "exchange": exchange,
+                            "product": product,
+                            "action": action,
+                            "quantity": quantity,
+                            "reference_price": str(margin_calculation_price),
+                            "current_margin_required": str(current_margin_required),
+                            "projected_margin_required": str(projected_margin_required),
+                            "incremental_margin_required": str(actual_margin_to_block),
+                            "current_positions": current_margin_positions,
+                            "projected_positions": projected_margin_positions,
+                        }
+
+                        logger.info(
+                            "Using broker basket margin for %s %s %s: current=₹%s projected=₹%s "
+                            "incremental=₹%s",
+                            symbol,
+                            action,
+                            quantity,
+                            current_margin_required,
+                            projected_margin_required,
+                            actual_margin_to_block,
+                        )
+                else:
+                    margin_required, margin_msg = self.fund_manager.calculate_margin_required(
+                        symbol, exchange, product, quantity, margin_calculation_price, action
+                    )
+
+                    if margin_required is None:
+                        return (
+                            False,
+                            {
+                                "status": "error",
+                                "message": f"Unable to calculate margin: {margin_msg}",
+                                "mode": "analyze",
+                            },
+                            400,
+                        )
+
+                    actual_margin_to_block = margin_required
+                    margin_snapshot = {
+                        "mode": "internal",
+                        "symbol": symbol,
+                        "exchange": exchange,
+                        "product": product,
+                        "action": action,
+                        "quantity": quantity,
+                        "reference_price": str(margin_calculation_price),
+                        "margin_required": str(actual_margin_to_block),
+                    }
+
+                    if existing_position and existing_position.quantity != 0:
+                        # Check if order is opposite to position direction
+                        if (existing_position.quantity > 0 and action == "SELL") or (
+                            existing_position.quantity < 0 and action == "BUY"
+                        ):
+                            # Opposite direction - will reduce or reverse position
+                            existing_qty = abs(existing_position.quantity)
+                            order_qty = quantity
+
+                            if order_qty <= existing_qty:
+                                # Order will only reduce/close position - no new margin needed
+                                actual_margin_to_block = Decimal("0")
+                                logger.info("Order will reduce position - no margin required")
+                            else:
+                                # Order will reverse position - only block margin for excess quantity
+                                excess_qty = order_qty - existing_qty
+                                actual_margin_to_block, _ = (
+                                    self.fund_manager.calculate_margin_required(
+                                        symbol,
+                                        exchange,
+                                        product,
+                                        excess_qty,
+                                        margin_calculation_price,
+                                        action,
+                                    )
+                                )
+                                logger.info(
+                                    "Order will reverse position - margin for %s shares: ₹%s",
+                                    excess_qty,
+                                    actual_margin_to_block,
+                                )
+
+                            margin_snapshot["margin_required"] = str(actual_margin_to_block)
+
                 if actual_margin_to_block > 0:
                     # Check and block margin only for new exposure
                     can_trade, margin_check_msg = self.fund_manager.check_margin_available(
@@ -582,6 +990,8 @@ class OrderManager:
                     pending_quantity=0,
                     rejection_reason=cnc_sell_rejection_reason,
                     margin_blocked=Decimal("0"),  # No margin blocked for rejected orders
+                    margin_source=margin_source,
+                    margin_snapshot=self._serialize_margin_snapshot(margin_snapshot),
                     order_timestamp=datetime.now(pytz.timezone("Asia/Kolkata")),
                 )
 
@@ -625,6 +1035,8 @@ class OrderManager:
                 pending_quantity=quantity,
                 rejection_reason=None,
                 margin_blocked=actual_margin_to_block,  # Store exact margin blocked
+                margin_source=margin_source,
+                margin_snapshot=self._serialize_margin_snapshot(margin_snapshot),
                 order_timestamp=datetime.now(pytz.timezone("Asia/Kolkata")),
             )
 

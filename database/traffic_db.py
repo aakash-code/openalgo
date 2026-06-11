@@ -92,7 +92,15 @@ class TrafficLog(LogBase):
         client_ip, method, path, status_code, duration_ms, host=None, error=None, user_id=None
     ):
         """Log a request to the database"""
+        import json
         try:
+            # Ensure error is a string (SQLite binding error if it's a dict)
+            if error and not isinstance(error, str):
+                try:
+                    error = json.dumps(error)
+                except Exception:
+                    error = str(error)
+
             log = TrafficLog(
                 client_ip=client_ip,
                 method=method,

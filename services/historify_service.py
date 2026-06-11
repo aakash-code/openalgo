@@ -1472,6 +1472,77 @@ def create_and_start_job(
         return False, {"status": "error", "message": str(e)}, 500
 
 
+def _find_middle_gaps(
+    symbol: str, exchange: str, interval: str,
+    first_ts: int, last_ts: int,
+    get_existing_dates_fn,
+) -> list[tuple]:
+    """
+    Detect missing trading dates inside the existing data range.
+
+    Returns a list of (start_date, end_date) tuples for consecutive gap ranges.
+    Uses the market calendar to exclude weekends and holidays.
+    """
+    from datetime import date, timedelta
+
+    existing_dates = get_existing_dates_fn(symbol, exchange, interval, first_ts, last_ts)
+    if not existing_dates:
+        return []
+
+    first_date = min(existing_dates)
+    last_date = max(existing_dates)
+
+    # Build expected trading days (weekdays minus holidays)
+    holidays = set()
+    try:
+        from database.market_calendar_db import get_holidays_by_year
+
+        years = range(first_date.year, last_date.year + 1)
+        for year in years:
+            for h in get_holidays_by_year(year):
+                closed = h.get("closed_exchanges", [])
+                # Check if the relevant exchange is closed
+                base_exchange = exchange.replace("_INDEX", "")
+                if base_exchange in closed or "ALL" in closed:
+                    hd = h.get("date")
+                    if hd:
+                        if isinstance(hd, str):
+                            hd = date.fromisoformat(hd)
+                        elif hasattr(hd, "date"):
+                            hd = hd.date()
+                        holidays.add(hd)
+    except Exception:
+        pass  # No holiday data — still detect weekday gaps
+
+    expected = set()
+    d = first_date
+    while d <= last_date:
+        if d.weekday() < 5 and d not in holidays:
+            expected.add(d)
+        d += timedelta(days=1)
+
+    missing = sorted(expected - existing_dates)
+    if not missing:
+        return []
+
+    # Group consecutive missing dates into ranges
+    ranges = []
+    range_start = missing[0]
+    prev = missing[0]
+    for d in missing[1:]:
+        if (d - prev).days > 3:  # Allow weekend gaps
+            ranges.append((range_start, prev))
+            range_start = d
+        prev = d
+    ranges.append((range_start, prev))
+
+    logger.info(
+        f"Found {len(missing)} missing date(s) in {len(ranges)} gap range(s) "
+        f"for {symbol}:{exchange}"
+    )
+    return ranges
+
+
 def _process_download_job(job_id: str, api_key: str):
     """
     Background job processor with Socket.IO progress updates.
@@ -1488,6 +1559,7 @@ def _process_download_job(job_id: str, api_key: str):
     from database.historify_db import (
         get_data_range,
         get_download_job,
+        get_existing_dates,
         get_job_items,
         update_job_item_status,
         update_job_progress,
@@ -1610,18 +1682,54 @@ def _process_download_job(job_id: str, api_key: str):
                         if job["interval"] == "1m":
                             need_after = requested_end_dt.date() >= last_datetime.date()
 
-                        if not need_before and not need_after:
-                            # Data already covers the requested range
+                        # Always check for middle gaps (missing dates inside existing range)
+                        middle_gap_ranges = _find_middle_gaps(
+                            item["symbol"], item["exchange"], job["interval"],
+                            first_ts, last_ts,
+                            get_existing_dates,
+                        )
+
+                        if not need_before and not need_after and not middle_gap_ranges:
                             update_job_item_status(
-                                item["id"], "skipped", 0, "Data already covers requested range"
+                                item["id"], "skipped", 0,
+                                "Data already covers requested range"
                             )
                             logger.info(
                                 f"Skipping {item['symbol']} - data already covers requested range"
                             )
                             continue
 
+                        # Download middle gap ranges
+                        if middle_gap_ranges:
+                            logger.info(
+                                f"Filling {len(middle_gap_ranges)} middle gap(s) "
+                                f"for {item['symbol']}"
+                            )
+                            for gap_start, gap_end in middle_gap_ranges:
+                                gap_s = gap_start.strftime("%Y-%m-%d")
+                                gap_e = gap_end.strftime("%Y-%m-%d")
+                                logger.debug(
+                                    f"Incremental (gap): {item['symbol']} "
+                                    f"from {gap_s} to {gap_e}"
+                                )
+                                gap_ok, gap_resp, _ = download_data(
+                                    symbol=item["symbol"],
+                                    exchange=item["exchange"],
+                                    interval=job["interval"],
+                                    start_date=gap_s,
+                                    end_date=gap_e,
+                                    api_key=api_key,
+                                )
+                                if gap_ok:
+                                    total_records += gap_resp.get("records", 0)
+                                else:
+                                    download_error = gap_resp.get(
+                                        "message", "Error downloading gap data"
+                                    )
+                                    break
+
                         # Download data BEFORE existing range if needed
-                        if need_before:
+                        if need_before and download_error is None:
                             # End date for "before" download is the day before first existing data
                             if job["interval"] == "1m":
                                 before_end = first_datetime.strftime("%Y-%m-%d")

@@ -93,3 +93,6 @@ yarn-error.log*
 
 # Windows NUL file
 nul
+# TradeFinder Playwright session profile (live Google session cookies — never commit)
+strategies/.tf_browser_profile/
+strategies/tf_jwt.txt

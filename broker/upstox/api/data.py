@@ -616,28 +616,42 @@ class BrokerData:
                     f"Processing chunk {chunk_count}: {current_start.date()} to {current_end.date()}"
                 )
 
-                try:
-                    chunk_df = self._fetch_chunk_data(
-                        instrument_key,
-                        unit,
-                        interval_value,
-                        current_start,
-                        current_end,
-                        symbol,
-                        exchange,
-                        interval,
-                    )
+                # Retry each chunk up to 3 times on failure
+                for attempt in range(3):
+                    try:
+                        chunk_df = self._fetch_chunk_data(
+                            instrument_key,
+                            unit,
+                            interval_value,
+                            current_start,
+                            current_end,
+                            symbol,
+                            exchange,
+                            interval,
+                        )
 
-                    if not chunk_df.empty:
-                        dfs.append(chunk_df)
-                        successful_chunks += 1
-                        logger.debug(f"Chunk {chunk_count}: Retrieved {len(chunk_df)} candles")
-                    else:
-                        logger.debug(f"Chunk {chunk_count}: No data received")
+                        if not chunk_df.empty:
+                            dfs.append(chunk_df)
+                            successful_chunks += 1
+                            logger.debug(f"Chunk {chunk_count}: Retrieved {len(chunk_df)} candles")
+                        else:
+                            logger.debug(f"Chunk {chunk_count}: No data received")
+                        break  # Success or empty — move on
 
-                except Exception as chunk_error:
-                    logger.error(f"Chunk {chunk_count} failed: {str(chunk_error)}")
-                    # Continue with next chunk instead of failing completely
+                    except Exception as chunk_error:
+                        if attempt < 2:
+                            wait = 2 ** attempt
+                            logger.warning(
+                                f"Chunk {chunk_count} failed (attempt {attempt + 1}): "
+                                f"{chunk_error}, retry in {wait}s"
+                            )
+                            import time
+                            time.sleep(wait)
+                        else:
+                            logger.error(
+                                f"Chunk {chunk_count} failed after 3 attempts: {chunk_error}"
+                            )
+                            # Continue with next chunk instead of failing completely
 
                 # Move to next chunk
                 current_start = current_end + timedelta(days=1)

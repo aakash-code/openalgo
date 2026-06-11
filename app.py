@@ -84,6 +84,7 @@ from blueprints.traffic import traffic_bp  # Import the traffic blueprint
 from blueprints.whatsapp import whatsapp_bp  # Import the WhatsApp blueprint
 from blueprints.tv_json import tv_json_bp
 from blueprints.websocket_example import websocket_bp  # Import the websocket example blueprint
+from blueprints.signal_scanner import signal_scanner_bp  # Import the signal scanner blueprint
 from cors import cors  # Import the CORS instance
 from csp import apply_csp_middleware  # Import the CSP middleware
 from database.action_center_db import init_db as ensure_action_center_tables_exists
@@ -303,6 +304,7 @@ def create_app():
     app.register_blueprint(broker_credentials_bp)  # Register Broker credentials blueprint
     app.register_blueprint(system_permissions_bp)  # Register System permissions blueprint
     app.register_blueprint(strategy_portfolio_bp)  # Register Strategy Portfolio blueprint
+    app.register_blueprint(signal_scanner_bp)  # Register Signal Scanner blueprint
 
     # Remote MCP (HTTP + OAuth) — opt-in via MCP_HTTP_ENABLED. Off by default.
     # Pre-flight refusal: must NEVER coexist with FLASK_DEBUG=True (debug-mode
@@ -700,6 +702,14 @@ def setup_environment(app):
                 logger.debug("Scalping risk monitor initialized")
             except Exception as e:
                 logger.error(f"Failed to initialize Scalping risk monitor: {e}")
+
+            try:
+                from services.scanner_service import init_scanner_service
+
+                init_scanner_service(socketio=socketio)
+                logger.debug("Scanner service initialized")
+            except Exception as e:
+                logger.error(f"Failed to initialize Scanner service: {e}")
 
             # Auto-reconnect the WhatsApp bot if a paired session is persisted.
             # Without this, every server restart would leave is_ready()=False

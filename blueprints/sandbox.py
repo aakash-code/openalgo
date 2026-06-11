@@ -3,7 +3,17 @@ import io
 import os
 from datetime import datetime
 
-from flask import Blueprint, Response, flash, jsonify, redirect, render_template, request, session, url_for
+from flask import (
+    Blueprint,
+    Response,
+    flash,
+    jsonify,
+    redirect,
+    render_template,
+    request,
+    session,
+    url_for,
+)
 
 from database.sandbox_db import (
     SandboxFunds,
@@ -65,6 +75,12 @@ def sandbox_config():
                     "option_sell_leverage": configs.get("option_sell_leverage", {}),
                 },
             },
+            "risk_margin": {
+                "title": "Risk Engine Settings",
+                "configs": {
+                    "analyzer_broker_margin_mode": configs.get("analyzer_broker_margin_mode", {}),
+                },
+            },
             "square_off": {
                 "title": "Square-Off Times (IST)",
                 "configs": {
@@ -118,6 +134,10 @@ def api_get_configs():
             "futures_leverage": {"value": "10", "description": "Leverage multiplier for futures"},
             "option_buy_leverage": {"value": "1", "description": "Leverage for buying options"},
             "option_sell_leverage": {"value": "1", "description": "Leverage for selling options"},
+            "analyzer_broker_margin_mode": {
+                "value": "broker_with_fallback",
+                "description": "Analyzer derivative margin mode: strict broker only or broker with internal fallback",
+            },
             "nse_bse_square_off_time": {
                 "value": "15:15",
                 "description": "Square-off time for NSE/BSE MIS",
@@ -163,6 +183,12 @@ def api_get_configs():
                     "futures_leverage": get_config_value("futures_leverage"),
                     "option_buy_leverage": get_config_value("option_buy_leverage"),
                     "option_sell_leverage": get_config_value("option_sell_leverage"),
+                },
+            },
+            "risk_margin": {
+                "title": "Risk Engine Settings",
+                "configs": {
+                    "analyzer_broker_margin_mode": get_config_value("analyzer_broker_margin_mode"),
                 },
             },
             "square_off": {
@@ -314,6 +340,7 @@ def reset_config():
             "futures_leverage": "10",
             "option_buy_leverage": "1",
             "option_sell_leverage": "1",
+            "analyzer_broker_margin_mode": "broker_with_fallback",
         }
 
         # Reset all configurations
@@ -631,7 +658,6 @@ def my_pnl():
         import pytz
 
         user_id = session.get("user")
-        ist = pytz.timezone("Asia/Kolkata")
 
         # Get all positions (both open and closed) for P&L history
         positions = (
@@ -834,6 +860,11 @@ def validate_config(config_key, config_value):
 
             except ValueError:
                 return f"{config_key} must be a valid number"
+
+        if config_key == "analyzer_broker_margin_mode":
+            valid_modes = ["strict_broker", "broker_with_fallback"]
+            if config_value not in valid_modes:
+                return f"Analyzer broker margin mode must be one of: {', '.join(valid_modes)}"
 
         # Validate time format (HH:MM)
         if config_key.endswith("_time"):

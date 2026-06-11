@@ -566,20 +566,36 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
     def _extract_ltp_data(
         self, feed_data: dict[str, Any], base_data: dict[str, Any]
     ) -> dict[str, Any]:
-        """Extract LTP data from feed"""
+        """Extract LTP data from feed.
+
+        Upstox V3 feed packets can carry partial sub-fields (e.g., marketOHLC or
+        marketLevel without ltpc) — particularly around bar boundaries. If a
+        packet has no ltpc, we have nothing to publish for an LTP-mode
+        subscriber: returning an empty dict tells the caller to skip publishing,
+        avoiding the downstream "Missing LTP value" validation warning storm.
+
+        Mirrors the missing-field guard used by _extract_quote_data for
+        fullFeed.
+        """
+        if "ltpc" not in feed_data:
+            return {}
+
+        ltpc = feed_data["ltpc"]
+        ltp_val = float(ltpc.get("ltp", 0))
+        if ltp_val <= 0:
+            # Pre-open / suspended / bad-tick — drop upstream rather than send
+            # a sub-zero LTP that would just be rejected by the validator.
+            return {}
+
         market_data = base_data.copy()
-
-        if "ltpc" in feed_data:
-            ltpc = feed_data["ltpc"]
-            market_data.update(
-                {
-                    "ltp": float(ltpc.get("ltp", 0)),
-                    "ltq": int(ltpc.get("ltq", 0)),
-                    "ltt": int(ltpc.get("ltt", 0)),
-                    "cp": float(ltpc.get("cp", 0)),
-                }
-            )
-
+        market_data.update(
+            {
+                "ltp": ltp_val,
+                "ltq": int(ltpc.get("ltq", 0)),
+                "ltt": int(ltpc.get("ltt", 0)),
+                "cp": float(ltpc.get("cp", 0)),
+            }
+        )
         return market_data
 
     def _extract_quote_data(
