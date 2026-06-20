@@ -436,58 +436,56 @@ class BrokerData:
         if not instrument_keys:
             return skipped_symbols + indicator_results
 
-        # Build comma-separated instrument keys and URL encode
-        keys_param = ",".join(instrument_keys)
-        encoded_keys = urllib.parse.quote(keys_param)
-
         logger.info(f"Requesting quotes for {len(instrument_keys)} instruments")
-        logger.debug(
-            f"Instrument keys: {instrument_keys[:5]}..."
-            if len(instrument_keys) > 5
-            else f"Instrument keys: {instrument_keys}"
-        )
 
-        # Use v3 OHLC endpoint for multiple instruments
-        url = f"/market-quote/ohlc?instrument_key={encoded_keys}&interval=1d"
-        response = get_api_response(url, self.auth_token)
+        # Upstox GET URL becomes ~2700 chars for 100 keys; beyond ~100 the server
+        # silently truncates the response and returns fewer symbols than requested.
+        # Chunk at 100 to keep every URL well under any CDN/nginx URL-length limit.
+        UPSTOX_CHUNK = 100
 
-        if response.get("status") != "success":
-            error_msg = response.get("message", "Unknown error")
-            if "errors" in response and response["errors"]:
-                error = response["errors"][0]
-                error_msg = error.get("message", error_msg)
-            logger.error(f"API Error: {error_msg}")
-            raise Exception(f"API Error: {error_msg}")
+        # Collect merged v3 OHLC and v2 quotes across all sub-batches
+        quotes_by_key: dict = {}
+        v2_quotes: dict = {}
 
-        # Also fetch v2 quotes for bid/ask/OI data
-        v2_quotes = {}
-        try:
-            client = get_httpx_client()
-            headers = {"Authorization": f"Bearer {self.auth_token}", "Accept": "application/json"}
-            v2_url = f"https://api.upstox.com/v2/market-quote/quotes?instrument_key={encoded_keys}"
-            v2_response = client.get(v2_url, headers=headers)
-            v2_data = v2_response.json()
+        for chunk_start in range(0, len(instrument_keys), UPSTOX_CHUNK):
+            chunk = instrument_keys[chunk_start : chunk_start + UPSTOX_CHUNK]
+            keys_param = ",".join(chunk)
+            encoded_keys = urllib.parse.quote(keys_param)
 
-            if v2_data.get("status") == "success":
-                for key, value in v2_data.get("data", {}).items():
-                    inst_key = value.get("instrument_token")
-                    if inst_key:
-                        v2_quotes[inst_key] = value
-        except Exception as e:
-            logger.debug(f"Could not get v2 quotes data: {e}")
+            # v3 OHLC (price / OHLC)
+            url = f"/market-quote/ohlc?instrument_key={encoded_keys}&interval=1d"
+            response = get_api_response(url, self.auth_token)
 
-        # Parse response and build results
+            if response.get("status") != "success":
+                error_msg = response.get("message", "Unknown error")
+                if "errors" in response and response["errors"]:
+                    error = response["errors"][0]
+                    error_msg = error.get("message", error_msg)
+                logger.error(f"API Error for chunk {chunk_start//UPSTOX_CHUNK + 1}: {error_msg}")
+                raise Exception(f"API Error: {error_msg}")
+
+            for key, value in response.get("data", {}).items():
+                inst_key = value.get("instrument_token")
+                if inst_key:
+                    quotes_by_key[inst_key] = value
+
+            # v2 quotes (bid/ask/OI)
+            try:
+                client = get_httpx_client()
+                headers = {"Authorization": f"Bearer {self.auth_token}", "Accept": "application/json"}
+                v2_url = f"https://api.upstox.com/v2/market-quote/quotes?instrument_key={encoded_keys}"
+                v2_response = client.get(v2_url, headers=headers)
+                v2_data = v2_response.json()
+                if v2_data.get("status") == "success":
+                    for key, value in v2_data.get("data", {}).items():
+                        inst_key = value.get("instrument_token")
+                        if inst_key:
+                            v2_quotes[inst_key] = value
+            except Exception as e:
+                logger.debug(f"Could not get v2 quotes for chunk {chunk_start//UPSTOX_CHUNK + 1}: {e}")
+
+        # Build results from key_map (merged across all sub-batches above)
         results = []
-        quote_data = response.get("data", {})
-
-        # Build lookup by instrument_token
-        quotes_by_key = {}
-        for key, value in quote_data.items():
-            inst_key = value.get("instrument_token")
-            if inst_key:
-                quotes_by_key[inst_key] = value
-
-        # Build results from key_map
         for instrument_key, original in key_map.items():
             quote = quotes_by_key.get(instrument_key)
 
