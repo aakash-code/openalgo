@@ -1,0 +1,27 @@
+- generic [ref=e5]:
+  - generic [ref=e6]:
+    - heading "Connect to OpenAlgo" [level=2] [ref=e7]
+    - button "Close modal" [ref=e9] [cursor=pointer]:
+      - img [ref=e10]
+  - generic [ref=e13]:
+    - paragraph [ref=e14]: Configure your OpenAlgo server connection.
+    - generic [ref=e15]:
+      - generic [ref=e16]:
+        - generic [ref=e17]: Host URL
+        - textbox "http://127.0.0.1:5000" [ref=e18]
+        - paragraph [ref=e19]: "Default: http://127.0.0.1:5000"
+      - generic [ref=e20]:
+        - generic [ref=e21]: API Key
+        - generic [ref=e22]:
+          - textbox "Enter your API key" [active] [ref=e23]
+          - button "Show API key" [ref=e24] [cursor=pointer]:
+            - img [ref=e25]
+        - paragraph [ref=e28]:
+          - text: Find your API key in the
+          - link "OpenAlgo Dashboard" [ref=e29] [cursor=pointer]:
+            - /url: http://127.0.0.1:5000/apikey
+      - generic [ref=e30]:
+        - link "Login to Dashboard" [ref=e31] [cursor=pointer]:
+          - /url: http://127.0.0.1:5000/auth/login
+        - button "Connect" [ref=e32] [cursor=pointer]:
+          - generic [ref=e33]: Connect

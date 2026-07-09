@@ -1,0 +1,2739 @@
+[
+  {
+    "date": "2024-10-01",
+    "cumulative_rpnl": 0.0,
+    "current_margin": 2981428.73,
+    "open_positions": 25,
+    "unrealised_pnl": 22533.0
+  },
+  {
+    "date": "2024-10-03",
+    "cumulative_rpnl": -183840.0,
+    "current_margin": 527904.92,
+    "open_positions": 5,
+    "unrealised_pnl": -46706.25
+  },
+  {
+    "date": "2024-10-04",
+    "cumulative_rpnl": -505389.75,
+    "current_margin": 7378963.14,
+    "open_positions": 58,
+    "unrealised_pnl": 113582.25
+  },
+  {
+    "date": "2024-10-07",
+    "cumulative_rpnl": -829146.0,
+    "current_margin": 14116521.58,
+    "open_positions": 123,
+    "unrealised_pnl": 426558.75
+  },
+  {
+    "date": "2024-10-08",
+    "cumulative_rpnl": -829146.0,
+    "current_margin": 19254139.16,
+    "open_positions": 172,
+    "unrealised_pnl": 599760.0
+  },
+  {
+    "date": "2024-10-09",
+    "cumulative_rpnl": -1091016.0,
+    "current_margin": 21253529.96,
+    "open_positions": 186,
+    "unrealised_pnl": 1049580.75
+  },
+  {
+    "date": "2024-10-10",
+    "cumulative_rpnl": 278601.0,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2024-10-11",
+    "cumulative_rpnl": 278601.0,
+    "current_margin": 1030250.1,
+    "open_positions": 9,
+    "unrealised_pnl": 468.75
+  },
+  {
+    "date": "2024-10-14",
+    "cumulative_rpnl": 278601.0,
+    "current_margin": 3099969.88,
+    "open_positions": 26,
+    "unrealised_pnl": 23580.75
+  },
+  {
+    "date": "2024-10-15",
+    "cumulative_rpnl": 278601.0,
+    "current_margin": 5375763.73,
+    "open_positions": 48,
+    "unrealised_pnl": 71541.0
+  },
+  {
+    "date": "2024-10-16",
+    "cumulative_rpnl": 278601.0,
+    "current_margin": 7747823.94,
+    "open_positions": 70,
+    "unrealised_pnl": 123346.5
+  },
+  {
+    "date": "2024-10-17",
+    "cumulative_rpnl": 377678.25,
+    "current_margin": 3307840.59,
+    "open_positions": 31,
+    "unrealised_pnl": -155400.75
+  },
+  {
+    "date": "2024-10-18",
+    "cumulative_rpnl": 211458.75,
+    "current_margin": 3365673.51,
+    "open_positions": 30,
+    "unrealised_pnl": -3120.0
+  },
+  {
+    "date": "2024-10-21",
+    "cumulative_rpnl": 211458.75,
+    "current_margin": 8583509.96,
+    "open_positions": 80,
+    "unrealised_pnl": 42693.75
+  },
+  {
+    "date": "2024-10-22",
+    "cumulative_rpnl": 151826.25,
+    "current_margin": 13671266.61,
+    "open_positions": 126,
+    "unrealised_pnl": -228014.25
+  },
+  {
+    "date": "2024-10-23",
+    "cumulative_rpnl": -74051.25,
+    "current_margin": 16380308.79,
+    "open_positions": 150,
+    "unrealised_pnl": 86687.25
+  },
+  {
+    "date": "2024-10-24",
+    "cumulative_rpnl": 153303.0,
+    "current_margin": 2852811.84,
+    "open_positions": 27,
+    "unrealised_pnl": -86618.25
+  },
+  {
+    "date": "2024-10-25",
+    "cumulative_rpnl": 66684.75,
+    "current_margin": 4195517.7,
+    "open_positions": 42,
+    "unrealised_pnl": 36616.5
+  },
+  {
+    "date": "2024-10-28",
+    "cumulative_rpnl": 66684.75,
+    "current_margin": 9615621.06,
+    "open_positions": 91,
+    "unrealised_pnl": 102232.5
+  },
+  {
+    "date": "2024-10-29",
+    "cumulative_rpnl": 66684.75,
+    "current_margin": 13823304.82,
+    "open_positions": 132,
+    "unrealised_pnl": 4599.75
+  },
+  {
+    "date": "2024-10-30",
+    "cumulative_rpnl": 66684.75,
+    "current_margin": 16742484.41,
+    "open_positions": 160,
+    "unrealised_pnl": 329949.75
+  },
+  {
+    "date": "2024-10-31",
+    "cumulative_rpnl": 692364.0,
+    "current_margin": 1513177.46,
+    "open_positions": 14,
+    "unrealised_pnl": -13680.0
+  },
+  {
+    "date": "2024-11-01",
+    "cumulative_rpnl": 678684.0,
+    "current_margin": 401351.98,
+    "open_positions": 4,
+    "unrealised_pnl": 1570.5
+  },
+  {
+    "date": "2024-11-04",
+    "cumulative_rpnl": 643913.25,
+    "current_margin": 4547653.48,
+    "open_positions": 44,
+    "unrealised_pnl": 67197.75
+  },
+  {
+    "date": "2024-11-05",
+    "cumulative_rpnl": 544673.25,
+    "current_margin": 9206959.16,
+    "open_positions": 86,
+    "unrealised_pnl": 126983.25
+  },
+  {
+    "date": "2024-11-06",
+    "cumulative_rpnl": 167783.25,
+    "current_margin": 10065806.44,
+    "open_positions": 91,
+    "unrealised_pnl": 449676.0
+  },
+  {
+    "date": "2024-11-07",
+    "cumulative_rpnl": 777755.25,
+    "current_margin": 707062.12,
+    "open_positions": 7,
+    "unrealised_pnl": -32400.75
+  },
+  {
+    "date": "2024-11-08",
+    "cumulative_rpnl": 745354.5,
+    "current_margin": 3191016.06,
+    "open_positions": 26,
+    "unrealised_pnl": 31600.5
+  },
+  {
+    "date": "2024-11-11",
+    "cumulative_rpnl": 745354.5,
+    "current_margin": 8275384.01,
+    "open_positions": 74,
+    "unrealised_pnl": 113194.5
+  },
+  {
+    "date": "2024-11-12",
+    "cumulative_rpnl": 700189.5,
+    "current_margin": 12734450.44,
+    "open_positions": 114,
+    "unrealised_pnl": -222467.25
+  },
+  {
+    "date": "2024-11-13",
+    "cumulative_rpnl": -167999.25,
+    "current_margin": 12042686.91,
+    "open_positions": 111,
+    "unrealised_pnl": 278181.75
+  },
+  {
+    "date": "2024-11-14",
+    "cumulative_rpnl": 233797.5,
+    "current_margin": 1276070.81,
+    "open_positions": 10,
+    "unrealised_pnl": -25854.0
+  },
+  {
+    "date": "2024-11-18",
+    "cumulative_rpnl": 207943.5,
+    "current_margin": 5032034.7,
+    "open_positions": 49,
+    "unrealised_pnl": 40114.5
+  },
+  {
+    "date": "2024-11-19",
+    "cumulative_rpnl": 178858.5,
+    "current_margin": 8447457.36,
+    "open_positions": 83,
+    "unrealised_pnl": -46105.5
+  },
+  {
+    "date": "2024-11-21",
+    "cumulative_rpnl": 267641.25,
+    "current_margin": 487337.19,
+    "open_positions": 4,
+    "unrealised_pnl": -14427.0
+  },
+  {
+    "date": "2024-11-22",
+    "cumulative_rpnl": 53977.5,
+    "current_margin": 5372760.53,
+    "open_positions": 49,
+    "unrealised_pnl": 162260.25
+  },
+  {
+    "date": "2024-11-25",
+    "cumulative_rpnl": -69693.75,
+    "current_margin": 8785027.56,
+    "open_positions": 79,
+    "unrealised_pnl": 383696.25
+  },
+  {
+    "date": "2024-11-26",
+    "cumulative_rpnl": -69693.75,
+    "current_margin": 11981984.44,
+    "open_positions": 108,
+    "unrealised_pnl": 505315.5
+  },
+  {
+    "date": "2024-11-27",
+    "cumulative_rpnl": -69693.75,
+    "current_margin": 14780265.43,
+    "open_positions": 132,
+    "unrealised_pnl": 643089.0
+  },
+  {
+    "date": "2024-11-28",
+    "cumulative_rpnl": 514503.75,
+    "current_margin": 4700674.89,
+    "open_positions": 41,
+    "unrealised_pnl": -272418.0
+  },
+  {
+    "date": "2024-11-29",
+    "cumulative_rpnl": 242085.75,
+    "current_margin": 3674210.51,
+    "open_positions": 34,
+    "unrealised_pnl": 65536.5
+  },
+  {
+    "date": "2024-12-02",
+    "cumulative_rpnl": 232500.75,
+    "current_margin": 6564512.83,
+    "open_positions": 59,
+    "unrealised_pnl": 13932.0
+  },
+  {
+    "date": "2024-12-03",
+    "cumulative_rpnl": 63318.75,
+    "current_margin": 6887018.74,
+    "open_positions": 62,
+    "unrealised_pnl": 166620.0
+  },
+  {
+    "date": "2024-12-04",
+    "cumulative_rpnl": -12603.75,
+    "current_margin": 10125406.91,
+    "open_positions": 86,
+    "unrealised_pnl": 246088.5
+  },
+  {
+    "date": "2024-12-05",
+    "cumulative_rpnl": 256359.75,
+    "current_margin": 1916852.02,
+    "open_positions": 14,
+    "unrealised_pnl": -16860.75
+  },
+  {
+    "date": "2024-12-06",
+    "cumulative_rpnl": 239499.0,
+    "current_margin": 2342315.66,
+    "open_positions": 21,
+    "unrealised_pnl": 31936.5
+  },
+  {
+    "date": "2024-12-09",
+    "cumulative_rpnl": 239499.0,
+    "current_margin": 4578518.38,
+    "open_positions": 43,
+    "unrealised_pnl": 83901.0
+  },
+  {
+    "date": "2024-12-10",
+    "cumulative_rpnl": 239499.0,
+    "current_margin": 6911605.59,
+    "open_positions": 65,
+    "unrealised_pnl": 178115.25
+  },
+  {
+    "date": "2024-12-11",
+    "cumulative_rpnl": 239499.0,
+    "current_margin": 8639484.77,
+    "open_positions": 82,
+    "unrealised_pnl": 360705.75
+  },
+  {
+    "date": "2024-12-12",
+    "cumulative_rpnl": 709741.5,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2024-12-13",
+    "cumulative_rpnl": 543680.25,
+    "current_margin": 6077844.71,
+    "open_positions": 52,
+    "unrealised_pnl": 95310.75
+  },
+  {
+    "date": "2024-12-16",
+    "cumulative_rpnl": 543680.25,
+    "current_margin": 9031092.26,
+    "open_positions": 79,
+    "unrealised_pnl": 101769.0
+  },
+  {
+    "date": "2024-12-17",
+    "cumulative_rpnl": 388358.25,
+    "current_margin": 12340277.61,
+    "open_positions": 111,
+    "unrealised_pnl": 158979.0
+  },
+  {
+    "date": "2024-12-18",
+    "cumulative_rpnl": 107100.0,
+    "current_margin": 14605570.86,
+    "open_positions": 133,
+    "unrealised_pnl": 340037.25
+  },
+  {
+    "date": "2024-12-19",
+    "cumulative_rpnl": 1658.25,
+    "current_margin": 2102619.34,
+    "open_positions": 16,
+    "unrealised_pnl": -102161.25
+  },
+  {
+    "date": "2024-12-20",
+    "cumulative_rpnl": -100503.0,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2024-12-23",
+    "cumulative_rpnl": -100503.0,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2024-12-24",
+    "cumulative_rpnl": -100503.0,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2024-12-26",
+    "cumulative_rpnl": -100503.0,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2024-12-27",
+    "cumulative_rpnl": -100503.0,
+    "current_margin": 1476377.31,
+    "open_positions": 15,
+    "unrealised_pnl": 14962.5
+  },
+  {
+    "date": "2024-12-30",
+    "cumulative_rpnl": -100503.0,
+    "current_margin": 6277643.01,
+    "open_positions": 63,
+    "unrealised_pnl": 2985.75
+  },
+  {
+    "date": "2024-12-31",
+    "cumulative_rpnl": -173384.25,
+    "current_margin": 8896307.47,
+    "open_positions": 87,
+    "unrealised_pnl": -16341.0
+  },
+  {
+    "date": "2025-01-01",
+    "cumulative_rpnl": -186700.5,
+    "current_margin": 12613390.97,
+    "open_positions": 121,
+    "unrealised_pnl": 11617.5
+  },
+  {
+    "date": "2025-01-02",
+    "cumulative_rpnl": -625236.75,
+    "current_margin": 2163628.91,
+    "open_positions": 22,
+    "unrealised_pnl": -133478.25
+  },
+  {
+    "date": "2025-01-03",
+    "cumulative_rpnl": -758715.0,
+    "current_margin": 3277910.62,
+    "open_positions": 33,
+    "unrealised_pnl": 9932.25
+  },
+  {
+    "date": "2025-01-06",
+    "cumulative_rpnl": -1024275.75,
+    "current_margin": 8550904.31,
+    "open_positions": 86,
+    "unrealised_pnl": 146050.5
+  },
+  {
+    "date": "2025-01-07",
+    "cumulative_rpnl": -1024275.75,
+    "current_margin": 11878141.69,
+    "open_positions": 115,
+    "unrealised_pnl": 438840.0
+  },
+  {
+    "date": "2025-01-08",
+    "cumulative_rpnl": -1024275.75,
+    "current_margin": 15776671.56,
+    "open_positions": 154,
+    "unrealised_pnl": 641943.75
+  },
+  {
+    "date": "2025-01-09",
+    "cumulative_rpnl": -311621.25,
+    "current_margin": 2057862.47,
+    "open_positions": 18,
+    "unrealised_pnl": 70210.5
+  },
+  {
+    "date": "2025-01-10",
+    "cumulative_rpnl": -241410.75,
+    "current_margin": 5231396.36,
+    "open_positions": 52,
+    "unrealised_pnl": 64398.75
+  },
+  {
+    "date": "2025-01-13",
+    "cumulative_rpnl": -431913.75,
+    "current_margin": 7603606.93,
+    "open_positions": 77,
+    "unrealised_pnl": 169179.75
+  },
+  {
+    "date": "2025-01-14",
+    "cumulative_rpnl": -431913.75,
+    "current_margin": 10090641.21,
+    "open_positions": 103,
+    "unrealised_pnl": 352398.0
+  },
+  {
+    "date": "2025-01-15",
+    "cumulative_rpnl": -431913.75,
+    "current_margin": 11431589.19,
+    "open_positions": 117,
+    "unrealised_pnl": 475985.25
+  },
+  {
+    "date": "2025-01-16",
+    "cumulative_rpnl": 133313.25,
+    "current_margin": 666575.46,
+    "open_positions": 7,
+    "unrealised_pnl": 18962.25
+  },
+  {
+    "date": "2025-01-17",
+    "cumulative_rpnl": 152275.5,
+    "current_margin": 3348672.32,
+    "open_positions": 33,
+    "unrealised_pnl": 13398.75
+  },
+  {
+    "date": "2025-01-20",
+    "cumulative_rpnl": 152275.5,
+    "current_margin": 5844508.93,
+    "open_positions": 55,
+    "unrealised_pnl": 36362.25
+  },
+  {
+    "date": "2025-01-21",
+    "cumulative_rpnl": 95894.25,
+    "current_margin": 14462901.13,
+    "open_positions": 122,
+    "unrealised_pnl": 199517.25
+  },
+  {
+    "date": "2025-01-22",
+    "cumulative_rpnl": 95894.25,
+    "current_margin": 17317383.6,
+    "open_positions": 149,
+    "unrealised_pnl": 697315.5
+  },
+  {
+    "date": "2025-01-23",
+    "cumulative_rpnl": 1020033.0,
+    "current_margin": 853963.28,
+    "open_positions": 7,
+    "unrealised_pnl": 34608.0
+  },
+  {
+    "date": "2025-01-24",
+    "cumulative_rpnl": 1054641.0,
+    "current_margin": 4688652.99,
+    "open_positions": 48,
+    "unrealised_pnl": 21022.5
+  },
+  {
+    "date": "2025-01-27",
+    "cumulative_rpnl": 855604.5,
+    "current_margin": 6932208.53,
+    "open_positions": 66,
+    "unrealised_pnl": 143801.25
+  },
+  {
+    "date": "2025-01-28",
+    "cumulative_rpnl": 855604.5,
+    "current_margin": 11008434.11,
+    "open_positions": 105,
+    "unrealised_pnl": 235673.25
+  },
+  {
+    "date": "2025-01-29",
+    "cumulative_rpnl": 829907.25,
+    "current_margin": 13581843.21,
+    "open_positions": 129,
+    "unrealised_pnl": -54943.5
+  },
+  {
+    "date": "2025-01-30",
+    "cumulative_rpnl": 1378599.0,
+    "current_margin": 2745370.44,
+    "open_positions": 25,
+    "unrealised_pnl": -49585.5
+  },
+  {
+    "date": "2025-01-31",
+    "cumulative_rpnl": 1321434.75,
+    "current_margin": 2126546.19,
+    "open_positions": 22,
+    "unrealised_pnl": 89727.75
+  },
+  {
+    "date": "2025-02-01",
+    "cumulative_rpnl": 1321434.75,
+    "current_margin": 10261792.82,
+    "open_positions": 83,
+    "unrealised_pnl": 503073.0
+  },
+  {
+    "date": "2025-02-03",
+    "cumulative_rpnl": 1321434.75,
+    "current_margin": 13721335.24,
+    "open_positions": 115,
+    "unrealised_pnl": 634766.25
+  },
+  {
+    "date": "2025-02-04",
+    "cumulative_rpnl": 1169241.0,
+    "current_margin": 16557498.38,
+    "open_positions": 144,
+    "unrealised_pnl": 624897.0
+  },
+  {
+    "date": "2025-02-05",
+    "cumulative_rpnl": 1088413.5,
+    "current_margin": 17350756.29,
+    "open_positions": 150,
+    "unrealised_pnl": 927528.0
+  },
+  {
+    "date": "2025-02-06",
+    "cumulative_rpnl": 2377486.5,
+    "current_margin": 770593.73,
+    "open_positions": 6,
+    "unrealised_pnl": 17745.0
+  },
+  {
+    "date": "2025-02-07",
+    "cumulative_rpnl": 2395231.5,
+    "current_margin": 4277700.49,
+    "open_positions": 39,
+    "unrealised_pnl": 13347.75
+  },
+  {
+    "date": "2025-02-10",
+    "cumulative_rpnl": 2395231.5,
+    "current_margin": 6884025.64,
+    "open_positions": 63,
+    "unrealised_pnl": 5133.75
+  },
+  {
+    "date": "2025-02-11",
+    "cumulative_rpnl": 1936207.5,
+    "current_margin": 7783027.31,
+    "open_positions": 76,
+    "unrealised_pnl": 206795.25
+  },
+  {
+    "date": "2025-02-12",
+    "cumulative_rpnl": 1847730.0,
+    "current_margin": 13368224.51,
+    "open_positions": 131,
+    "unrealised_pnl": 332778.75
+  },
+  {
+    "date": "2025-02-13",
+    "cumulative_rpnl": 2394474.0,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2025-02-14",
+    "cumulative_rpnl": 2394474.0,
+    "current_margin": 5769256.97,
+    "open_positions": 58,
+    "unrealised_pnl": 29530.5
+  },
+  {
+    "date": "2025-02-17",
+    "cumulative_rpnl": 2394474.0,
+    "current_margin": 10952489.21,
+    "open_positions": 107,
+    "unrealised_pnl": 47666.25
+  },
+  {
+    "date": "2025-02-18",
+    "cumulative_rpnl": 2394474.0,
+    "current_margin": 14257002.58,
+    "open_positions": 142,
+    "unrealised_pnl": 370020.0
+  },
+  {
+    "date": "2025-02-19",
+    "cumulative_rpnl": 2394474.0,
+    "current_margin": 17851327.52,
+    "open_positions": 175,
+    "unrealised_pnl": 654178.5
+  },
+  {
+    "date": "2025-02-20",
+    "cumulative_rpnl": 3430337.25,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2025-02-21",
+    "cumulative_rpnl": 3430337.25,
+    "current_margin": 2916853.91,
+    "open_positions": 28,
+    "unrealised_pnl": 19125.75
+  },
+  {
+    "date": "2025-02-24",
+    "cumulative_rpnl": 3430337.25,
+    "current_margin": 4874759.79,
+    "open_positions": 45,
+    "unrealised_pnl": 59113.5
+  },
+  {
+    "date": "2025-02-25",
+    "cumulative_rpnl": 3430337.25,
+    "current_margin": 5154416.44,
+    "open_positions": 48,
+    "unrealised_pnl": 128641.5
+  },
+  {
+    "date": "2025-02-27",
+    "cumulative_rpnl": 3623746.5,
+    "current_margin": 1224944.12,
+    "open_positions": 10,
+    "unrealised_pnl": -30666.75
+  },
+  {
+    "date": "2025-02-28",
+    "cumulative_rpnl": 3593079.75,
+    "current_margin": 2655683.66,
+    "open_positions": 29,
+    "unrealised_pnl": 16473.75
+  },
+  {
+    "date": "2025-03-03",
+    "cumulative_rpnl": 3593079.75,
+    "current_margin": 7126374.75,
+    "open_positions": 72,
+    "unrealised_pnl": 90582.75
+  },
+  {
+    "date": "2025-03-04",
+    "cumulative_rpnl": 3593079.75,
+    "current_margin": 9035603.16,
+    "open_positions": 90,
+    "unrealised_pnl": 146010.75
+  },
+  {
+    "date": "2025-03-05",
+    "cumulative_rpnl": 3593079.75,
+    "current_margin": 10781698.74,
+    "open_positions": 109,
+    "unrealised_pnl": -11036.25
+  },
+  {
+    "date": "2025-03-06",
+    "cumulative_rpnl": 3494520.0,
+    "current_margin": 3567217.91,
+    "open_positions": 37,
+    "unrealised_pnl": -307740.75
+  },
+  {
+    "date": "2025-03-07",
+    "cumulative_rpnl": 3186779.25,
+    "current_margin": 3534304.54,
+    "open_positions": 34,
+    "unrealised_pnl": 14592.0
+  },
+  {
+    "date": "2025-03-10",
+    "cumulative_rpnl": 3186779.25,
+    "current_margin": 6419116.69,
+    "open_positions": 59,
+    "unrealised_pnl": 25437.0
+  },
+  {
+    "date": "2025-03-11",
+    "cumulative_rpnl": 3186779.25,
+    "current_margin": 8268170.62,
+    "open_positions": 79,
+    "unrealised_pnl": 116427.0
+  },
+  {
+    "date": "2025-03-12",
+    "cumulative_rpnl": 3186779.25,
+    "current_margin": 10583657.7,
+    "open_positions": 102,
+    "unrealised_pnl": 254115.75
+  },
+  {
+    "date": "2025-03-13",
+    "cumulative_rpnl": 3534998.25,
+    "current_margin": 1305602.1,
+    "open_positions": 14,
+    "unrealised_pnl": 50406.75
+  },
+  {
+    "date": "2025-03-17",
+    "cumulative_rpnl": 3585405.0,
+    "current_margin": 2227901.77,
+    "open_positions": 24,
+    "unrealised_pnl": 295.5
+  },
+  {
+    "date": "2025-03-18",
+    "cumulative_rpnl": 3539985.0,
+    "current_margin": 3826100.85,
+    "open_positions": 41,
+    "unrealised_pnl": -57452.25
+  },
+  {
+    "date": "2025-03-19",
+    "cumulative_rpnl": 3427353.75,
+    "current_margin": 4968790.61,
+    "open_positions": 51,
+    "unrealised_pnl": 31854.75
+  },
+  {
+    "date": "2025-03-20",
+    "cumulative_rpnl": 3423579.0,
+    "current_margin": 1131573.51,
+    "open_positions": 10,
+    "unrealised_pnl": -100851.75
+  },
+  {
+    "date": "2025-03-21",
+    "cumulative_rpnl": 3322727.25,
+    "current_margin": 1828046.96,
+    "open_positions": 19,
+    "unrealised_pnl": 13079.25
+  },
+  {
+    "date": "2025-03-24",
+    "cumulative_rpnl": 3280299.75,
+    "current_margin": 3777263.53,
+    "open_positions": 39,
+    "unrealised_pnl": 16533.0
+  },
+  {
+    "date": "2025-03-25",
+    "cumulative_rpnl": 3216776.25,
+    "current_margin": 8576935.74,
+    "open_positions": 85,
+    "unrealised_pnl": 126601.5
+  },
+  {
+    "date": "2025-03-26",
+    "cumulative_rpnl": 3216776.25,
+    "current_margin": 12082861.72,
+    "open_positions": 121,
+    "unrealised_pnl": 131029.5
+  },
+  {
+    "date": "2025-03-27",
+    "cumulative_rpnl": 3640866.0,
+    "current_margin": 687536.23,
+    "open_positions": 7,
+    "unrealised_pnl": 18352.5
+  },
+  {
+    "date": "2025-03-28",
+    "cumulative_rpnl": 3659218.5,
+    "current_margin": 3788410.52,
+    "open_positions": 37,
+    "unrealised_pnl": 33246.0
+  },
+  {
+    "date": "2025-04-01",
+    "cumulative_rpnl": 3515895.0,
+    "current_margin": 7051003.58,
+    "open_positions": 69,
+    "unrealised_pnl": -23544.0
+  },
+  {
+    "date": "2025-04-02",
+    "cumulative_rpnl": 3515895.0,
+    "current_margin": 9641348.68,
+    "open_positions": 93,
+    "unrealised_pnl": 114702.75
+  },
+  {
+    "date": "2025-04-03",
+    "cumulative_rpnl": 3782366.25,
+    "current_margin": 1358546.06,
+    "open_positions": 14,
+    "unrealised_pnl": -27537.75
+  },
+  {
+    "date": "2025-04-04",
+    "cumulative_rpnl": 3754828.5,
+    "current_margin": 3793966.27,
+    "open_positions": 40,
+    "unrealised_pnl": 43803.0
+  },
+  {
+    "date": "2025-04-07",
+    "cumulative_rpnl": 2815366.5,
+    "current_margin": 4558250.81,
+    "open_positions": 47,
+    "unrealised_pnl": 150753.75
+  },
+  {
+    "date": "2025-04-08",
+    "cumulative_rpnl": 2662203.75,
+    "current_margin": 12829551.49,
+    "open_positions": 119,
+    "unrealised_pnl": 412566.75
+  },
+  {
+    "date": "2025-04-09",
+    "cumulative_rpnl": 3770339.25,
+    "current_margin": 934392.94,
+    "open_positions": 9,
+    "unrealised_pnl": 42693.75
+  },
+  {
+    "date": "2025-04-11",
+    "cumulative_rpnl": 3786524.25,
+    "current_margin": 4330521.53,
+    "open_positions": 43,
+    "unrealised_pnl": -52714.5
+  },
+  {
+    "date": "2025-04-15",
+    "cumulative_rpnl": 3487842.75,
+    "current_margin": 3219160.11,
+    "open_positions": 31,
+    "unrealised_pnl": 270030.0
+  },
+  {
+    "date": "2025-04-16",
+    "cumulative_rpnl": 3487842.75,
+    "current_margin": 4664652.92,
+    "open_positions": 44,
+    "unrealised_pnl": 292263.0
+  },
+  {
+    "date": "2025-04-17",
+    "cumulative_rpnl": 3737224.5,
+    "current_margin": 97241.51,
+    "open_positions": 1,
+    "unrealised_pnl": -6326.25
+  },
+  {
+    "date": "2025-04-21",
+    "cumulative_rpnl": 3730898.25,
+    "current_margin": 3075902.36,
+    "open_positions": 30,
+    "unrealised_pnl": 48718.5
+  },
+  {
+    "date": "2025-04-22",
+    "cumulative_rpnl": 3730898.25,
+    "current_margin": 5070115.67,
+    "open_positions": 50,
+    "unrealised_pnl": 88714.5
+  },
+  {
+    "date": "2025-04-23",
+    "cumulative_rpnl": 3718650.75,
+    "current_margin": 8771913.97,
+    "open_positions": 86,
+    "unrealised_pnl": 87228.0
+  },
+  {
+    "date": "2025-04-24",
+    "cumulative_rpnl": 3980340.75,
+    "current_margin": 494304.11,
+    "open_positions": 5,
+    "unrealised_pnl": 877.5
+  },
+  {
+    "date": "2025-04-25",
+    "cumulative_rpnl": 3948574.5,
+    "current_margin": 6940953.11,
+    "open_positions": 66,
+    "unrealised_pnl": 126633.75
+  },
+  {
+    "date": "2025-04-28",
+    "cumulative_rpnl": 3813199.5,
+    "current_margin": 9455914.05,
+    "open_positions": 89,
+    "unrealised_pnl": 150687.75
+  },
+  {
+    "date": "2025-04-29",
+    "cumulative_rpnl": 3742320.75,
+    "current_margin": 11677705.26,
+    "open_positions": 107,
+    "unrealised_pnl": 401878.5
+  },
+  {
+    "date": "2025-04-30",
+    "cumulative_rpnl": 4239348.0,
+    "current_margin": 1390448.61,
+    "open_positions": 13,
+    "unrealised_pnl": 35872.5
+  },
+  {
+    "date": "2025-05-02",
+    "cumulative_rpnl": 4303315.5,
+    "current_margin": 4527666.62,
+    "open_positions": 41,
+    "unrealised_pnl": 68955.75
+  },
+  {
+    "date": "2025-05-05",
+    "cumulative_rpnl": 4303315.5,
+    "current_margin": 6444356.94,
+    "open_positions": 60,
+    "unrealised_pnl": 218216.25
+  },
+  {
+    "date": "2025-05-06",
+    "cumulative_rpnl": 4303315.5,
+    "current_margin": 8458256.61,
+    "open_positions": 77,
+    "unrealised_pnl": 262100.25
+  },
+  {
+    "date": "2025-05-07",
+    "cumulative_rpnl": 4303315.5,
+    "current_margin": 11273756.18,
+    "open_positions": 103,
+    "unrealised_pnl": 381627.75
+  },
+  {
+    "date": "2025-05-08",
+    "cumulative_rpnl": 4786953.75,
+    "current_margin": 909353.78,
+    "open_positions": 8,
+    "unrealised_pnl": 29092.5
+  },
+  {
+    "date": "2025-05-09",
+    "cumulative_rpnl": 4804590.0,
+    "current_margin": 5056555.56,
+    "open_positions": 48,
+    "unrealised_pnl": 80445.75
+  },
+  {
+    "date": "2025-05-12",
+    "cumulative_rpnl": 4396719.0,
+    "current_margin": 5450501.31,
+    "open_positions": 51,
+    "unrealised_pnl": 257340.75
+  },
+  {
+    "date": "2025-05-13",
+    "cumulative_rpnl": 4374616.5,
+    "current_margin": 13815587.57,
+    "open_positions": 121,
+    "unrealised_pnl": 444441.0
+  },
+  {
+    "date": "2025-05-14",
+    "cumulative_rpnl": 4374616.5,
+    "current_margin": 18495388.11,
+    "open_positions": 164,
+    "unrealised_pnl": 928292.25
+  },
+  {
+    "date": "2025-05-15",
+    "cumulative_rpnl": 4580862.0,
+    "current_margin": 6224389.46,
+    "open_positions": 54,
+    "unrealised_pnl": -195190.5
+  },
+  {
+    "date": "2025-05-16",
+    "cumulative_rpnl": 4385671.5,
+    "current_margin": 2062822.57,
+    "open_positions": 19,
+    "unrealised_pnl": -1323.75
+  },
+  {
+    "date": "2025-05-19",
+    "cumulative_rpnl": 4385671.5,
+    "current_margin": 4228851.0,
+    "open_positions": 39,
+    "unrealised_pnl": 48007.5
+  },
+  {
+    "date": "2025-05-20",
+    "cumulative_rpnl": 4385671.5,
+    "current_margin": 6997349.49,
+    "open_positions": 65,
+    "unrealised_pnl": 32079.0
+  },
+  {
+    "date": "2025-05-21",
+    "cumulative_rpnl": 4385671.5,
+    "current_margin": 12419730.88,
+    "open_positions": 115,
+    "unrealised_pnl": 94149.0
+  },
+  {
+    "date": "2025-05-22",
+    "cumulative_rpnl": 4491216.0,
+    "current_margin": 1128562.88,
+    "open_positions": 11,
+    "unrealised_pnl": -14535.0
+  },
+  {
+    "date": "2025-05-23",
+    "cumulative_rpnl": 4465896.0,
+    "current_margin": 3685262.01,
+    "open_positions": 33,
+    "unrealised_pnl": 27759.0
+  },
+  {
+    "date": "2025-05-26",
+    "cumulative_rpnl": 4428988.5,
+    "current_margin": 5647558.74,
+    "open_positions": 51,
+    "unrealised_pnl": 42455.25
+  },
+  {
+    "date": "2025-05-27",
+    "cumulative_rpnl": 4291662.0,
+    "current_margin": 11698429.67,
+    "open_positions": 97,
+    "unrealised_pnl": 212553.75
+  },
+  {
+    "date": "2025-05-28",
+    "cumulative_rpnl": 4291662.0,
+    "current_margin": 13948270.67,
+    "open_positions": 117,
+    "unrealised_pnl": 663237.0
+  },
+  {
+    "date": "2025-05-29",
+    "cumulative_rpnl": 5495963.25,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2025-05-30",
+    "cumulative_rpnl": 5495963.25,
+    "current_margin": 2249238.54,
+    "open_positions": 20,
+    "unrealised_pnl": -5008.5
+  },
+  {
+    "date": "2025-06-02",
+    "cumulative_rpnl": 5474614.5,
+    "current_margin": 5500809.19,
+    "open_positions": 47,
+    "unrealised_pnl": -48013.5
+  },
+  {
+    "date": "2025-06-03",
+    "cumulative_rpnl": 5474614.5,
+    "current_margin": 10377550.01,
+    "open_positions": 86,
+    "unrealised_pnl": 375927.75
+  },
+  {
+    "date": "2025-06-04",
+    "cumulative_rpnl": 5474614.5,
+    "current_margin": 11492966.31,
+    "open_positions": 97,
+    "unrealised_pnl": 730317.75
+  },
+  {
+    "date": "2025-06-05",
+    "cumulative_rpnl": 6329121.0,
+    "current_margin": 1417313.08,
+    "open_positions": 11,
+    "unrealised_pnl": 103102.5
+  },
+  {
+    "date": "2025-06-06",
+    "cumulative_rpnl": 6371762.25,
+    "current_margin": 2258489.27,
+    "open_positions": 18,
+    "unrealised_pnl": 48300.0
+  },
+  {
+    "date": "2025-06-09",
+    "cumulative_rpnl": 6371762.25,
+    "current_margin": 2983514.12,
+    "open_positions": 25,
+    "unrealised_pnl": 103117.5
+  },
+  {
+    "date": "2025-06-10",
+    "cumulative_rpnl": 6371762.25,
+    "current_margin": 4226942.78,
+    "open_positions": 35,
+    "unrealised_pnl": 156071.25
+  },
+  {
+    "date": "2025-06-11",
+    "cumulative_rpnl": 6371762.25,
+    "current_margin": 5472179.42,
+    "open_positions": 47,
+    "unrealised_pnl": 183247.5
+  },
+  {
+    "date": "2025-06-12",
+    "cumulative_rpnl": 6565037.25,
+    "current_margin": 1659742.22,
+    "open_positions": 15,
+    "unrealised_pnl": -20587.5
+  },
+  {
+    "date": "2025-06-13",
+    "cumulative_rpnl": 6544449.75,
+    "current_margin": 3153683.36,
+    "open_positions": 30,
+    "unrealised_pnl": 5520.0
+  },
+  {
+    "date": "2025-06-16",
+    "cumulative_rpnl": 6489756.0,
+    "current_margin": 4798679.53,
+    "open_positions": 46,
+    "unrealised_pnl": 64226.25
+  },
+  {
+    "date": "2025-06-17",
+    "cumulative_rpnl": 6489756.0,
+    "current_margin": 6441305.27,
+    "open_positions": 60,
+    "unrealised_pnl": 147776.25
+  },
+  {
+    "date": "2025-06-18",
+    "cumulative_rpnl": 6489756.0,
+    "current_margin": 9002346.79,
+    "open_positions": 85,
+    "unrealised_pnl": 239445.0
+  },
+  {
+    "date": "2025-06-19",
+    "cumulative_rpnl": 6918564.75,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2025-06-20",
+    "cumulative_rpnl": 6918564.75,
+    "current_margin": 2886262.91,
+    "open_positions": 28,
+    "unrealised_pnl": 6371.25
+  },
+  {
+    "date": "2025-06-23",
+    "cumulative_rpnl": 6918564.75,
+    "current_margin": 5250892.97,
+    "open_positions": 51,
+    "unrealised_pnl": 34650.0
+  },
+  {
+    "date": "2025-06-24",
+    "cumulative_rpnl": 6761608.5,
+    "current_margin": 10970015.51,
+    "open_positions": 101,
+    "unrealised_pnl": 185872.5
+  },
+  {
+    "date": "2025-06-25",
+    "cumulative_rpnl": 6761608.5,
+    "current_margin": 12424545.17,
+    "open_positions": 112,
+    "unrealised_pnl": 295740.0
+  },
+  {
+    "date": "2025-06-26",
+    "cumulative_rpnl": 6778449.75,
+    "current_margin": 3221797.22,
+    "open_positions": 25,
+    "unrealised_pnl": -267600.0
+  },
+  {
+    "date": "2025-06-27",
+    "cumulative_rpnl": 6510849.75,
+    "current_margin": 1477309.35,
+    "open_positions": 14,
+    "unrealised_pnl": 13605.0
+  },
+  {
+    "date": "2025-06-30",
+    "cumulative_rpnl": 6510849.75,
+    "current_margin": 4008980.66,
+    "open_positions": 34,
+    "unrealised_pnl": 27776.25
+  },
+  {
+    "date": "2025-07-01",
+    "cumulative_rpnl": 6510849.75,
+    "current_margin": 4957043.23,
+    "open_positions": 43,
+    "unrealised_pnl": 111967.5
+  },
+  {
+    "date": "2025-07-02",
+    "cumulative_rpnl": 6510849.75,
+    "current_margin": 6113391.69,
+    "open_positions": 54,
+    "unrealised_pnl": 139413.75
+  },
+  {
+    "date": "2025-07-03",
+    "cumulative_rpnl": 6708493.5,
+    "current_margin": 740134.11,
+    "open_positions": 3,
+    "unrealised_pnl": 7582.5
+  },
+  {
+    "date": "2025-07-04",
+    "cumulative_rpnl": 6716076.0,
+    "current_margin": 1467156.9,
+    "open_positions": 13,
+    "unrealised_pnl": -1976.25
+  },
+  {
+    "date": "2025-07-07",
+    "cumulative_rpnl": 6716076.0,
+    "current_margin": 2832082.69,
+    "open_positions": 26,
+    "unrealised_pnl": 16822.5
+  },
+  {
+    "date": "2025-07-08",
+    "cumulative_rpnl": 6716076.0,
+    "current_margin": 4408023.88,
+    "open_positions": 39,
+    "unrealised_pnl": 40293.75
+  },
+  {
+    "date": "2025-07-09",
+    "cumulative_rpnl": 6716076.0,
+    "current_margin": 5248929.26,
+    "open_positions": 45,
+    "unrealised_pnl": 103290.0
+  },
+  {
+    "date": "2025-07-10",
+    "cumulative_rpnl": 6874727.25,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2025-07-11",
+    "cumulative_rpnl": 6874727.25,
+    "current_margin": 2808318.98,
+    "open_positions": 23,
+    "unrealised_pnl": -5036.25
+  },
+  {
+    "date": "2025-07-14",
+    "cumulative_rpnl": 6874727.25,
+    "current_margin": 4876358.23,
+    "open_positions": 43,
+    "unrealised_pnl": 23096.25
+  },
+  {
+    "date": "2025-07-15",
+    "cumulative_rpnl": 6874727.25,
+    "current_margin": 6745373.46,
+    "open_positions": 60,
+    "unrealised_pnl": 73608.75
+  },
+  {
+    "date": "2025-07-16",
+    "cumulative_rpnl": 6874727.25,
+    "current_margin": 7056751.56,
+    "open_positions": 62,
+    "unrealised_pnl": 141686.25
+  },
+  {
+    "date": "2025-07-17",
+    "cumulative_rpnl": 7087041.0,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2025-07-18",
+    "cumulative_rpnl": 7087041.0,
+    "current_margin": 2884982.92,
+    "open_positions": 28,
+    "unrealised_pnl": -712.5
+  },
+  {
+    "date": "2025-07-21",
+    "cumulative_rpnl": 7087041.0,
+    "current_margin": 5773090.12,
+    "open_positions": 55,
+    "unrealised_pnl": 28038.75
+  },
+  {
+    "date": "2025-07-22",
+    "cumulative_rpnl": 7087041.0,
+    "current_margin": 7637160.51,
+    "open_positions": 70,
+    "unrealised_pnl": 113767.5
+  },
+  {
+    "date": "2025-07-23",
+    "cumulative_rpnl": 7087041.0,
+    "current_margin": 7637160.51,
+    "open_positions": 70,
+    "unrealised_pnl": 22777.5
+  },
+  {
+    "date": "2025-07-24",
+    "cumulative_rpnl": 7315434.75,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2025-07-25",
+    "cumulative_rpnl": 7315434.75,
+    "current_margin": 3080602.39,
+    "open_positions": 25,
+    "unrealised_pnl": -3082.5
+  },
+  {
+    "date": "2025-07-28",
+    "cumulative_rpnl": 7315434.75,
+    "current_margin": 6759919.03,
+    "open_positions": 58,
+    "unrealised_pnl": -26422.5
+  },
+  {
+    "date": "2025-07-29",
+    "cumulative_rpnl": 7315434.75,
+    "current_margin": 9512299.29,
+    "open_positions": 84,
+    "unrealised_pnl": 114851.25
+  },
+  {
+    "date": "2025-07-30",
+    "cumulative_rpnl": 7315434.75,
+    "current_margin": 10639310.34,
+    "open_positions": 95,
+    "unrealised_pnl": 177611.25
+  },
+  {
+    "date": "2025-07-31",
+    "cumulative_rpnl": 7626954.75,
+    "current_margin": 103087.26,
+    "open_positions": 1,
+    "unrealised_pnl": 1522.5
+  },
+  {
+    "date": "2025-08-01",
+    "cumulative_rpnl": 7628477.25,
+    "current_margin": 3765272.57,
+    "open_positions": 36,
+    "unrealised_pnl": -17651.25
+  },
+  {
+    "date": "2025-08-04",
+    "cumulative_rpnl": 7628477.25,
+    "current_margin": 7935385.42,
+    "open_positions": 73,
+    "unrealised_pnl": 67953.75
+  },
+  {
+    "date": "2025-08-05",
+    "cumulative_rpnl": 7628477.25,
+    "current_margin": 9765946.16,
+    "open_positions": 89,
+    "unrealised_pnl": 208485.0
+  },
+  {
+    "date": "2025-08-06",
+    "cumulative_rpnl": 7628477.25,
+    "current_margin": 11491737.47,
+    "open_positions": 104,
+    "unrealised_pnl": 238560.0
+  },
+  {
+    "date": "2025-08-07",
+    "cumulative_rpnl": 8065217.25,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2025-08-08",
+    "cumulative_rpnl": 8065217.25,
+    "current_margin": 2621865.06,
+    "open_positions": 25,
+    "unrealised_pnl": -2523.75
+  },
+  {
+    "date": "2025-08-11",
+    "cumulative_rpnl": 8065217.25,
+    "current_margin": 5042504.57,
+    "open_positions": 49,
+    "unrealised_pnl": 19350.0
+  },
+  {
+    "date": "2025-08-12",
+    "cumulative_rpnl": 8065217.25,
+    "current_margin": 8388897.41,
+    "open_positions": 81,
+    "unrealised_pnl": 94586.25
+  },
+  {
+    "date": "2025-08-13",
+    "cumulative_rpnl": 8065217.25,
+    "current_margin": 9403034.64,
+    "open_positions": 91,
+    "unrealised_pnl": 97710.0
+  },
+  {
+    "date": "2025-08-14",
+    "cumulative_rpnl": 8281701.0,
+    "current_margin": 1307654.29,
+    "open_positions": 12,
+    "unrealised_pnl": 14141.25
+  },
+  {
+    "date": "2025-08-18",
+    "cumulative_rpnl": 8295842.25,
+    "current_margin": 2262909.21,
+    "open_positions": 21,
+    "unrealised_pnl": 16053.75
+  },
+  {
+    "date": "2025-08-19",
+    "cumulative_rpnl": 8295842.25,
+    "current_margin": 4011826.09,
+    "open_positions": 35,
+    "unrealised_pnl": 43001.25
+  },
+  {
+    "date": "2025-08-20",
+    "cumulative_rpnl": 8295842.25,
+    "current_margin": 4526696.83,
+    "open_positions": 37,
+    "unrealised_pnl": 65726.25
+  },
+  {
+    "date": "2025-08-21",
+    "cumulative_rpnl": 8407821.0,
+    "current_margin": 205193.17,
+    "open_positions": 2,
+    "unrealised_pnl": 3791.25
+  },
+  {
+    "date": "2025-08-22",
+    "cumulative_rpnl": 8411612.25,
+    "current_margin": 1543827.04,
+    "open_positions": 15,
+    "unrealised_pnl": 2823.75
+  },
+  {
+    "date": "2025-08-25",
+    "cumulative_rpnl": 8411612.25,
+    "current_margin": 3087847.54,
+    "open_positions": 30,
+    "unrealised_pnl": 27157.5
+  },
+  {
+    "date": "2025-08-26",
+    "cumulative_rpnl": 8411612.25,
+    "current_margin": 4621430.55,
+    "open_positions": 44,
+    "unrealised_pnl": -5876.25
+  },
+  {
+    "date": "2025-08-28",
+    "cumulative_rpnl": 8276087.25,
+    "current_margin": 102329.29,
+    "open_positions": 1,
+    "unrealised_pnl": -6285.0
+  },
+  {
+    "date": "2025-08-29",
+    "cumulative_rpnl": 8269802.25,
+    "current_margin": 3336023.01,
+    "open_positions": 29,
+    "unrealised_pnl": 7053.75
+  },
+  {
+    "date": "2025-09-01",
+    "cumulative_rpnl": 8269802.25,
+    "current_margin": 3841597.44,
+    "open_positions": 30,
+    "unrealised_pnl": 27690.0
+  },
+  {
+    "date": "2025-09-02",
+    "cumulative_rpnl": 8357203.5,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2025-09-03",
+    "cumulative_rpnl": 8357203.5,
+    "current_margin": 2842409.62,
+    "open_positions": 23,
+    "unrealised_pnl": -22788.75
+  },
+  {
+    "date": "2025-09-04",
+    "cumulative_rpnl": 8357203.5,
+    "current_margin": 5605237.28,
+    "open_positions": 50,
+    "unrealised_pnl": -3731.25
+  },
+  {
+    "date": "2025-09-05",
+    "cumulative_rpnl": 8357203.5,
+    "current_margin": 9277049.31,
+    "open_positions": 83,
+    "unrealised_pnl": 37218.75
+  },
+  {
+    "date": "2025-09-08",
+    "cumulative_rpnl": 8357203.5,
+    "current_margin": 9583735.43,
+    "open_positions": 86,
+    "unrealised_pnl": 110287.5
+  },
+  {
+    "date": "2025-09-09",
+    "cumulative_rpnl": 8538816.0,
+    "current_margin": 1928312.51,
+    "open_positions": 14,
+    "unrealised_pnl": -28777.5
+  },
+  {
+    "date": "2025-09-10",
+    "cumulative_rpnl": 8510038.5,
+    "current_margin": 1029823.99,
+    "open_positions": 10,
+    "unrealised_pnl": -1185.0
+  },
+  {
+    "date": "2025-09-11",
+    "cumulative_rpnl": 8510038.5,
+    "current_margin": 2266911.49,
+    "open_positions": 21,
+    "unrealised_pnl": 7773.75
+  },
+  {
+    "date": "2025-09-12",
+    "cumulative_rpnl": 8510038.5,
+    "current_margin": 2887702.74,
+    "open_positions": 26,
+    "unrealised_pnl": 3847.5
+  },
+  {
+    "date": "2025-09-15",
+    "cumulative_rpnl": 8510038.5,
+    "current_margin": 2887702.74,
+    "open_positions": 26,
+    "unrealised_pnl": 46188.75
+  },
+  {
+    "date": "2025-09-16",
+    "cumulative_rpnl": 8544696.0,
+    "current_margin": 1235866.09,
+    "open_positions": 11,
+    "unrealised_pnl": -25556.25
+  },
+  {
+    "date": "2025-09-17",
+    "cumulative_rpnl": 8519139.75,
+    "current_margin": 939714.81,
+    "open_positions": 9,
+    "unrealised_pnl": -3015.0
+  },
+  {
+    "date": "2025-09-18",
+    "cumulative_rpnl": 8519139.75,
+    "current_margin": 2091559.8,
+    "open_positions": 20,
+    "unrealised_pnl": -1792.5
+  },
+  {
+    "date": "2025-09-19",
+    "cumulative_rpnl": 8519139.75,
+    "current_margin": 3346318.39,
+    "open_positions": 30,
+    "unrealised_pnl": 29175.0
+  },
+  {
+    "date": "2025-09-22",
+    "cumulative_rpnl": 8519139.75,
+    "current_margin": 3450092.66,
+    "open_positions": 31,
+    "unrealised_pnl": 31916.25
+  },
+  {
+    "date": "2025-09-23",
+    "cumulative_rpnl": 8576893.5,
+    "current_margin": 838086.56,
+    "open_positions": 6,
+    "unrealised_pnl": -10410.0
+  },
+  {
+    "date": "2025-09-24",
+    "cumulative_rpnl": 8566483.5,
+    "current_margin": 1862631.38,
+    "open_positions": 17,
+    "unrealised_pnl": 5767.5
+  },
+  {
+    "date": "2025-09-25",
+    "cumulative_rpnl": 8566483.5,
+    "current_margin": 3615799.48,
+    "open_positions": 34,
+    "unrealised_pnl": 4241.25
+  },
+  {
+    "date": "2025-09-26",
+    "cumulative_rpnl": 8436628.5,
+    "current_margin": 4522592.87,
+    "open_positions": 44,
+    "unrealised_pnl": -11767.5
+  },
+  {
+    "date": "2025-09-29",
+    "cumulative_rpnl": 8436628.5,
+    "current_margin": 5744192.03,
+    "open_positions": 56,
+    "unrealised_pnl": 30832.5
+  },
+  {
+    "date": "2025-09-30",
+    "cumulative_rpnl": 8473269.75,
+    "current_margin": 308444.4,
+    "open_positions": 3,
+    "unrealised_pnl": -21892.5
+  },
+  {
+    "date": "2025-10-01",
+    "cumulative_rpnl": 8451377.25,
+    "current_margin": 2550336.73,
+    "open_positions": 25,
+    "unrealised_pnl": -1642.5
+  },
+  {
+    "date": "2025-10-03",
+    "cumulative_rpnl": 8451377.25,
+    "current_margin": 4904680.07,
+    "open_positions": 45,
+    "unrealised_pnl": 15862.5
+  },
+  {
+    "date": "2025-10-06",
+    "cumulative_rpnl": 8373842.25,
+    "current_margin": 4396423.14,
+    "open_positions": 40,
+    "unrealised_pnl": -25661.25
+  },
+  {
+    "date": "2025-10-07",
+    "cumulative_rpnl": 8390574.75,
+    "current_margin": 1023100.44,
+    "open_positions": 7,
+    "unrealised_pnl": -59358.75
+  },
+  {
+    "date": "2025-10-08",
+    "cumulative_rpnl": 8331216.0,
+    "current_margin": 3104890.59,
+    "open_positions": 29,
+    "unrealised_pnl": -4222.5
+  },
+  {
+    "date": "2025-10-09",
+    "cumulative_rpnl": 8331216.0,
+    "current_margin": 6419478.45,
+    "open_positions": 57,
+    "unrealised_pnl": 1035.0
+  },
+  {
+    "date": "2025-10-10",
+    "cumulative_rpnl": 8331216.0,
+    "current_margin": 8711317.72,
+    "open_positions": 75,
+    "unrealised_pnl": -100848.75
+  },
+  {
+    "date": "2025-10-13",
+    "cumulative_rpnl": 8331216.0,
+    "current_margin": 9958318.22,
+    "open_positions": 86,
+    "unrealised_pnl": 61428.75
+  },
+  {
+    "date": "2025-10-14",
+    "cumulative_rpnl": 8536408.5,
+    "current_margin": 104478.82,
+    "open_positions": 1,
+    "unrealised_pnl": 1173.75
+  },
+  {
+    "date": "2025-10-15",
+    "cumulative_rpnl": 8537582.25,
+    "current_margin": 1875953.68,
+    "open_positions": 14,
+    "unrealised_pnl": -14388.75
+  },
+  {
+    "date": "2025-10-16",
+    "cumulative_rpnl": 8454482.25,
+    "current_margin": 2829950.89,
+    "open_positions": 27,
+    "unrealised_pnl": -25027.5
+  },
+  {
+    "date": "2025-10-17",
+    "cumulative_rpnl": 8393919.75,
+    "current_margin": 6754898.91,
+    "open_positions": 63,
+    "unrealised_pnl": 11388.75
+  },
+  {
+    "date": "2025-10-20",
+    "cumulative_rpnl": 8446592.25,
+    "current_margin": 527455.09,
+    "open_positions": 4,
+    "unrealised_pnl": -14625.0
+  },
+  {
+    "date": "2025-10-21",
+    "cumulative_rpnl": 8431967.25,
+    "current_margin": 640743.26,
+    "open_positions": 5,
+    "unrealised_pnl": 2988.75
+  },
+  {
+    "date": "2025-10-23",
+    "cumulative_rpnl": 8431967.25,
+    "current_margin": 3751685.85,
+    "open_positions": 34,
+    "unrealised_pnl": -1143.75
+  },
+  {
+    "date": "2025-10-24",
+    "cumulative_rpnl": 8431967.25,
+    "current_margin": 6307937.62,
+    "open_positions": 55,
+    "unrealised_pnl": 1781.25
+  },
+  {
+    "date": "2025-10-27",
+    "cumulative_rpnl": 8431967.25,
+    "current_margin": 8125756.65,
+    "open_positions": 69,
+    "unrealised_pnl": 33093.75
+  },
+  {
+    "date": "2025-10-28",
+    "cumulative_rpnl": 8662014.75,
+    "current_margin": 106113.15,
+    "open_positions": 1,
+    "unrealised_pnl": 581.25
+  },
+  {
+    "date": "2025-10-29",
+    "cumulative_rpnl": 8662596.0,
+    "current_margin": 2362020.99,
+    "open_positions": 21,
+    "unrealised_pnl": -12307.5
+  },
+  {
+    "date": "2025-10-30",
+    "cumulative_rpnl": 8662596.0,
+    "current_margin": 4715411.25,
+    "open_positions": 39,
+    "unrealised_pnl": 36266.25
+  },
+  {
+    "date": "2025-10-31",
+    "cumulative_rpnl": 8662596.0,
+    "current_margin": 7912329.56,
+    "open_positions": 65,
+    "unrealised_pnl": 28672.5
+  },
+  {
+    "date": "2025-11-03",
+    "cumulative_rpnl": 8662596.0,
+    "current_margin": 9928088.57,
+    "open_positions": 82,
+    "unrealised_pnl": 129465.0
+  },
+  {
+    "date": "2025-11-04",
+    "cumulative_rpnl": 8761937.25,
+    "current_margin": 3205708.89,
+    "open_positions": 22,
+    "unrealised_pnl": -163117.5
+  },
+  {
+    "date": "2025-11-06",
+    "cumulative_rpnl": 8598819.75,
+    "current_margin": 2425684.8,
+    "open_positions": 23,
+    "unrealised_pnl": 14835.0
+  },
+  {
+    "date": "2025-11-07",
+    "cumulative_rpnl": 8598819.75,
+    "current_margin": 5258863.71,
+    "open_positions": 49,
+    "unrealised_pnl": 36712.5
+  },
+  {
+    "date": "2025-11-10",
+    "cumulative_rpnl": 8598819.75,
+    "current_margin": 5785913.92,
+    "open_positions": 54,
+    "unrealised_pnl": 74028.75
+  },
+  {
+    "date": "2025-11-11",
+    "cumulative_rpnl": 8724636.0,
+    "current_margin": 523474.67,
+    "open_positions": 4,
+    "unrealised_pnl": -26418.75
+  },
+  {
+    "date": "2025-11-12",
+    "cumulative_rpnl": 8698217.25,
+    "current_margin": 1386403.43,
+    "open_positions": 11,
+    "unrealised_pnl": -480.0
+  },
+  {
+    "date": "2025-11-13",
+    "cumulative_rpnl": 8698217.25,
+    "current_margin": 4057638.54,
+    "open_positions": 36,
+    "unrealised_pnl": -28578.75
+  },
+  {
+    "date": "2025-11-14",
+    "cumulative_rpnl": 8698217.25,
+    "current_margin": 8318165.62,
+    "open_positions": 70,
+    "unrealised_pnl": 59051.25
+  },
+  {
+    "date": "2025-11-17",
+    "cumulative_rpnl": 8698217.25,
+    "current_margin": 9173912.34,
+    "open_positions": 75,
+    "unrealised_pnl": 119587.5
+  },
+  {
+    "date": "2025-11-18",
+    "cumulative_rpnl": 9026946.0,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2025-11-19",
+    "cumulative_rpnl": 9026946.0,
+    "current_margin": 2249302.48,
+    "open_positions": 21,
+    "unrealised_pnl": -2482.5
+  },
+  {
+    "date": "2025-11-20",
+    "cumulative_rpnl": 9014477.25,
+    "current_margin": 3868875.86,
+    "open_positions": 33,
+    "unrealised_pnl": 15543.75
+  },
+  {
+    "date": "2025-11-21",
+    "cumulative_rpnl": 9014477.25,
+    "current_margin": 6670089.94,
+    "open_positions": 58,
+    "unrealised_pnl": 47246.25
+  },
+  {
+    "date": "2025-11-24",
+    "cumulative_rpnl": 9014477.25,
+    "current_margin": 7744247.78,
+    "open_positions": 68,
+    "unrealised_pnl": 86977.5
+  },
+  {
+    "date": "2025-11-25",
+    "cumulative_rpnl": 9179919.75,
+    "current_margin": 2804069.81,
+    "open_positions": 25,
+    "unrealised_pnl": -40263.75
+  },
+  {
+    "date": "2025-11-26",
+    "cumulative_rpnl": 9139656.0,
+    "current_margin": 1939161.47,
+    "open_positions": 18,
+    "unrealised_pnl": 15982.5
+  },
+  {
+    "date": "2025-11-27",
+    "cumulative_rpnl": 9139656.0,
+    "current_margin": 4427642.79,
+    "open_positions": 41,
+    "unrealised_pnl": 48540.0
+  },
+  {
+    "date": "2025-11-28",
+    "cumulative_rpnl": 9139656.0,
+    "current_margin": 5834219.12,
+    "open_positions": 54,
+    "unrealised_pnl": 88380.0
+  },
+  {
+    "date": "2025-12-01",
+    "cumulative_rpnl": 9139656.0,
+    "current_margin": 7241474.21,
+    "open_positions": 63,
+    "unrealised_pnl": 130597.5
+  },
+  {
+    "date": "2025-12-02",
+    "cumulative_rpnl": 9287008.5,
+    "current_margin": 2058650.34,
+    "open_positions": 15,
+    "unrealised_pnl": -15416.25
+  },
+  {
+    "date": "2025-12-03",
+    "cumulative_rpnl": 9271592.25,
+    "current_margin": 2141355.56,
+    "open_positions": 19,
+    "unrealised_pnl": 8415.0
+  },
+  {
+    "date": "2025-12-04",
+    "cumulative_rpnl": 9271592.25,
+    "current_margin": 4394447.68,
+    "open_positions": 37,
+    "unrealised_pnl": 25800.0
+  },
+  {
+    "date": "2025-12-05",
+    "cumulative_rpnl": 9271592.25,
+    "current_margin": 6870872.25,
+    "open_positions": 59,
+    "unrealised_pnl": 11688.75
+  },
+  {
+    "date": "2025-12-08",
+    "cumulative_rpnl": 9271592.25,
+    "current_margin": 7513610.57,
+    "open_positions": 65,
+    "unrealised_pnl": 85353.75
+  },
+  {
+    "date": "2025-12-09",
+    "cumulative_rpnl": 9381197.25,
+    "current_margin": 2474680.31,
+    "open_positions": 22,
+    "unrealised_pnl": -35013.75
+  },
+  {
+    "date": "2025-12-10",
+    "cumulative_rpnl": 9346183.5,
+    "current_margin": 3623796.21,
+    "open_positions": 31,
+    "unrealised_pnl": -11973.75
+  },
+  {
+    "date": "2025-12-11",
+    "cumulative_rpnl": 9346183.5,
+    "current_margin": 7244444.83,
+    "open_positions": 64,
+    "unrealised_pnl": 36596.25
+  },
+  {
+    "date": "2025-12-12",
+    "cumulative_rpnl": 9346183.5,
+    "current_margin": 8853199.57,
+    "open_positions": 77,
+    "unrealised_pnl": -31050.0
+  },
+  {
+    "date": "2025-12-15",
+    "cumulative_rpnl": 9346183.5,
+    "current_margin": 9602922.66,
+    "open_positions": 82,
+    "unrealised_pnl": 88732.5
+  },
+  {
+    "date": "2025-12-16",
+    "cumulative_rpnl": 9628817.25,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2025-12-17",
+    "cumulative_rpnl": 9628817.25,
+    "current_margin": 2131740.6,
+    "open_positions": 19,
+    "unrealised_pnl": 1106.25
+  },
+  {
+    "date": "2025-12-18",
+    "cumulative_rpnl": 9628817.25,
+    "current_margin": 4367403.77,
+    "open_positions": 39,
+    "unrealised_pnl": 10263.75
+  },
+  {
+    "date": "2025-12-19",
+    "cumulative_rpnl": 9628817.25,
+    "current_margin": 5651734.89,
+    "open_positions": 50,
+    "unrealised_pnl": 17966.25
+  },
+  {
+    "date": "2025-12-22",
+    "cumulative_rpnl": 9628817.25,
+    "current_margin": 5759505.26,
+    "open_positions": 51,
+    "unrealised_pnl": -128692.5
+  },
+  {
+    "date": "2025-12-23",
+    "cumulative_rpnl": 9631074.75,
+    "current_margin": 2238770.12,
+    "open_positions": 20,
+    "unrealised_pnl": -137295.0
+  },
+  {
+    "date": "2025-12-24",
+    "cumulative_rpnl": 9493779.75,
+    "current_margin": 971783.79,
+    "open_positions": 9,
+    "unrealised_pnl": 3434.25
+  },
+  {
+    "date": "2025-12-26",
+    "cumulative_rpnl": 9493779.75,
+    "current_margin": 1510190.14,
+    "open_positions": 12,
+    "unrealised_pnl": 4960.5
+  },
+  {
+    "date": "2025-12-29",
+    "cumulative_rpnl": 9493779.75,
+    "current_margin": 1510190.14,
+    "open_positions": 12,
+    "unrealised_pnl": -7277.25
+  },
+  {
+    "date": "2025-12-30",
+    "cumulative_rpnl": 9507868.5,
+    "current_margin": 540107.29,
+    "open_positions": 5,
+    "unrealised_pnl": -7838.25
+  },
+  {
+    "date": "2025-12-31",
+    "cumulative_rpnl": 9500030.25,
+    "current_margin": 2256994.99,
+    "open_positions": 17,
+    "unrealised_pnl": -26501.25
+  },
+  {
+    "date": "2026-01-01",
+    "cumulative_rpnl": 9500030.25,
+    "current_margin": 4199208.13,
+    "open_positions": 35,
+    "unrealised_pnl": 5883.75
+  },
+  {
+    "date": "2026-01-02",
+    "cumulative_rpnl": 9500030.25,
+    "current_margin": 4740457.01,
+    "open_positions": 40,
+    "unrealised_pnl": -94568.25
+  },
+  {
+    "date": "2026-01-05",
+    "cumulative_rpnl": 9500030.25,
+    "current_margin": 5066269.11,
+    "open_positions": 41,
+    "unrealised_pnl": 32800.5
+  },
+  {
+    "date": "2026-01-06",
+    "cumulative_rpnl": 9590509.5,
+    "current_margin": 107139.66,
+    "open_positions": 1,
+    "unrealised_pnl": 1803.75
+  },
+  {
+    "date": "2026-01-07",
+    "cumulative_rpnl": 9592313.25,
+    "current_margin": 1940577.38,
+    "open_positions": 18,
+    "unrealised_pnl": 1056.75
+  },
+  {
+    "date": "2026-01-08",
+    "cumulative_rpnl": 9592313.25,
+    "current_margin": 4404664.28,
+    "open_positions": 41,
+    "unrealised_pnl": -25523.25
+  },
+  {
+    "date": "2026-01-09",
+    "cumulative_rpnl": 9419322.0,
+    "current_margin": 6411992.81,
+    "open_positions": 59,
+    "unrealised_pnl": 16329.0
+  },
+  {
+    "date": "2026-01-12",
+    "cumulative_rpnl": 9369597.0,
+    "current_margin": 10635055.2,
+    "open_positions": 96,
+    "unrealised_pnl": 31973.25
+  },
+  {
+    "date": "2026-01-13",
+    "cumulative_rpnl": 9574012.5,
+    "current_margin": 315474.43,
+    "open_positions": 3,
+    "unrealised_pnl": -3372.0
+  },
+  {
+    "date": "2026-01-14",
+    "cumulative_rpnl": 9570640.5,
+    "current_margin": 4029318.15,
+    "open_positions": 37,
+    "unrealised_pnl": -13087.5
+  },
+  {
+    "date": "2026-01-16",
+    "cumulative_rpnl": 9570640.5,
+    "current_margin": 6897403.22,
+    "open_positions": 64,
+    "unrealised_pnl": 52742.25
+  },
+  {
+    "date": "2026-01-19",
+    "cumulative_rpnl": 9570640.5,
+    "current_margin": 9110758.59,
+    "open_positions": 85,
+    "unrealised_pnl": 98361.0
+  },
+  {
+    "date": "2026-01-20",
+    "cumulative_rpnl": 9210312.75,
+    "current_margin": 1161137.38,
+    "open_positions": 11,
+    "unrealised_pnl": -115653.75
+  },
+  {
+    "date": "2026-01-21",
+    "cumulative_rpnl": 9051012.75,
+    "current_margin": 6848590.03,
+    "open_positions": 56,
+    "unrealised_pnl": 27618.75
+  },
+  {
+    "date": "2026-01-22",
+    "cumulative_rpnl": 8991012.75,
+    "current_margin": 12171144.15,
+    "open_positions": 105,
+    "unrealised_pnl": 94931.25
+  },
+  {
+    "date": "2026-01-23",
+    "cumulative_rpnl": 8991012.75,
+    "current_margin": 15913186.16,
+    "open_positions": 139,
+    "unrealised_pnl": 137025.0
+  },
+  {
+    "date": "2026-01-27",
+    "cumulative_rpnl": 9702207.75,
+    "current_margin": 205795.01,
+    "open_positions": 1,
+    "unrealised_pnl": 2062.5
+  },
+  {
+    "date": "2026-01-28",
+    "cumulative_rpnl": 9704270.25,
+    "current_margin": 3233556.77,
+    "open_positions": 31,
+    "unrealised_pnl": 21465.0
+  },
+  {
+    "date": "2026-01-29",
+    "cumulative_rpnl": 9677829.0,
+    "current_margin": 6886116.81,
+    "open_positions": 66,
+    "unrealised_pnl": 28038.75
+  },
+  {
+    "date": "2026-01-30",
+    "cumulative_rpnl": 9677829.0,
+    "current_margin": 11058955.26,
+    "open_positions": 104,
+    "unrealised_pnl": 84858.75
+  },
+  {
+    "date": "2026-02-01",
+    "cumulative_rpnl": 8678600.25,
+    "current_margin": 15546732.51,
+    "open_positions": 112,
+    "unrealised_pnl": 674625.0
+  },
+  {
+    "date": "2026-02-02",
+    "cumulative_rpnl": 8678600.25,
+    "current_margin": 22833697.63,
+    "open_positions": 175,
+    "unrealised_pnl": 988545.0
+  },
+  {
+    "date": "2026-02-03",
+    "cumulative_rpnl": 5137535.25,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2026-02-04",
+    "cumulative_rpnl": 5137535.25,
+    "current_margin": 3928196.87,
+    "open_positions": 32,
+    "unrealised_pnl": -1616.25
+  },
+  {
+    "date": "2026-02-05",
+    "cumulative_rpnl": 5137535.25,
+    "current_margin": 7315788.56,
+    "open_positions": 61,
+    "unrealised_pnl": 78240.0
+  },
+  {
+    "date": "2026-02-06",
+    "cumulative_rpnl": 5137535.25,
+    "current_margin": 11536816.29,
+    "open_positions": 98,
+    "unrealised_pnl": 183577.5
+  },
+  {
+    "date": "2026-02-09",
+    "cumulative_rpnl": 5137535.25,
+    "current_margin": 12708685.89,
+    "open_positions": 109,
+    "unrealised_pnl": 164703.75
+  },
+  {
+    "date": "2026-02-10",
+    "cumulative_rpnl": 5438536.5,
+    "current_margin": 4333946.92,
+    "open_positions": 34,
+    "unrealised_pnl": -124860.0
+  },
+  {
+    "date": "2026-02-11",
+    "cumulative_rpnl": 5313676.5,
+    "current_margin": 1819674.86,
+    "open_positions": 17,
+    "unrealised_pnl": -2351.25
+  },
+  {
+    "date": "2026-02-12",
+    "cumulative_rpnl": 5313676.5,
+    "current_margin": 4377234.67,
+    "open_positions": 39,
+    "unrealised_pnl": -1702.5
+  },
+  {
+    "date": "2026-02-13",
+    "cumulative_rpnl": 5032152.75,
+    "current_margin": 5089165.54,
+    "open_positions": 44,
+    "unrealised_pnl": -15262.5
+  },
+  {
+    "date": "2026-02-16",
+    "cumulative_rpnl": 5032152.75,
+    "current_margin": 7618244.29,
+    "open_positions": 68,
+    "unrealised_pnl": 53921.25
+  },
+  {
+    "date": "2026-02-17",
+    "cumulative_rpnl": 5208402.75,
+    "current_margin": 735625.07,
+    "open_positions": 7,
+    "unrealised_pnl": -8463.75
+  },
+  {
+    "date": "2026-02-18",
+    "cumulative_rpnl": 5199939.0,
+    "current_margin": 2016210.9,
+    "open_positions": 15,
+    "unrealised_pnl": -12423.75
+  },
+  {
+    "date": "2026-02-19",
+    "cumulative_rpnl": 5138502.75,
+    "current_margin": 5077028.34,
+    "open_positions": 44,
+    "unrealised_pnl": -41580.0
+  },
+  {
+    "date": "2026-02-20",
+    "cumulative_rpnl": 5138502.75,
+    "current_margin": 10344627.56,
+    "open_positions": 88,
+    "unrealised_pnl": 41433.75
+  },
+  {
+    "date": "2026-02-23",
+    "cumulative_rpnl": 5138502.75,
+    "current_margin": 14369756.98,
+    "open_positions": 122,
+    "unrealised_pnl": 130473.75
+  },
+  {
+    "date": "2026-02-24",
+    "cumulative_rpnl": 5552997.75,
+    "current_margin": 3603616.91,
+    "open_positions": 32,
+    "unrealised_pnl": -68208.75
+  },
+  {
+    "date": "2026-02-25",
+    "cumulative_rpnl": 5484789.0,
+    "current_margin": 2843127.17,
+    "open_positions": 25,
+    "unrealised_pnl": -8702.25
+  },
+  {
+    "date": "2026-02-26",
+    "cumulative_rpnl": 5484789.0,
+    "current_margin": 6839585.78,
+    "open_positions": 61,
+    "unrealised_pnl": 37629.0
+  },
+  {
+    "date": "2026-02-27",
+    "cumulative_rpnl": 5425561.5,
+    "current_margin": 9441076.63,
+    "open_positions": 84,
+    "unrealised_pnl": -53938.5
+  },
+  {
+    "date": "2026-03-02",
+    "cumulative_rpnl": 4721766.75,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2026-03-04",
+    "cumulative_rpnl": 4629025.5,
+    "current_margin": 2319764.7,
+    "open_positions": 22,
+    "unrealised_pnl": 29550.0
+  },
+  {
+    "date": "2026-03-05",
+    "cumulative_rpnl": 4537109.25,
+    "current_margin": 6903284.03,
+    "open_positions": 64,
+    "unrealised_pnl": 220601.25
+  },
+  {
+    "date": "2026-03-06",
+    "cumulative_rpnl": 4421118.0,
+    "current_margin": 9630662.66,
+    "open_positions": 91,
+    "unrealised_pnl": 151946.25
+  },
+  {
+    "date": "2026-03-09",
+    "cumulative_rpnl": 2916621.75,
+    "current_margin": 10163021.96,
+    "open_positions": 84,
+    "unrealised_pnl": 388856.25
+  },
+  {
+    "date": "2026-03-10",
+    "cumulative_rpnl": 3492201.75,
+    "current_margin": 1381802.61,
+    "open_positions": 10,
+    "unrealised_pnl": -16421.25
+  },
+  {
+    "date": "2026-03-11",
+    "cumulative_rpnl": 3420291.75,
+    "current_margin": 4256682.58,
+    "open_positions": 42,
+    "unrealised_pnl": 138727.5
+  },
+  {
+    "date": "2026-03-12",
+    "cumulative_rpnl": 3315164.25,
+    "current_margin": 9526480.84,
+    "open_positions": 91,
+    "unrealised_pnl": 402026.25
+  },
+  {
+    "date": "2026-03-13",
+    "cumulative_rpnl": 3012595.5,
+    "current_margin": 10232608.03,
+    "open_positions": 100,
+    "unrealised_pnl": 835901.25
+  },
+  {
+    "date": "2026-03-16",
+    "cumulative_rpnl": 2762853.0,
+    "current_margin": 17898965.29,
+    "open_positions": 171,
+    "unrealised_pnl": 1233161.25
+  },
+  {
+    "date": "2026-03-17",
+    "cumulative_rpnl": 4052301.75,
+    "current_margin": 2688305.61,
+    "open_positions": 28,
+    "unrealised_pnl": 65321.25
+  },
+  {
+    "date": "2026-03-18",
+    "cumulative_rpnl": 4117623.0,
+    "current_margin": 4015668.11,
+    "open_positions": 37,
+    "unrealised_pnl": 7890.0
+  },
+  {
+    "date": "2026-03-19",
+    "cumulative_rpnl": 3745229.25,
+    "current_margin": 5778023.42,
+    "open_positions": 53,
+    "unrealised_pnl": 135352.5
+  },
+  {
+    "date": "2026-03-20",
+    "cumulative_rpnl": 3493570.5,
+    "current_margin": 9133912.43,
+    "open_positions": 82,
+    "unrealised_pnl": 356808.75
+  },
+  {
+    "date": "2026-03-23",
+    "cumulative_rpnl": 3130761.75,
+    "current_margin": 13462615.65,
+    "open_positions": 129,
+    "unrealised_pnl": 792846.0
+  },
+  {
+    "date": "2026-03-24",
+    "cumulative_rpnl": 4007262.0,
+    "current_margin": 1871313.68,
+    "open_positions": 20,
+    "unrealised_pnl": 35355.0
+  },
+  {
+    "date": "2026-03-25",
+    "cumulative_rpnl": 4023968.25,
+    "current_margin": 4428801.3,
+    "open_positions": 45,
+    "unrealised_pnl": 40845.0
+  },
+  {
+    "date": "2026-03-27",
+    "cumulative_rpnl": 3863228.25,
+    "current_margin": 5145720.53,
+    "open_positions": 54,
+    "unrealised_pnl": 303990.0
+  },
+  {
+    "date": "2026-03-30",
+    "cumulative_rpnl": 4291039.5,
+    "current_margin": 1679170.56,
+    "open_positions": 13,
+    "unrealised_pnl": -58905.0
+  },
+  {
+    "date": "2026-04-01",
+    "cumulative_rpnl": 4145142.0,
+    "current_margin": 2254621.67,
+    "open_positions": 22,
+    "unrealised_pnl": 46762.5
+  },
+  {
+    "date": "2026-04-02",
+    "cumulative_rpnl": 3967928.25,
+    "current_margin": 7068795.11,
+    "open_positions": 72,
+    "unrealised_pnl": 447836.25
+  },
+  {
+    "date": "2026-04-06",
+    "cumulative_rpnl": 3676032.0,
+    "current_margin": 11578632.24,
+    "open_positions": 116,
+    "unrealised_pnl": 901878.75
+  },
+  {
+    "date": "2026-04-07",
+    "cumulative_rpnl": 4907217.0,
+    "current_margin": 4141243.84,
+    "open_positions": 41,
+    "unrealised_pnl": 77313.75
+  },
+  {
+    "date": "2026-04-08",
+    "cumulative_rpnl": 4984530.75,
+    "current_margin": 3950801.87,
+    "open_positions": 40,
+    "unrealised_pnl": 31466.25
+  },
+  {
+    "date": "2026-04-09",
+    "cumulative_rpnl": 4883727.0,
+    "current_margin": 8760735.64,
+    "open_positions": 84,
+    "unrealised_pnl": 75146.25
+  },
+  {
+    "date": "2026-04-10",
+    "cumulative_rpnl": 4883727.0,
+    "current_margin": 12519904.24,
+    "open_positions": 118,
+    "unrealised_pnl": 249573.75
+  },
+  {
+    "date": "2026-04-13",
+    "cumulative_rpnl": 5874942.0,
+    "current_margin": 291797.76,
+    "open_positions": 2,
+    "unrealised_pnl": -7848.75
+  },
+  {
+    "date": "2026-04-15",
+    "cumulative_rpnl": 5867093.25,
+    "current_margin": 2397107.01,
+    "open_positions": 23,
+    "unrealised_pnl": 352.5
+  },
+  {
+    "date": "2026-04-16",
+    "cumulative_rpnl": 5867093.25,
+    "current_margin": 5695966.86,
+    "open_positions": 56,
+    "unrealised_pnl": 56985.0
+  },
+  {
+    "date": "2026-04-17",
+    "cumulative_rpnl": 5867093.25,
+    "current_margin": 8097266.51,
+    "open_positions": 79,
+    "unrealised_pnl": 99611.25
+  },
+  {
+    "date": "2026-04-20",
+    "cumulative_rpnl": 5867093.25,
+    "current_margin": 12118712.93,
+    "open_positions": 117,
+    "unrealised_pnl": 292713.75
+  },
+  {
+    "date": "2026-04-21",
+    "cumulative_rpnl": 6333165.75,
+    "current_margin": 5200827.22,
+    "open_positions": 49,
+    "unrealised_pnl": -138738.75
+  },
+  {
+    "date": "2026-04-22",
+    "cumulative_rpnl": 6194427.0,
+    "current_margin": 2114903.17,
+    "open_positions": 21,
+    "unrealised_pnl": 11178.75
+  },
+  {
+    "date": "2026-04-23",
+    "cumulative_rpnl": 6148467.0,
+    "current_margin": 5007577.58,
+    "open_positions": 49,
+    "unrealised_pnl": 98827.5
+  },
+  {
+    "date": "2026-04-24",
+    "cumulative_rpnl": 5969310.75,
+    "current_margin": 6070670.92,
+    "open_positions": 61,
+    "unrealised_pnl": 201090.0
+  },
+  {
+    "date": "2026-04-27",
+    "cumulative_rpnl": 5969310.75,
+    "current_margin": 8948173.99,
+    "open_positions": 90,
+    "unrealised_pnl": 319147.5
+  },
+  {
+    "date": "2026-04-28",
+    "cumulative_rpnl": 6529020.75,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2026-04-29",
+    "cumulative_rpnl": 6529020.75,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  },
+  {
+    "date": "2026-04-30",
+    "cumulative_rpnl": 6529020.75,
+    "current_margin": 0,
+    "open_positions": 0,
+    "unrealised_pnl": 0
+  }
+]

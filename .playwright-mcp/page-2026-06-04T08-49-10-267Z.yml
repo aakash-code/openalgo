@@ -1,0 +1,188 @@
+- generic [ref=e2]:
+  - generic [ref=e5]:
+    - navigation [ref=e6]:
+      - generic [ref=e7]:
+        - link "OpenAlgo OpenAlgo" [ref=e8] [cursor=pointer]:
+          - /url: /dashboard
+          - img "OpenAlgo" [ref=e9]
+          - generic [ref=e10]: OpenAlgo
+        - navigation [ref=e11]:
+          - link "Dashboard" [ref=e12] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Orderbook" [ref=e13] [cursor=pointer]:
+            - /url: /orderbook
+          - link "Tradebook" [ref=e14] [cursor=pointer]:
+            - /url: /tradebook
+          - link "Positions" [ref=e15] [cursor=pointer]:
+            - /url: /positions
+          - link "Action Center" [ref=e16] [cursor=pointer]:
+            - /url: /action-center
+          - link "Platforms" [ref=e17] [cursor=pointer]:
+            - /url: /platforms
+          - link "Strategy" [ref=e18] [cursor=pointer]:
+            - /url: /strategy
+          - link "Logs" [ref=e19] [cursor=pointer]:
+            - /url: /logs
+          - link "Tools" [ref=e20] [cursor=pointer]:
+            - /url: /tools
+          - link "Scanner" [ref=e21] [cursor=pointer]:
+            - /url: /scanner
+        - generic [ref=e22]:
+          - generic [ref=e23]: upstox
+          - generic [ref=e25]: Analyze Mode
+          - button "Switch to Live mode" [ref=e26]:
+            - img
+          - button "Switch to dark mode" [disabled]:
+            - img
+          - button "Open user menu" [ref=e27]:
+            - generic [ref=e28]: A
+    - main [ref=e29]:
+      - generic [ref=e30]:
+        - generic [ref=e31]:
+          - generic [ref=e32]:
+            - heading "Breakout Scanner" [level=1] [ref=e33]
+            - generic [ref=e34]:
+              - img
+              - text: RUNNING
+          - button [ref=e35]:
+            - img
+        - generic [ref=e36]:
+          - generic [ref=e39]:
+            - img [ref=e41]
+            - generic [ref=e46]:
+              - paragraph [ref=e47]: Stocks Watching
+              - paragraph [ref=e48]: "0"
+              - paragraph [ref=e49]: Not loaded
+          - generic [ref=e52]:
+            - img [ref=e54]
+            - generic [ref=e56]:
+              - paragraph [ref=e57]: Signals Today
+              - paragraph [ref=e58]: "0"
+              - paragraph [ref=e59]: 0 BUY · 0 SELL
+          - generic [ref=e62]:
+            - img [ref=e64]
+            - generic [ref=e67]:
+              - paragraph [ref=e68]: Last Scan
+              - paragraph [ref=e69]: —
+          - generic [ref=e72]:
+            - img [ref=e74]
+            - generic [ref=e75]:
+              - paragraph [ref=e76]: Next Scan
+              - paragraph [ref=e77]: —
+        - generic [ref=e78]:
+          - generic [ref=e79]:
+            - generic [ref=e81]: TradeFinder Connection
+            - generic [ref=e82]:
+              - generic [ref=e83]:
+                - generic [ref=e84]: JWT Token (paste fresh lt token each morning)
+                - generic [ref=e86]:
+                  - textbox "eyJ…" [ref=e87]: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjQyZWRmZmZhNWZhMDExZjE5NTg0ZTNhN2I2NjgxNzRjIiwiZW1haWwiOiJzaGVsYWRpeWFhYWthc2gxMjNAZ21haWwuY29tIiwic3RhcnQiOjE3ODA1Mjc3MzQuNzQ5NDM1LCJleHAiOjE3ODA1NzE1MDguOTcxOTUyLCJwbGFuIjoiRElBTU9ORCIsInVzZXJfdHlwZSI6ImNsaWVudCIsImFjY2VzcyI6IntcIm1hcmtldF9wdWxzZVwiOiAxLCBcImluc2lkZXJfc3RyYXRlZ3lcIjogMSwgXCJzZWN0b3Jfc2NvcGVcIjogMSwgXCJzd2luZ19zcGVjdHJ1bVwiOiAxLCBcIm9wdGlvbl9jbG9ja1wiOiAxLCBcIm9wdGlvbl9hcGV4XCI6IDEsIFwiY29tbXVuaXR5XCI6IDF9IiwiYWNjb3VudF9leHAiOiIxODA3Mjk1NDAwIiwiYnJva2VyIjoiREhBTiJ9.c_5g5xd62Trzl0AI57fWbneU6ZnBMONZufFp_JbU6rE
+                  - button [ref=e88]:
+                    - img [ref=e181]
+                - paragraph [ref=e92]:
+                  - text: tradefinder.in → DevTools → Application → Local Storage →
+                  - code [ref=e93]: lt
+              - button "Stop Scanner" [ref=e186]:
+                - img
+                - text: Stop Scanner
+          - generic [ref=e96]:
+            - generic [ref=e98]:
+              - img [ref=e99]
+              - text: Scanner Config
+            - generic [ref=e101]:
+              - generic [ref=e102]:
+                - generic [ref=e103]:
+                  - generic [ref=e104]: Bar Interval
+                  - generic [ref=e105]:
+                    - button "1m" [ref=e106]
+                    - button "3m" [ref=e107]
+                    - button "5m" [ref=e108]
+                    - button "15m" [ref=e109]
+                - generic [ref=e110]:
+                  - generic [ref=e111]: Exchange
+                  - generic [ref=e112]:
+                    - button "NSE" [ref=e113]
+                    - button "BSE" [ref=e114]
+                - generic [ref=e115]:
+                  - generic [ref=e116]: ADX ≥
+                  - generic [ref=e117]:
+                    - checkbox [checked] [ref=e118]
+                    - spinbutton [ref=e119]: "25"
+                - generic [ref=e120]:
+                  - generic [ref=e121]: VWAP Filter
+                  - generic [ref=e122]:
+                    - checkbox "Enabled" [checked] [ref=e123]
+                    - generic [ref=e124]: Enabled
+                - generic [ref=e125]:
+                  - generic [ref=e126]: Signal Type
+                  - generic [ref=e127]:
+                    - generic [ref=e128]:
+                      - checkbox "Double" [checked] [ref=e129]
+                      - text: Double
+                    - generic [ref=e130]:
+                      - checkbox "Single" [ref=e131]
+                      - text: Single
+                - generic [ref=e132]:
+                  - generic [ref=e133]: Scan every (sec)
+                  - spinbutton [ref=e134]: "60"
+              - generic [ref=e135]:
+                - button "Apply Config" [ref=e136]
+                - generic [ref=e137]:
+                  - generic [ref=e138]: "Top-N:"
+                  - spinbutton [ref=e139]: "0"
+                  - text: (0=all)
+        - generic [ref=e140]:
+          - generic [ref=e142]:
+            - generic [ref=e143]:
+              - text: Signals Today
+              - generic [ref=e144]: (0 shown)
+            - generic [ref=e145]:
+              - generic [ref=e146]:
+                - img [ref=e147]
+                - textbox "Search symbol…" [ref=e150]
+              - button "ALL" [ref=e151]
+              - button "BUY0" [ref=e152]
+              - button "SELL0" [ref=e153]
+              - button "Clear signals" [ref=e154]:
+                - img
+          - generic [ref=e156]:
+            - img [ref=e157]
+            - paragraph [ref=e159]: Scanning… signals will appear here
+    - contentinfo [ref=e160]:
+      - generic [ref=e161]:
+        - generic [ref=e162]:
+          - generic [ref=e163]:
+            - generic [ref=e164]: Copyright 2026
+            - generic [ref=e165]: "|"
+            - link "www.openalgo.in" [ref=e166] [cursor=pointer]:
+              - /url: https://www.openalgo.in
+          - generic [ref=e167]: "|"
+          - generic [ref=e168]: Open Source Algo Platform for Everyone
+          - generic [ref=e169]: "|"
+          - generic [ref=e170]:
+            - generic [ref=e171]: v
+            - generic [ref=e172]: 2.0.1.1
+          - generic [ref=e173]: "|"
+          - generic [ref=e174]:
+            - img
+            - generic [ref=e175]: 1 session
+        - generic [ref=e176]:
+          - link "GitHub" [ref=e177] [cursor=pointer]:
+            - /url: https://github.com/marketcalls/openalgo
+            - img
+          - link "Discord" [ref=e178] [cursor=pointer]:
+            - /url: https://openalgo.in/discord
+            - img
+          - link "X (Twitter)" [ref=e179] [cursor=pointer]:
+            - /url: https://x.com/openalgoHQ
+            - img
+          - link "YouTube" [ref=e180] [cursor=pointer]:
+            - /url: https://www.youtube.com/@openalgo
+            - img
+  - region "Notifications alt+T":
+    - list:
+      - listitem [ref=e187]:
+        - button "Close toast" [ref=e188] [cursor=pointer]:
+          - img [ref=e189]
+        - img [ref=e193]
+        - generic [ref=e197]: Scanner started

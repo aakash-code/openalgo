@@ -146,6 +146,10 @@ class SharedZmqPublisher:
             self.zmq_port = zmq_port
             self._connected = True
             self.logger.info(f"Shared ZMQ publisher connected to {endpoint}")
+            # Also feed the Flask-process MarketDataService bridge (sandbox
+            # execution engine, MTM) — see base_adapter.get_mds_bridge_endpoint.
+            from .base_adapter import _connect_to_mds_bridge
+            _connect_to_mds_bridge(self.socket, self.logger)
             return zmq_port
 
     def publish(self, topic: str, data: dict):

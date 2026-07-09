@@ -1,0 +1,11 @@
+- generic [ref=e1]:
+  - generic [ref=e3]:
+    - img [ref=e5]
+    - heading "Admin Access" [level=2] [ref=e8]
+    - paragraph [ref=e9]: Sign in to manage subscriptions
+    - generic [ref=e10]:
+      - textbox "Enter admin password" [active] [ref=e11]
+      - button "Login" [ref=e12]
+  - button "Open Next.js Dev Tools" [ref=e18] [cursor=pointer]:
+    - img [ref=e19]
+  - alert [ref=e22]

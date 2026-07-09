@@ -1,0 +1,246 @@
+- generic [ref=e2]:
+  - generic [ref=e6]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - img [ref=e10]
+        - generic [ref=e14]:
+          - heading "Historify" [level=1] [ref=e15]
+          - paragraph [ref=e16]: Historical Data Management
+      - generic [ref=e17]:
+        - generic [ref=e18]:
+          - img [ref=e19]
+          - generic [ref=e21]: 16014.3 MB
+        - generic [ref=e22]:
+          - img [ref=e23]
+          - generic [ref=e25]: 127,130,692
+        - generic [ref=e26]:
+          - img [ref=e27]
+          - generic [ref=e30]: "16781"
+      - generic [ref=e31]:
+        - generic [ref=e32]: DHAN
+        - generic [ref=e33] [cursor=pointer]:
+          - img
+          - generic [ref=e34]: Analyze Mode
+        - button "Switch to Live mode" [ref=e35]:
+          - img
+        - button "Switch to dark mode" [disabled]:
+          - img
+        - link "Charts" [ref=e36] [cursor=pointer]:
+          - /url: /historify/charts/INDIAVIX?exchange=NSE_INDEX&interval=D
+          - button "Charts" [ref=e37]:
+            - img
+            - generic [ref=e38]: Charts
+        - link "Dashboard" [ref=e39] [cursor=pointer]:
+          - /url: /dashboard
+          - button "Dashboard" [ref=e40]:
+            - img
+            - generic [ref=e41]: Dashboard
+        - button "Open profile menu" [ref=e42]:
+          - generic [ref=e43]: A
+    - generic [ref=e45]:
+      - tablist [ref=e47]:
+        - tab "Watchlist 211" [ref=e48]:
+          - img
+          - generic [ref=e49]: Watchlist
+          - generic [ref=e50]: "211"
+        - tab "Scheduler" [ref=e51]:
+          - img
+          - generic [ref=e52]: Scheduler
+        - tab "Download Jobs" [ref=e53]:
+          - img
+          - generic [ref=e54]: Download Jobs
+        - tab "Export/Import" [ref=e55]:
+          - img
+          - generic [ref=e56]: Export/Import
+        - tab "Expired F&O" [active] [selected] [ref=e57]:
+          - img
+          - generic [ref=e58]: Expired F&O
+      - tabpanel "Expired F&O" [ref=e2447]:
+        - generic [ref=e2448]:
+          - generic [ref=e2449]:
+            - generic [ref=e2451]:
+              - paragraph [ref=e2452]: Expiries Cached
+              - paragraph [ref=e2453]: "225"
+            - generic [ref=e2455]:
+              - paragraph [ref=e2456]: Contracts Cached
+              - paragraph [ref=e2457]: "19042"
+            - generic [ref=e2459]:
+              - paragraph [ref=e2460]: Downloaded
+              - paragraph [ref=e2461]: "17201"
+            - generic [ref=e2463]:
+              - paragraph [ref=e2464]: Total Candles
+              - paragraph [ref=e2465]: 50,898,802
+          - generic [ref=e2466]:
+            - generic [ref=e2468]:
+              - img [ref=e2469]
+              - text: Step 1 — Select Underlying & Fetch Expiries
+            - generic [ref=e2472]:
+              - generic [ref=e2473]:
+                - generic [ref=e2474]:
+                  - button "Indices" [ref=e2475]
+                  - button "Stocks" [ref=e2476]
+                - generic [ref=e2477]:
+                  - generic [ref=e2478]:
+                    - generic [ref=e2479]: Underlying
+                    - combobox [ref=e2480]:
+                      - generic: NIFTY
+                      - img
+                  - button "Fetch Expiries" [ref=e2481]:
+                    - img
+                    - text: Fetch Expiries
+              - generic [ref=e2482]:
+                - generic [ref=e2483]:
+                  - generic [ref=e2484]:
+                    - text: Select Expiries
+                    - generic [ref=e2485]: (0/14 selected)
+                  - generic [ref=e2486]:
+                    - button "All" [ref=e2487]
+                    - generic [ref=e2488]: ·
+                    - button "None" [ref=e2489]
+                    - generic [ref=e2490]: ·
+                    - button "Incomplete" [ref=e2491]
+                - generic [ref=e2495]:
+                  - generic [ref=e2496] [cursor=pointer]:
+                    - checkbox "2026-05-28 W 2026-05-28" [ref=e2497]
+                    - generic [ref=e2498]:
+                      - generic [ref=e2499]: 2026-05-28
+                      - generic [ref=e2500]: W
+                  - generic [ref=e2501] [cursor=pointer]:
+                    - checkbox "2026-05-21 W" [ref=e2502]
+                    - generic [ref=e2503]:
+                      - generic [ref=e2504]: 2026-05-21
+                      - generic [ref=e2505]: W
+                  - generic [ref=e2506] [cursor=pointer]:
+                    - checkbox "2026-05-14 W" [ref=e2507]
+                    - generic [ref=e2508]:
+                      - generic [ref=e2509]: 2026-05-14
+                      - generic [ref=e2510]: W
+                  - generic [ref=e2511] [cursor=pointer]:
+                    - checkbox "2026-05-07 W" [ref=e2512]
+                    - generic [ref=e2513]:
+                      - generic [ref=e2514]: 2026-05-07
+                      - generic [ref=e2515]: W
+                  - generic [ref=e2516] [cursor=pointer]:
+                    - checkbox "2026-04-30 W 2026-04-30" [ref=e2517]
+                    - generic [ref=e2518]:
+                      - generic [ref=e2519]: 2026-04-30
+                      - generic [ref=e2520]: W
+                  - generic [ref=e2521] [cursor=pointer]:
+                    - checkbox "2026-04-23 W" [ref=e2522]
+                    - generic [ref=e2523]:
+                      - generic [ref=e2524]: 2026-04-23
+                      - generic [ref=e2525]: W
+                  - generic [ref=e2526] [cursor=pointer]:
+                    - checkbox "2026-04-16 W" [ref=e2527]
+                    - generic [ref=e2528]:
+                      - generic [ref=e2529]: 2026-04-16
+                      - generic [ref=e2530]: W
+                  - generic [ref=e2531] [cursor=pointer]:
+                    - checkbox "2026-04-09 W" [ref=e2532]
+                    - generic [ref=e2533]:
+                      - generic [ref=e2534]: 2026-04-09
+                      - generic [ref=e2535]: W
+                  - generic [ref=e2536] [cursor=pointer]:
+                    - checkbox [ref=e2537]
+                    - generic [ref=e2539]: 2026-05-28
+                  - generic [ref=e2540] [cursor=pointer]:
+                    - checkbox [ref=e2541]
+                    - generic [ref=e2543]: 2026-04-30
+                  - generic [ref=e2544] [cursor=pointer]:
+                    - checkbox "2026-03-26" [ref=e2545]
+                    - generic [ref=e2547]: 2026-03-26
+                  - generic [ref=e2548] [cursor=pointer]:
+                    - checkbox "2026-02-26" [ref=e2549]
+                    - generic [ref=e2551]: 2026-02-26
+                  - generic [ref=e2552] [cursor=pointer]:
+                    - checkbox "2026-01-29" [ref=e2553]
+                    - generic [ref=e2555]: 2026-01-29
+                  - generic [ref=e2556] [cursor=pointer]:
+                    - checkbox "2025-12-25" [ref=e2557]
+                    - generic [ref=e2559]: 2025-12-25
+          - generic [ref=e2560]:
+            - generic [ref=e2562]:
+              - img [ref=e2563]
+              - text: Recent Download Jobs
+            - table [ref=e2569]:
+              - rowgroup [ref=e2570]:
+                - row "Underlying Types Interval Status Progress Started Duration" [ref=e2571]:
+                  - columnheader "Underlying" [ref=e2572]
+                  - columnheader "Types" [ref=e2573]
+                  - columnheader "Interval" [ref=e2574]
+                  - columnheader "Status" [ref=e2575]
+                  - columnheader "Progress" [ref=e2576]
+                  - columnheader "Started" [ref=e2577]
+                  - columnheader "Duration" [ref=e2578]
+              - rowgroup [ref=e2579]:
+                - row "NIFTY(2025-03-27) CE,PE,FUT 1m completed 245/245 9 May, 12:15 38s" [ref=e2580]:
+                  - cell "NIFTY(2025-03-27)" [ref=e2581]:
+                    - text: NIFTY
+                    - generic [ref=e2582]: (2025-03-27)
+                  - cell "CE,PE,FUT" [ref=e2583]
+                  - cell "1m" [ref=e2584]
+                  - cell "completed" [ref=e2585]
+                  - cell "245/245" [ref=e2586]
+                  - cell "9 May, 12:15" [ref=e2587]
+                  - cell "38s" [ref=e2588]
+                - row "NIFTY(2025-11-04) CE,PE,FUT 1m failed 0/200 9 May, 12:02 5h 31m" [ref=e2589]:
+                  - cell "NIFTY(2025-11-04)" [ref=e2590]:
+                    - text: NIFTY
+                    - generic [ref=e2591]: (2025-11-04)
+                  - cell "CE,PE,FUT" [ref=e2592]
+                  - cell "1m" [ref=e2593]
+                  - cell "failed" [ref=e2594]
+                  - cell "0/200" [ref=e2595]
+                  - cell "9 May, 12:02" [ref=e2596]
+                  - cell "5h 31m" [ref=e2597]
+                - row "NIFTY(2 expiries) CE,PE,FUT 1m cancelled 127/407 9 May, 11:58 3m 20s" [ref=e2598]:
+                  - cell "NIFTY(2 expiries)" [ref=e2599]:
+                    - text: NIFTY
+                    - generic [ref=e2600]: (2 expiries)
+                  - cell "CE,PE,FUT" [ref=e2601]
+                  - cell "1m" [ref=e2602]
+                  - cell "cancelled" [ref=e2603]
+                  - cell "127/407" [ref=e2604]
+                  - cell "9 May, 11:58" [ref=e2605]
+                  - cell "3m 20s" [ref=e2606]
+                - row "NIFTY(2025-11-25) CE,PE,FUT 1m completed 213/213 9 May, 11:57 31s" [ref=e2607]:
+                  - cell "NIFTY(2025-11-25)" [ref=e2608]:
+                    - text: NIFTY
+                    - generic [ref=e2609]: (2025-11-25)
+                  - cell "CE,PE,FUT" [ref=e2610]
+                  - cell "1m" [ref=e2611]
+                  - cell "completed" [ref=e2612]
+                  - cell "213/213" [ref=e2613]
+                  - cell "9 May, 11:57" [ref=e2614]
+                  - cell "31s" [ref=e2615]
+                - row "NIFTY(2025-01-30) CE,PE,FUT 1m completed 219/219 9 May, 11:56 35s" [ref=e2616]:
+                  - cell "NIFTY(2025-01-30)" [ref=e2617]:
+                    - text: NIFTY
+                    - generic [ref=e2618]: (2025-01-30)
+                  - cell "CE,PE,FUT" [ref=e2619]
+                  - cell "1m" [ref=e2620]
+                  - cell "completed" [ref=e2621]
+                  - cell "219/219" [ref=e2622]
+                  - cell "9 May, 11:56" [ref=e2623]
+                  - cell "35s" [ref=e2624]
+                - row "NIFTY(2025-01-23) CE,PE,FUT 1m completed 190/190 9 May, 11:56 26s" [ref=e2625]:
+                  - cell "NIFTY(2025-01-23)" [ref=e2626]:
+                    - text: NIFTY
+                    - generic [ref=e2627]: (2025-01-23)
+                  - cell "CE,PE,FUT" [ref=e2628]
+                  - cell "1m" [ref=e2629]
+                  - cell "completed" [ref=e2630]
+                  - cell "190/190" [ref=e2631]
+                  - cell "9 May, 11:56" [ref=e2632]
+                  - cell "26s" [ref=e2633]
+                - row "NIFTY(3 expiries) CE,PE,FUT 1m cancelled 509/549 9 May, 11:49 5m 26s" [ref=e2634]:
+                  - cell "NIFTY(3 expiries)" [ref=e2635]:
+                    - text: NIFTY
+                    - generic [ref=e2636]: (3 expiries)
+                  - cell "CE,PE,FUT" [ref=e2637]
+                  - cell "1m" [ref=e2638]
+                  - cell "cancelled" [ref=e2639]
+                  - cell "509/549" [ref=e2640]
+                  - cell "9 May, 11:49" [ref=e2641]
+                  - cell "5m 26s" [ref=e2642]
+  - region "Notifications alt+T"

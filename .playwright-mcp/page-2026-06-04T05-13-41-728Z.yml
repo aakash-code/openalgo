@@ -1,0 +1,914 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e3]:
+    - button [ref=e7]:
+      - img [ref=e8]
+    - toolbar [ref=e17]:
+      - generic [ref=e21]:
+        - generic [ref=e22]:
+          - generic [ref=e23]:
+            - button "AAPL" [ref=e24]:
+              - generic [ref=e25]: AAPL
+            - button "Switch data type" [ref=e26]:
+              - img [ref=e27]:
+                - img [ref=e28]
+          - button "Compare symbols" [ref=e30]:
+            - img [ref=e31]:
+              - img [ref=e32]
+        - button "1 day" [ref=e39]:
+          - generic [ref=e41]: D
+        - button "Candles" [ref=e46]:
+          - img [ref=e48]:
+            - img [ref=e49]
+        - generic [ref=e56]:
+          - button "Indicators, metrics, and strategies" [ref=e58]:
+            - img [ref=e59]:
+              - img [ref=e60]
+            - generic [ref=e63]: Indicators
+          - button "Indicator templates" [ref=e65]:
+            - img [ref=e67]:
+              - img [ref=e68]
+        - generic [ref=e72]:
+          - button "Create alert" [ref=e73]:
+            - img [ref=e74]:
+              - img [ref=e75]
+            - generic [ref=e78]: Alert
+          - button "Bar replay" [ref=e79]:
+            - img [ref=e80]:
+              - img [ref=e81]
+            - generic [ref=e83]: Replay
+        - generic [ref=e87]:
+          - button [disabled] [ref=e88]:
+            - img [ref=e89]:
+              - img [ref=e90]
+          - button [disabled] [ref=e92]:
+            - img [ref=e93]:
+              - img [ref=e94]
+        - generic [ref=e97]:
+          - button "Layout setup" [ref=e98]:
+            - img [ref=e99]:
+              - img
+          - generic [ref=e101]:
+            - button "Save all charts for all symbols and intervals on your layout" [ref=e102]:
+              - generic [ref=e104]:
+                - generic [ref=e105]: Save
+                - generic: Save
+            - button "Manage layouts" [ref=e107]:
+              - img [ref=e110]:
+                - img [ref=e111]
+        - generic [ref=e115]:
+          - button "Quick search" [ref=e116]:
+            - img [ref=e117]:
+              - img [ref=e118]
+          - button "Settings" [ref=e121]:
+            - img [ref=e122]:
+              - img [ref=e123]
+          - button "Fullscreen mode" [ref=e127]:
+            - img [ref=e128]:
+              - img [ref=e129]
+          - button "Take a snapshot" [ref=e131]:
+            - img [ref=e133]:
+              - img [ref=e134]
+      - button "Trade" [ref=e140]:
+        - generic [ref=e146]: Trade
+      - button "Share your idea with the trade community" [ref=e148]:
+        - generic [ref=e150]: Publish
+    - toolbar [ref=e152]:
+      - generic [ref=e156]:
+        - generic [ref=e157]:
+          - generic [ref=e160]:
+            - button "Cross" [ref=e162]:
+              - img [ref=e163]:
+                - img [ref=e164]
+            - button "Cursors" [pressed] [ref=e168]:
+              - img [ref=e169]:
+                - img [ref=e170]
+          - generic [ref=e174]:
+            - button "Trendline" [ref=e176]:
+              - img [ref=e177]:
+                - img [ref=e178]
+            - button "Trend tools" [ref=e182]:
+              - img [ref=e183]:
+                - img [ref=e184]
+          - generic [ref=e188]:
+            - button "Fib retracement" [ref=e190]:
+              - img [ref=e191]:
+                - img [ref=e192]
+            - button "Gann and Fibonacci tools" [ref=e199]:
+              - img [ref=e200]:
+                - img [ref=e201]
+          - generic [ref=e205]:
+            - button "XABCD pattern" [ref=e207]:
+              - img [ref=e208]:
+                - img [ref=e209]
+            - button "Patterns" [ref=e213]:
+              - img [ref=e214]:
+                - img [ref=e215]
+          - generic [ref=e219]:
+            - button "Long position" [ref=e221]:
+              - img [ref=e222]:
+                - img [ref=e223]
+            - button "Forecasting and measurement tools" [ref=e225]:
+              - img [ref=e226]:
+                - img [ref=e227]
+          - generic [ref=e231]:
+            - button "Brush" [ref=e233]:
+              - img [ref=e234]:
+                - img [ref=e235]
+            - button "Geometric shapes" [ref=e239]:
+              - img [ref=e240]:
+                - img [ref=e241]
+          - generic [ref=e245]:
+            - button "Text" [ref=e247]:
+              - img [ref=e248]:
+                - img [ref=e249]
+            - button "Annotation tools" [ref=e251]:
+              - img [ref=e252]:
+                - img [ref=e253]
+          - generic [ref=e256]:
+            - button "Icon" [ref=e258]:
+              - img [ref=e259]:
+                - img [ref=e260]
+            - button "Icons" [ref=e262]:
+              - img [ref=e263]:
+                - img [ref=e264]
+        - generic [ref=e266]:
+          - button "Measure" [ref=e267]:
+            - img [ref=e268]:
+              - img [ref=e269]
+          - button "Zoom in" [ref=e271]:
+            - img [ref=e272]:
+              - img [ref=e273]
+        - generic [ref=e278]:
+          - generic [ref=e281]:
+            - button "Magnet mode snaps drawings placed near price bars to the closest OHLC value" [ref=e283]:
+              - img [ref=e284]:
+                - img [ref=e285]
+            - button "Magnets" [ref=e289]:
+              - img [ref=e290]:
+                - img [ref=e291]
+          - button "Keep drawing" [ref=e293]:
+            - img [ref=e294]:
+              - img [ref=e295]
+          - button "Lock all drawings" [ref=e297]:
+            - img [ref=e298]:
+              - img [ref=e299]
+          - generic [ref=e302]:
+            - button "Hide all drawings" [ref=e304]:
+              - img [ref=e305]:
+                - img [ref=e306]
+            - button "Hide options" [ref=e308]:
+              - img [ref=e309]:
+                - img [ref=e310]
+        - generic [ref=e314]:
+          - button "Remove objects" [ref=e316]:
+            - img [ref=e317]:
+              - img [ref=e318]
+          - button "Remove options" [ref=e320]:
+            - img [ref=e321]:
+              - img [ref=e322]
+    - generic [ref=e326]:
+      - 'region "Chart #1" [ref=e329]':
+        - generic [ref=e333]:
+          - generic:
+            - generic:
+              - toolbar:
+                - generic:
+                  - generic [ref=e334]:
+                    - generic "Change symbol" [ref=e335]:
+                      - generic [ref=e336]:
+                        - img [ref=e338]
+                        - generic [ref=e339]: A
+                      - button "Change symbol" [ref=e340]: Apple Inc
+                    - generic "Change interval" [ref=e341]:
+                      - text: ·
+                      - button "Change interval" [ref=e342]: 1D
+                    - generic [ref=e343]:
+                      - text: ·
+                      - generic [ref=e344]: NASDAQ
+                  - generic:
+                    - generic:
+                      - button "Flag symbol":
+                        - generic:
+                          - generic:
+                            - generic:
+                              - img
+                      - button "More":
+                        - generic:
+                          - img
+                  - button "Market closed · One update every 5 seconds · NASDAQ by Cboe One" [ref=e346]:
+                    - img [ref=e347]:
+                      - img [ref=e348]
+                    - img [ref=e350]:
+                      - img [ref=e351]
+                - generic [ref=e354]:
+                  - generic [ref=e355]:
+                    - generic [ref=e356]: O
+                    - generic [ref=e357]: "314.18"
+                  - generic [ref=e358]:
+                    - generic [ref=e359]: H
+                    - generic [ref=e360]: "316.94"
+                  - generic [ref=e361]:
+                    - generic [ref=e362]: L
+                    - generic [ref=e363]: "308.85"
+                  - generic [ref=e364]:
+                    - generic [ref=e365]: C
+                    - generic [ref=e366]: "310.26"
+                  - generic [ref=e368]: −4.94 (−1.57%)
+              - generic [ref=e371]:
+                - generic [ref=e373]:
+                  - generic: "310.26"
+                  - generic: Sell
+                - generic "Spread" [ref=e375]: "0.00"
+                - generic [ref=e377]:
+                  - generic: "310.26"
+                  - generic: Buy
+            - generic:
+              - button "Hide indicator legend" [ref=e378]:
+                - img [ref=e380]
+              - generic:
+                - toolbar:
+                  - generic:
+                    - generic "Volume" [ref=e383]:
+                      - generic [ref=e384]: Vol
+                    - generic:
+                      - generic:
+                        - button "Hide":
+                          - generic:
+                            - img
+                        - button "Settings":
+                          - generic:
+                            - img
+                        - button "Remove":
+                          - generic:
+                            - img
+                        - button "More":
+                          - generic:
+                            - img
+                  - generic "Volume" [ref=e388]: 50.83 M
+          - generic "Chart for BATS:AAPL, 1 day" [ref=e390]
+      - toolbar [ref=e404]:
+        - generic [ref=e406]:
+          - generic [ref=e407]:
+            - button "1 day in 1 minute intervals" [ref=e408]:
+              - generic [ref=e409]: 1D
+            - button "5 days in 5 minutes intervals" [ref=e410]:
+              - generic [ref=e411]: 5D
+            - button "1 month in 30 minutes intervals" [ref=e412]:
+              - generic [ref=e413]: 1M
+            - button "3 months in 1 hour intervals" [ref=e414]:
+              - generic [ref=e415]: 3M
+            - button "6 months in 2 hours intervals" [ref=e416]:
+              - generic [ref=e417]: 6M
+            - button "Year to day in 1 day intervals" [ref=e418]:
+              - generic [ref=e419]: YTD
+            - button "1 year in 1 day intervals" [ref=e420]:
+              - generic [ref=e421]: 1Y
+            - button "5 years in 1 week intervals" [ref=e422]:
+              - generic [ref=e423]: 5Y
+            - button "All data in 1 month intervals" [ref=e424]:
+              - generic [ref=e425]: All
+          - button "Go to" [ref=e427]:
+            - img [ref=e428]:
+              - img [ref=e429]
+        - generic [ref=e431]:
+          - button "Timezone" [ref=e434]:
+            - generic [ref=e435]: 05:13:41 UTC
+          - button "Adjust data for dividends" [ref=e439]:
+            - generic [ref=e440]: ADJ
+    - generic [ref=e442]:
+      - toolbar [ref=e447]:
+        - button "Watchlist, details, and news" [pressed] [ref=e448]:
+          - img [ref=e449]:
+            - img [ref=e450]
+        - button "Alerts" [ref=e453]:
+          - img [ref=e454]:
+            - img [ref=e455]
+        - button "Object tree and data window" [ref=e458]:
+          - img [ref=e459]:
+            - img [ref=e460]
+        - button "Screeners" [ref=e463]:
+          - img [ref=e464]:
+            - img [ref=e465]
+        - button "Pine" [ref=e469]:
+          - img [ref=e470]:
+            - img [ref=e471]
+        - button "Calendars" [ref=e474]:
+          - img [ref=e475]:
+            - img [ref=e476]
+        - button "Community" [ref=e478]:
+          - img [ref=e479]:
+            - img [ref=e480]
+        - button "Notifications" [ref=e485]:
+          - img [ref=e486]:
+            - img [ref=e487]
+        - button "Products" [ref=e489]:
+          - img [ref=e490]:
+            - img [ref=e491]
+        - button "Help Center" [ref=e494]:
+          - img [ref=e495]:
+            - img [ref=e496]
+      - generic [ref=e500]:
+        - generic [ref=e501]:
+          - generic [ref=e504]:
+            - button "Watchlist" [ref=e506]:
+              - generic [ref=e509]: Watchlist
+              - img [ref=e512]:
+                - img [ref=e513]
+            - generic [ref=e516]:
+              - button "Add symbol" [ref=e517]:
+                - img [ref=e518]:
+                  - img [ref=e519]
+              - button "Advanced view" [ref=e521]:
+                - img [ref=e522]:
+                  - img [ref=e523]
+              - button "Settings" [ref=e525]:
+                - img [ref=e526]:
+                  - img [ref=e527]
+          - generic [ref=e532]:
+            - generic [ref=e534]:
+              - button [ref=e536]:
+                - img [ref=e537]:
+                  - img [ref=e538]
+              - button "Symbol" [ref=e541]
+              - button "Last" [ref=e543]
+              - button "Chg" [ref=e545]
+              - button "Chg%" [ref=e547]
+            - generic [ref=e552]:
+              - generic [ref=e558]:
+                - img [ref=e559]:
+                  - img [ref=e560]
+                - generic [ref=e562]: Indices
+              - generic [ref=e565]:
+                - generic [ref=e567]:
+                  - generic [ref=e568]:
+                    - img [ref=e570]
+                    - generic [ref=e572]: S
+                  - generic [ref=e574]:
+                    - generic [ref=e575]: SPX
+                    - generic "Market closed" [ref=e576]
+                - generic [ref=e579]: 7,553.67
+                - generic [ref=e581]: −56.10
+                - generic [ref=e583]: −0.74%
+              - generic [ref=e586]:
+                - generic [ref=e588]:
+                  - generic [ref=e589]:
+                    - img [ref=e591]
+                    - generic [ref=e593]: "N"
+                  - generic [ref=e595]:
+                    - generic [ref=e596]: NDQ
+                    - generic "Market closed" [ref=e597]
+                - generic [ref=e600]: 30,571.24
+                - generic [ref=e602]: −89.36
+                - generic [ref=e604]: −0.29%
+              - generic [ref=e607]:
+                - generic [ref=e609]:
+                  - generic [ref=e610]:
+                    - img [ref=e612]
+                    - generic [ref=e614]: D
+                  - generic [ref=e616]:
+                    - generic [ref=e617]: DJI
+                    - generic "Market closed" [ref=e618]
+                - generic [ref=e621]: 50,692.07
+                - generic [ref=e623]: −621.07
+                - generic [ref=e625]: −1.21%
+              - generic [ref=e628]:
+                - generic [ref=e630]:
+                  - generic [ref=e631]:
+                    - img [ref=e633]
+                    - generic [ref=e635]: V
+                  - generic [ref=e637]:
+                    - generic [ref=e638]: VIX
+                    - generic "Quotes are delayed by 15 min" [ref=e639]: D
+                    - generic "Market closed" [ref=e640]
+                - generic [ref=e643]: "16.06"
+                - generic [ref=e645]: "0.29"
+                - generic [ref=e647]: 1.84%
+              - generic [ref=e650]:
+                - generic [ref=e652]:
+                  - generic [ref=e653]:
+                    - img [ref=e655]
+                    - generic [ref=e657]: D
+                  - generic [ref=e660]: DXY
+                - generic [ref=e662]: "99.457"
+                - generic [ref=e664]: −0.093
+                - generic [ref=e666]: −0.09%
+              - generic [ref=e670]:
+                - img [ref=e671]:
+                  - img [ref=e672]
+                - generic [ref=e674]: Stocks
+              - generic [ref=e677]:
+                - generic [ref=e679]:
+                  - generic [ref=e680]:
+                    - img [ref=e682]
+                    - generic [ref=e684]: A
+                  - generic [ref=e686]:
+                    - generic [ref=e687]: AAPL
+                    - generic "Market closed" [ref=e688]
+                - generic [ref=e691]: "310.26"
+                - generic [ref=e693]: −4.94
+                - generic [ref=e695]: −1.57%
+              - generic [ref=e698]:
+                - generic [ref=e700]:
+                  - generic [ref=e701]:
+                    - img [ref=e703]
+                    - generic [ref=e705]: T
+                  - generic [ref=e707]:
+                    - generic [ref=e708]: TSLA
+                    - generic "Market closed" [ref=e709]
+                - generic [ref=e712]: "423.70"
+                - generic [ref=e714]: −0.04
+                - generic [ref=e716]: −0.01%
+              - generic [ref=e719]:
+                - generic [ref=e721]:
+                  - generic [ref=e722]:
+                    - img [ref=e724]
+                    - generic [ref=e726]: "N"
+                  - generic [ref=e728]:
+                    - generic [ref=e729]: NFLX
+                    - generic "Market closed" [ref=e730]
+                - generic [ref=e733]: "81.52"
+                - generic [ref=e735]: −1.81
+                - generic [ref=e737]: −2.17%
+              - generic [ref=e741]:
+                - img [ref=e742]:
+                  - img [ref=e743]
+                - generic [ref=e745]: Futures
+              - generic [ref=e748]:
+                - generic [ref=e750]:
+                  - generic [ref=e751]:
+                    - img [ref=e753]
+                    - generic [ref=e755]: U
+                  - generic [ref=e758]: USOIL
+                - generic [ref=e760]: "95.34"
+                - generic [ref=e762]: −0.85
+                - generic [ref=e764]: −0.88%
+              - generic [ref=e767]:
+                - generic [ref=e769]:
+                  - generic [ref=e770]:
+                    - img [ref=e772]
+                    - generic [ref=e774]: G
+                  - generic [ref=e777]: GOLD
+                - generic [ref=e779]: 4,476.630
+                - generic [ref=e781]: "43.082"
+                - generic [ref=e783]: 0.97%
+              - generic [ref=e786]:
+                - generic [ref=e788]:
+                  - generic [ref=e789]:
+                    - img [ref=e791]
+                    - generic [ref=e793]: S
+                  - generic [ref=e796]: SILVER
+                - generic [ref=e798]:
+                  - text: "73.528"
+                  - superscript [ref=e799]: "4"
+                - generic [ref=e801]: "0.8270"
+                - generic [ref=e803]: 1.14%
+              - generic [ref=e807]:
+                - img [ref=e808]:
+                  - img [ref=e809]
+                - generic [ref=e811]: Forex
+              - generic [ref=e814]:
+                - generic [ref=e816]:
+                  - generic [ref=e817]:
+                    - generic [ref=e819]:
+                      - img [ref=e821]
+                      - img [ref=e823]
+                    - generic [ref=e826]: E
+                  - generic [ref=e829]: EURUSD
+                - generic [ref=e831]:
+                  - text: "1.1607"
+                  - superscript [ref=e832]: "5"
+                - generic [ref=e834]: "0.00101"
+                - generic [ref=e836]: 0.09%
+              - generic [ref=e839]:
+                - generic [ref=e841]:
+                  - generic [ref=e842]:
+                    - generic [ref=e844]:
+                      - img [ref=e846]
+                      - img [ref=e848]
+                    - generic [ref=e851]: G
+                  - generic [ref=e854]: GBPUSD
+                - generic [ref=e856]:
+                  - text: "1.3427"
+                  - superscript [ref=e857]: "4"
+                - generic [ref=e859]: "0.00115"
+                - generic [ref=e861]: 0.09%
+              - generic [ref=e864]:
+                - generic [ref=e866]:
+                  - generic [ref=e867]:
+                    - generic [ref=e869]:
+                      - img [ref=e871]
+                      - img [ref=e873]
+                    - generic [ref=e876]: U
+                  - generic [ref=e879]: USDJPY
+                - generic [ref=e881]:
+                  - text: "159.90"
+                  - superscript [ref=e882]: "7"
+                - generic [ref=e884]: −0.157
+                - generic [ref=e886]: −0.10%
+              - generic [ref=e890]:
+                - img [ref=e891]:
+                  - img [ref=e892]
+                - generic [ref=e894]: Crypto
+              - generic [ref=e897]:
+                - generic [ref=e899]:
+                  - generic [ref=e900]:
+                    - img [ref=e902]
+                    - generic [ref=e904]: B
+                  - generic [ref=e907]: BTCUSD
+                - generic [ref=e909]: 63,706
+                - generic [ref=e911]: −339
+                - generic [ref=e913]: −0.53%
+              - generic [ref=e916]:
+                - generic [ref=e918]:
+                  - generic [ref=e919]:
+                    - img [ref=e921]
+                    - generic [ref=e923]: B
+                  - generic [ref=e926]: BTCUSDT
+                - generic [ref=e928]: 63,798.01
+                - generic [ref=e930]: −344.74
+                - generic [ref=e932]: −0.54%
+              - generic [ref=e935]:
+                - generic [ref=e937]:
+                  - generic [ref=e938]:
+                    - img [ref=e940]
+                    - generic [ref=e942]: E
+                  - generic [ref=e945]: ETHUSD
+                - generic [ref=e947]: 1,785.4
+                - generic [ref=e949]: −24.9
+                - generic [ref=e951]: −1.38%
+        - generic [ref=e954]:
+          - generic [ref=e956]:
+            - generic [ref=e957]:
+              - img [ref=e959]
+              - generic [ref=e961]: A
+            - generic [ref=e962]: AAPL
+            - generic [ref=e963]:
+              - button "Metrics" [ref=e964]:
+                - img [ref=e965]:
+                  - img [ref=e966]
+              - generic "Add note" [ref=e968]:
+                - img [ref=e969]:
+                  - img [ref=e970]
+              - generic "Settings" [ref=e973]:
+                - img [ref=e974]:
+                  - img [ref=e975]
+          - generic [ref=e979]:
+            - generic [ref=e980]:
+              - generic [ref=e982]:
+                - link "Apple Inc" [ref=e983] [cursor=pointer]:
+                  - /url: https://www.tradingview.com/symbols/NASDAQ-AAPL/
+                  - text: Apple Inc
+                  - img [ref=e984]:
+                    - img [ref=e985]
+                - text: NASDAQ
+              - generic [ref=e990]:
+                - link "Electronic Technology" [ref=e991] [cursor=pointer]:
+                  - /url: https://www.tradingview.com/markets/stocks-usa/sectorandindustry-sector/electronic-technology/
+                - link "Telecommunications Equipment" [ref=e994] [cursor=pointer]:
+                  - /url: https://www.tradingview.com/markets/stocks-usa/sectorandindustry-industry/telecommunications-equipment/
+            - generic [ref=e995]:
+              - generic [ref=e996]:
+                - generic [ref=e997]: "310.26"
+                - generic [ref=e999]: USD
+              - generic [ref=e1000]:
+                - generic [ref=e1001]: −4.94
+                - generic [ref=e1002]: −1.57%
+            - generic [ref=e1004]:
+              - generic [ref=e1005]:
+                - img [ref=e1006]:
+                  - img [ref=e1007]
+                - generic [ref=e1009]: Market closed
+              - generic [ref=e1010]: Last update at 05:29 GMT+5:30
+            - generic [ref=e1012]:
+              - generic [ref=e1013]:
+                - img [ref=e1014]:
+                  - img [ref=e1015]
+                - generic [ref=e1017]: Ahead of WWDC, reports say Apple will upgrade Siri using external AI models (including Gemini and ChatGPT), add a standalone Siri app, and expand on-screen personalization—key items for AAPL traders.
+              - img [ref=e1019]:
+                - img [ref=e1020]
+            - generic [ref=e1022]:
+              - generic [ref=e1024]: Key stats
+              - generic [ref=e1025]:
+                - generic [ref=e1026]:
+                  - generic [ref=e1028]: Next earnings report
+                  - generic [ref=e1029]: In 56 days
+                - generic [ref=e1030]:
+                  - generic [ref=e1032]: Volume
+                  - generic [ref=e1033]: ‪50.84 M‬
+                - generic [ref=e1034]:
+                  - generic [ref=e1036]: Average Volume (30D)
+                  - generic [ref=e1037]: ‪48.12 M‬
+                - generic [ref=e1038]:
+                  - generic [ref=e1040]: Market capitalization
+                  - generic [ref=e1041]: ‪4.56 T‬
+              - button [ref=e1043]:
+                - img [ref=e1044]:
+                  - img [ref=e1045]
+            - generic [ref=e1047]:
+              - generic [ref=e1050]:
+                - generic [ref=e1051]: Earnings
+                - 'generic "<div><strong>2 months to next earnings report</strong><br>Date: Jul 30, 2026,<br>Period Ending: Jun 2026,<br>Estimate: 1.88</div>" [ref=e1052]':
+                  - generic [ref=e1053]: "56"
+              - generic [ref=e1054]:
+                - generic [ref=e1055]:
+                  - generic [ref=e1072]:
+                    - generic [ref=e1073]: Q3 '25
+                    - generic [ref=e1074]: Q4 '25
+                    - generic [ref=e1075]: Q1 '26
+                    - generic [ref=e1076]: Q2 '26
+                    - generic [ref=e1077]: Q3 '26
+                  - generic [ref=e1078]:
+                    - generic [ref=e1079]: ‪0.00‬
+                    - generic [ref=e1080]: ‪0.80‬
+                    - generic [ref=e1081]: ‪1.60‬
+                    - generic [ref=e1082]: ‪2.40‬
+                    - generic [ref=e1083]: ‪3.20‬
+                - generic [ref=e1084]:
+                  - generic [ref=e1085]: Actual
+                  - generic [ref=e1087]: Estimate
+            - button "More info" [ref=e1090]
+            - generic [ref=e1091]:
+              - generic [ref=e1093]: Dividends
+              - generic [ref=e1094]:
+                - generic [ref=e1095]:
+                  - generic [ref=e1097]:
+                    - generic [ref=e1099]: 12.58%
+                    - img [ref=e1100]
+                  - generic [ref=e1105]:
+                    - generic [ref=e1106]: Earnings retained
+                    - generic [ref=e1108]: Payout ratio (TTM)
+                - generic [ref=e1110]:
+                  - generic [ref=e1111]:
+                    - generic [ref=e1113]: Dividend yield TTM
+                    - generic [ref=e1114]: 0.33%
+                  - generic [ref=e1115]:
+                    - generic [ref=e1117]: Last payment
+                    - generic [ref=e1118]: "0.27"
+                  - generic [ref=e1119]:
+                    - generic [ref=e1121]: Last ex-dividend date
+                    - generic [ref=e1122]: May 11, 2026
+                  - generic [ref=e1123]:
+                    - generic [ref=e1125]: Last payment date
+                    - generic [ref=e1126]: May 14, 2026
+            - button "More info" [ref=e1128]
+            - generic [ref=e1129]:
+              - generic [ref=e1131]:
+                - generic [ref=e1133]:
+                  - generic [ref=e1134]: Income statement
+                  - img [ref=e1137]:
+                    - img [ref=e1138]
+                - generic [ref=e1140]:
+                  - generic [ref=e1141]: Annual
+                  - generic [ref=e1142]: Quarterly
+              - generic [ref=e1143]:
+                - generic [ref=e1144]:
+                  - generic [ref=e1162]:
+                    - generic [ref=e1163]: "'21"
+                    - generic [ref=e1164]: "'22"
+                    - generic [ref=e1165]: "'23"
+                    - generic [ref=e1166]: "'24"
+                    - generic [ref=e1167]: "'25"
+                  - generic [ref=e1168]:
+                    - generic [ref=e1169]: ‪0.00‬
+                    - generic [ref=e1170]: ‪‪110.00 B‬‬
+                    - generic [ref=e1171]: ‪‪220.00 B‬‬
+                    - generic [ref=e1172]: ‪‪330.00 B‬‬
+                    - generic [ref=e1173]: ‪‪440.00 B‬‬
+                - generic [ref=e1174]:
+                  - generic [ref=e1175]: Revenue
+                  - generic [ref=e1177]: Net income
+                  - generic [ref=e1181]: Net margin %
+            - button "More financials" [ref=e1183]
+            - generic [ref=e1184]:
+              - generic [ref=e1186]: Performance
+              - generic [ref=e1187]:
+                - generic [ref=e1188]:
+                  - generic [ref=e1189]: 0.63%
+                  - generic [ref=e1190]: 1W
+                - generic [ref=e1191]:
+                  - generic [ref=e1192]: 10.94%
+                  - generic [ref=e1193]: 1M
+                - generic [ref=e1194]:
+                  - generic [ref=e1195]: 18.97%
+                  - generic [ref=e1196]: 3M
+                - generic [ref=e1197]:
+                  - generic [ref=e1198]: 10.59%
+                  - generic [ref=e1199]: 6M
+                - generic [ref=e1200]:
+                  - generic [ref=e1201]: 13.96%
+                  - generic [ref=e1202]: YTD
+                - generic [ref=e1203]:
+                  - generic [ref=e1204]: 54.09%
+                  - generic [ref=e1205]: 1Y
+            - generic [ref=e1206]:
+              - generic [ref=e1207]: Seasonals
+              - table [ref=e1211]:
+                - row [ref=e1212]:
+                  - cell
+                  - cell [ref=e1213]
+                  - cell
+                - row [ref=e1217]:
+                  - cell
+                  - cell [ref=e1218]
+                  - cell
+            - button "More seasonals" [ref=e1223]
+            - generic [ref=e1224]:
+              - generic [ref=e1225]: Technicals
+              - generic [ref=e1226]:
+                - generic [ref=e1227]:
+                  - generic [ref=e1228]: Neutral
+                  - generic [ref=e1229]:
+                    - generic [ref=e1230]: Sell
+                    - generic [ref=e1231]: Buy
+                  - generic [ref=e1232]:
+                    - generic [ref=e1233]: Strong sell
+                    - generic [ref=e1234]: Strong buy
+                - img [ref=e1243]:
+                  - img [ref=e1244]
+                - generic [ref=e1246]:
+                  - generic [ref=e1247]: Strong sell
+                  - generic [ref=e1248]: Sell
+                  - generic [ref=e1249]: Neutral
+                  - generic [ref=e1250]: Buy
+                  - generic [ref=e1251]: Strong buy
+            - button "More technicals" [ref=e1254]
+            - generic [ref=e1255]:
+              - generic [ref=e1256]: Analyst rating
+              - generic [ref=e1258]:
+                - generic [ref=e1259]:
+                  - generic [ref=e1260]: Neutral
+                  - generic [ref=e1261]:
+                    - generic [ref=e1262]: Sell
+                    - generic [ref=e1263]: Buy
+                  - generic [ref=e1264]:
+                    - generic [ref=e1265]: Strong sell
+                    - generic [ref=e1266]: Strong buy
+                - img [ref=e1275]:
+                  - img [ref=e1276]
+                - generic [ref=e1278]:
+                  - generic [ref=e1279]: Strong sell
+                  - generic [ref=e1280]: Sell
+                  - generic [ref=e1281]: Neutral
+                  - generic [ref=e1282]: Buy
+                  - generic [ref=e1283]: Strong buy
+              - generic [ref=e1284]:
+                - generic [ref=e1286]: 1 year price target
+                - generic [ref=e1288]:
+                  - generic [ref=e1289]: "316.07"
+                  - generic [ref=e1291]: (1.87%)
+            - button "See forecast" [ref=e1294]
+            - generic [ref=e1295]:
+              - generic [ref=e1296]: Highest YTM bonds
+              - generic [ref=e1297]:
+                - generic [ref=e1298]:
+                  - generic [ref=e1300]: Jul 31, 2042
+                  - generic [ref=e1301]: 5.71%
+                - generic [ref=e1302]:
+                  - generic [ref=e1304]: Aug 8, 2062
+                  - generic [ref=e1305]: 5.62%
+                - generic [ref=e1306]:
+                  - generic [ref=e1308]: Sep 11, 2049
+                  - generic [ref=e1309]: 5.60%
+            - button "More bonds" [ref=e1312]
+            - generic [ref=e1313]:
+              - generic [ref=e1314]: ATM IV term structure
+              - generic [ref=e1316]:
+                - generic [ref=e1327]:
+                  - generic [ref=e1328]: 1W
+                  - generic [ref=e1329]: 2W
+                  - generic [ref=e1330]: 1M
+                  - generic [ref=e1331]: 2M
+                  - generic [ref=e1332]: 3M
+                  - generic [ref=e1333]: 6M
+                  - generic [ref=e1334]: 9M
+                  - generic [ref=e1335]: 1Y
+                - generic [ref=e1336]:
+                  - generic [ref=e1337]: ‪20.0%‬
+                  - generic [ref=e1338]: ‪22.5%‬
+                  - generic [ref=e1339]: ‪25.0%‬
+                  - generic [ref=e1340]: ‪27.5%‬
+                  - generic [ref=e1341]: ‪30.0%‬
+            - generic [ref=e1342]:
+              - generic [ref=e1343]: Volatility curve (28 days)
+              - table [ref=e1346]:
+                - row [ref=e1347]:
+                  - cell
+                  - cell [ref=e1348]
+                  - cell
+                - row [ref=e1352]:
+                  - cell
+                  - cell [ref=e1353]
+                  - cell
+            - button "More on options" [ref=e1358]
+            - generic [ref=e1359]:
+              - generic [ref=e1360]: Profile
+              - generic [ref=e1361]:
+                - generic [ref=e1363]: Website
+                - link "apple.com" [ref=e1365] [cursor=pointer]:
+                  - /url: http://www.apple.com/
+                  - generic [ref=e1366]: apple.com
+                  - img [ref=e1367]:
+                    - img [ref=e1368]
+              - generic [ref=e1370]:
+                - generic [ref=e1372]: Employees (FY)
+                - generic [ref=e1373]: ‪166 K‬
+              - generic [ref=e1374]:
+                - generic [ref=e1376]: ISIN
+                - generic [ref=e1378]:
+                  - generic [ref=e1379]: US0378331005
+                  - img [ref=e1381]:
+                    - img [ref=e1382]
+              - generic [ref=e1384]:
+                - generic [ref=e1386]: CUSIP
+                - generic [ref=e1388]:
+                  - generic [ref=e1389]: "037833100"
+                  - img [ref=e1391]:
+                    - img [ref=e1392]
+              - generic [ref=e1394]:
+                - generic [ref=e1396]: FIGI
+                - generic [ref=e1398]:
+                  - generic [ref=e1399]: BBG000B9XRY4
+                  - img [ref=e1401]:
+                    - img [ref=e1402]
+              - generic [ref=e1404]:
+                - generic [ref=e1406]: CFI code
+                - generic [ref=e1408]:
+                  - generic [ref=e1409]: ESVUFR
+                  - img [ref=e1411]:
+                    - img [ref=e1412]
+              - paragraph [ref=e1414]: "Apple, Inc. engages in the design, manufacture, and sale of smartphones, personal computers, tablets, wearables and accessories, and other varieties of related services. It operates through the following geographical segments: Americas, Europe, Greater China, Japan, and Rest of Asia Pacific. The Americas segment includes North and South America. The Europe segment consists of European countries, as well as India, the Middle East, and Africa. The Greater China segment comprises China, Hong Kong, and Taiwan. The Rest of Asia Pacific segment includes Australia and Asian countries. Its products and services include iPhone, Mac, iPad, AirPods, Apple TV, Apple Watch, Beats products, AppleCare, iCloud, digital content stores, streaming, and licensing services. The company was founded by Steven Paul Jobs, Ronald Gerald Wayne, and Stephen G. Wozniak in April 1976 and is headquartered in Cupertino, CA."
+              - button [ref=e1416]:
+                - img [ref=e1417]:
+                  - img [ref=e1418]
+      - generic "Hide Tab" [ref=e1423]:
+        - img [ref=e1424]
+    - generic "Trading panel"
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list
+              - generic:
+                - log:
+                  - list

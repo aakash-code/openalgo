@@ -1,0 +1,348 @@
+- generic [active] [ref=e1]:
+  - button "Skip to main content" [ref=e4]:
+    - generic [ref=e5]:
+      - generic: Skip to main content
+  - generic [ref=e6]:
+    - generic [ref=e8]:
+      - generic [ref=e9]:
+        - button "Open menu" [ref=e10] [cursor=pointer]:
+          - img [ref=e11]
+        - link "TradingView main page" [ref=e14] [cursor=pointer]:
+          - /url: /
+          - img [ref=e16]
+      - button "Search" [ref=e23]:
+        - img [ref=e24]
+        - generic [ref=e26]: Search
+    - main "Main content" [ref=e27]:
+      - generic [ref=e29]:
+        - heading "This isn't the page you're looking for" [level=1] [ref=e31]
+        - paragraph [ref=e32]:
+          - link "Head back" [ref=e33] [cursor=pointer]:
+            - /url: "#"
+          - text: ", or move along to the homepage to find a new way forward."
+        - link "Head to homepage" [ref=e34] [cursor=pointer]:
+          - /url: /
+    - contentinfo [ref=e35]:
+      - generic [ref=e37]:
+        - separator [ref=e38]
+        - generic [ref=e39]:
+          - generic [ref=e40]:
+            - generic [ref=e41]:
+              - generic [ref=e42]:
+                - link "TradingView main page" [ref=e43] [cursor=pointer]:
+                  - /url: /
+                - generic [ref=e45]:
+                  - link "TradingView on X" [ref=e46] [cursor=pointer]:
+                    - /url: https://x.com/tradingview/
+                    - img [ref=e48]:
+                      - img [ref=e49]
+                  - link "TradingView on Facebook" [ref=e51] [cursor=pointer]:
+                    - /url: https://www.facebook.com/tradingview/
+                    - img [ref=e53]:
+                      - img [ref=e54]
+                  - link "TradingView on YouTube" [ref=e56] [cursor=pointer]:
+                    - /url: https://www.youtube.com/@TradingView
+                    - img [ref=e58]:
+                      - img [ref=e59]
+                  - link "TradingView on Instagram" [ref=e61] [cursor=pointer]:
+                    - /url: https://www.instagram.com/tradingview/
+                    - img [ref=e63]:
+                      - img [ref=e64]
+                  - link "TradingView on LinkedIn" [ref=e66] [cursor=pointer]:
+                    - /url: https://www.linkedin.com/company/tradingview/
+                    - img [ref=e68]:
+                      - img [ref=e69]
+                  - link "TradingView on Telegram" [ref=e71] [cursor=pointer]:
+                    - /url: https://t.me/tradingview/
+                    - img [ref=e73]:
+                      - img [ref=e74]
+                  - link "TradingView on TikTok" [ref=e76] [cursor=pointer]:
+                    - /url: https://www.tiktok.com/@tradingview/
+                    - img [ref=e78]:
+                      - img [ref=e79]
+                  - link "TradingView on Reddit" [ref=e81] [cursor=pointer]:
+                    - /url: https://www.reddit.com/r/TradingView/
+                    - img [ref=e83]:
+                      - img [ref=e84]
+              - generic [ref=e86]:
+                - button "English" [ref=e87]:
+                  - img [ref=e89]:
+                    - img [ref=e90]
+                  - generic [ref=e93]: English
+                  - img [ref=e94]:
+                    - img [ref=e95]
+                - paragraph [ref=e97]:
+                  - generic [ref=e98]:
+                    - text: Select market data provided by
+                    - link "ICE Data Services" [ref=e99] [cursor=pointer]:
+                      - /url: https://www.theice.com/market-data
+                    - text: .
+                  - generic [ref=e100]: Select reference data provided by FactSet. Copyright © 2026 FactSet Research Systems Inc.
+                  - generic [ref=e101]: Copyright © 2026, American Bankers Association. CUSIP Database provided by FactSet Research Systems Inc. All rights reserved.
+                  - generic [ref=e102]:
+                    - text: SEC fillings and other documents provided by
+                    - link "Quartr" [ref=e103] [cursor=pointer]:
+                      - /url: https://www.quartr.com
+                    - text: .
+                  - generic [ref=e104]: © 2026 TradingView, Inc.
+            - generic [ref=e105]:
+              - generic [ref=e106]:
+                - generic [ref=e107]:
+                  - generic [ref=e108]: More than a product
+                  - list [ref=e109]:
+                    - listitem [ref=e110]:
+                      - link "Supercharts" [ref=e111] [cursor=pointer]:
+                        - /url: /chart/
+                - generic [ref=e112]:
+                  - generic [ref=e113]: Screeners
+                  - list [ref=e114]:
+                    - listitem [ref=e115]:
+                      - link "Stocks" [ref=e116] [cursor=pointer]:
+                        - /url: /screener/
+                    - listitem [ref=e117]:
+                      - link "ETFs" [ref=e118] [cursor=pointer]:
+                        - /url: /etf-screener/
+                    - listitem [ref=e119]:
+                      - link "Bonds" [ref=e120] [cursor=pointer]:
+                        - /url: /bond-screener/
+                    - listitem [ref=e121]:
+                      - link "Crypto coins" [ref=e122] [cursor=pointer]:
+                        - /url: /crypto-coins-screener/
+                    - listitem [ref=e123]:
+                      - link "CEX pairs" [ref=e124] [cursor=pointer]:
+                        - /url: /cex-screener/
+                    - listitem [ref=e125]:
+                      - link "DEX pairs" [ref=e126] [cursor=pointer]:
+                        - /url: /dex-screener/
+                    - listitem [ref=e127]:
+                      - link "Pine" [ref=e128] [cursor=pointer]:
+                        - /url: /pine-screener/
+                - generic [ref=e129]:
+                  - generic [ref=e130]: Heatmaps
+                  - list [ref=e131]:
+                    - listitem [ref=e132]:
+                      - link "Stocks" [ref=e133] [cursor=pointer]:
+                        - /url: /heatmap/stock/
+                    - listitem [ref=e134]:
+                      - link "ETFs" [ref=e135] [cursor=pointer]:
+                        - /url: /heatmap/etf/
+                    - listitem [ref=e136]:
+                      - link "Crypto coins" [ref=e137] [cursor=pointer]:
+                        - /url: /heatmap/crypto/
+                - generic [ref=e138]:
+                  - generic [ref=e139]: Calendars
+                  - list [ref=e140]:
+                    - listitem [ref=e141]:
+                      - link "Economic" [ref=e142] [cursor=pointer]:
+                        - /url: /economic-calendar/
+                    - listitem [ref=e143]:
+                      - link "Earnings" [ref=e144] [cursor=pointer]:
+                        - /url: /earnings-calendar/
+                    - listitem [ref=e145]:
+                      - link "Dividends" [ref=e146] [cursor=pointer]:
+                        - /url: /dividend-calendar/
+                - generic [ref=e147]:
+                  - generic [ref=e148]: More products
+                  - list [ref=e149]:
+                    - listitem [ref=e150]:
+                      - link "Yield Curves" [ref=e151] [cursor=pointer]:
+                        - /url: /yield-curves/
+                    - listitem [ref=e152]:
+                      - link "Options" [ref=e153] [cursor=pointer]:
+                        - /url: /options/
+                    - listitem [ref=e154]:
+                      - link "Macro Maps" [ref=e155] [cursor=pointer]:
+                        - /url: /macro-maps/
+                    - listitem [ref=e156]:
+                      - link "News Flow" [ref=e157] [cursor=pointer]:
+                        - /url: /news-flow/
+                    - listitem [ref=e158]:
+                      - link "Pine Script®" [ref=e159] [cursor=pointer]:
+                        - /url: https://www.tradingview.com/pine-script-docs/
+                - generic [ref=e160]:
+                  - generic [ref=e161]: Apps
+                  - list [ref=e162]:
+                    - listitem [ref=e163]:
+                      - link "Mobile" [ref=e164] [cursor=pointer]:
+                        - /url: /mobile/
+                    - listitem [ref=e165]:
+                      - link "Desktop" [ref=e166] [cursor=pointer]:
+                        - /url: /desktop/
+              - generic [ref=e167]:
+                - generic [ref=e168]:
+                  - generic [ref=e169]: Tools & subscriptions
+                  - list [ref=e170]:
+                    - listitem [ref=e171]:
+                      - link "Features" [ref=e172] [cursor=pointer]:
+                        - /url: /features/
+                    - listitem [ref=e173]:
+                      - link "Pricing" [ref=e174] [cursor=pointer]:
+                        - /url: /pricing/?source=footer&feature=pricing
+                    - listitem [ref=e175]:
+                      - link "Market data" [ref=e176] [cursor=pointer]:
+                        - /url: /data-coverage/
+                    - listitem [ref=e177]:
+                      - link "Gift plans" [ref=e178] [cursor=pointer]:
+                        - /url: /gifts/
+                - generic [ref=e179]:
+                  - generic [ref=e180]: Trading
+                  - list [ref=e181]:
+                    - listitem [ref=e182]:
+                      - link "Overview" [ref=e183] [cursor=pointer]:
+                        - /url: /trading/
+                    - listitem [ref=e184]:
+                      - link "Top brokers" [ref=e185] [cursor=pointer]:
+                        - /url: /brokers/
+                    - listitem [ref=e186]:
+                      - link "Brokers comparison" [ref=e187] [cursor=pointer]:
+                        - /url: /brokers/compare/
+                - generic [ref=e188]:
+                  - generic [ref=e189]: Special offers
+                  - list [ref=e190]:
+                    - listitem [ref=e191]:
+                      - link "CME Group futures" [ref=e192] [cursor=pointer]:
+                        - /url: /cme/
+                    - listitem [ref=e193]:
+                      - link "Eurex futures" [ref=e194] [cursor=pointer]:
+                        - /url: /eurex/
+                    - listitem [ref=e195]:
+                      - link "US stocks bundle" [ref=e196] [cursor=pointer]:
+                        - /url: /us-markets-bundle/
+                - generic [ref=e197]:
+                  - generic [ref=e198]: About company
+                  - list [ref=e199]:
+                    - listitem [ref=e200]:
+                      - link "Who we are" [ref=e201] [cursor=pointer]:
+                        - /url: /about/
+                    - listitem [ref=e202]:
+                      - link "Space mission" [ref=e203] [cursor=pointer]:
+                        - /url: /space-mission/
+                    - listitem [ref=e204]:
+                      - link "Blog" [ref=e205] [cursor=pointer]:
+                        - /url: https://www.tradingview.com/blog/en/
+                    - listitem [ref=e206]:
+                      - link "Careers" [ref=e207] [cursor=pointer]:
+                        - /url: /careers/
+                    - listitem [ref=e208]:
+                      - link "Media kit" [ref=e209] [cursor=pointer]:
+                        - /url: /media-kit/
+                - generic [ref=e210]:
+                  - generic [ref=e211]: Merch
+                  - list [ref=e212]:
+                    - listitem [ref=e213]:
+                      - link "TradingView store" [ref=e214] [cursor=pointer]:
+                        - /url: https://tradingviewstore.com/
+                    - listitem [ref=e215]:
+                      - link "Tarot cards for traders" [ref=e216] [cursor=pointer]:
+                        - /url: /tarot-reading/
+                    - listitem [ref=e217]:
+                      - link "The C63 TradeTime" [ref=e218] [cursor=pointer]:
+                        - /url: /tradetime/
+                - generic [ref=e219]:
+                  - generic [ref=e220]: Policies & security
+                  - list [ref=e221]:
+                    - listitem [ref=e222]:
+                      - link "Terms of Use" [ref=e223] [cursor=pointer]:
+                        - /url: /policies/
+                    - listitem [ref=e224]:
+                      - link "Disclaimer" [ref=e225] [cursor=pointer]:
+                        - /url: /disclaimer/
+                    - listitem [ref=e226]:
+                      - link "Privacy Policy" [ref=e227] [cursor=pointer]:
+                        - /url: /privacy-policy/
+                    - listitem [ref=e228]:
+                      - link "Cookies Policy" [ref=e229] [cursor=pointer]:
+                        - /url: /cookies-policy/
+                    - listitem [ref=e230]:
+                      - link "Accessibility Statement" [ref=e231] [cursor=pointer]:
+                        - /url: /accessibility/
+                    - listitem [ref=e232]:
+                      - link "Security tips" [ref=e233] [cursor=pointer]:
+                        - /url: /security/
+                    - listitem [ref=e234]:
+                      - link "Bug Bounty program" [ref=e235] [cursor=pointer]:
+                        - /url: /bounty/
+                    - listitem [ref=e236]:
+                      - link "Status page" [ref=e237] [cursor=pointer]:
+                        - /url: https://status.tradingview.com/
+              - generic [ref=e238]:
+                - generic [ref=e239]:
+                  - generic [ref=e240]: Community
+                  - list [ref=e241]:
+                    - listitem [ref=e242]:
+                      - link "Social network" [ref=e243] [cursor=pointer]:
+                        - /url: /social-network/
+                    - listitem [ref=e244]:
+                      - link "Wall of Love" [ref=e245] [cursor=pointer]:
+                        - /url: /wall-of-love/
+                    - listitem [ref=e246]:
+                      - link "Refer a friend" [ref=e247] [cursor=pointer]:
+                        - /url: /share-your-love/?source=footer&feature=refer_friend
+                    - listitem [ref=e248]:
+                      - link "House Rules" [ref=e249] [cursor=pointer]:
+                        - /url: /house-rules/
+                    - listitem [ref=e250]:
+                      - link "Moderators" [ref=e251] [cursor=pointer]:
+                        - /url: /moderators/
+                - generic [ref=e252]:
+                  - generic [ref=e253]: Ideas
+                  - list [ref=e254]:
+                    - listitem [ref=e255]:
+                      - link "Trading" [ref=e256] [cursor=pointer]:
+                        - /url: /ideas/
+                    - listitem [ref=e257]:
+                      - link "Education" [ref=e258] [cursor=pointer]:
+                        - /url: /ideas/?type=education
+                    - listitem [ref=e259]:
+                      - link "Editors' picks" [ref=e260] [cursor=pointer]:
+                        - /url: /ideas/editors-picks/
+                - generic [ref=e261]:
+                  - generic [ref=e262]: Pine Script
+                  - list [ref=e263]:
+                    - listitem [ref=e264]:
+                      - link "Indicators & strategies" [ref=e265] [cursor=pointer]:
+                        - /url: /scripts/
+                    - listitem [ref=e266]:
+                      - link "Wizards" [ref=e267] [cursor=pointer]:
+                        - /url: /pine-wizards/
+                    - listitem [ref=e268]:
+                      - link "Freelancers" [ref=e269] [cursor=pointer]:
+                        - /url: /pine-script-freelancers/
+                    - listitem [ref=e270]:
+                      - link "Paid Spaces" [ref=e271] [cursor=pointer]:
+                        - /url: /spaces/
+              - generic [ref=e272]:
+                - generic [ref=e273]:
+                  - generic [ref=e274]: Business solutions
+                  - list [ref=e275]:
+                    - listitem [ref=e276]:
+                      - link "Widgets" [ref=e277] [cursor=pointer]:
+                        - /url: /widget/
+                    - listitem [ref=e278]:
+                      - link "Charting libraries" [ref=e279] [cursor=pointer]:
+                        - /url: /free-charting-libraries/
+                    - listitem [ref=e280]:
+                      - link "Lightweight Charts™" [ref=e281] [cursor=pointer]:
+                        - /url: /lightweight-charts/
+                    - listitem [ref=e282]:
+                      - link "Advanced Charts" [ref=e283] [cursor=pointer]:
+                        - /url: /advanced-charts/
+                    - listitem [ref=e284]:
+                      - link "Trading Platform" [ref=e285] [cursor=pointer]:
+                        - /url: /trading-platform/
+                - generic [ref=e286]:
+                  - generic [ref=e287]: Growth opportunities
+                  - list [ref=e288]:
+                    - listitem [ref=e289]:
+                      - link "Advertising" [ref=e290] [cursor=pointer]:
+                        - /url: /advertising-info/
+                    - listitem [ref=e291]:
+                      - link "Brokerage integration" [ref=e292] [cursor=pointer]:
+                        - /url: /brokerage-integration/
+                    - listitem [ref=e293]:
+                      - link "Partner program" [ref=e294] [cursor=pointer]:
+                        - /url: /partner-program/
+                    - listitem [ref=e295]:
+                      - link "Education program" [ref=e296] [cursor=pointer]:
+                        - /url: /students/
+          - img "Look First" [ref=e298]

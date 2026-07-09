@@ -1,0 +1,30 @@
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e536] [cursor=pointer]:
+    - generic [ref=e539]:
+      - text: Compiling
+      - generic [ref=e540]:
+        - generic [ref=e541]: .
+        - generic [ref=e542]: .
+        - generic [ref=e543]: .
+  - alert [ref=e530]
+  - generic [ref=e545]:
+    - link "← Back to home" [ref=e546] [cursor=pointer]:
+      - /url: /
+    - heading "Sign in" [level=1] [ref=e547]
+    - paragraph [ref=e548]: Use the email and password you set when you subscribed. Sessions reset daily at 3:00 AM IST, and you can be signed in on one device at a time.
+    - generic [ref=e549]:
+      - generic [ref=e550]:
+        - generic [ref=e551]: Email
+        - generic [ref=e552]:
+          - img [ref=e553]
+          - textbox "you@example.com" [ref=e556]
+      - generic [ref=e557]:
+        - generic [ref=e558]: Password
+        - generic [ref=e559]:
+          - img [ref=e560]
+          - textbox "Your password" [ref=e563]
+      - button "Sign in" [ref=e564]
+      - paragraph [ref=e565]:
+        - text: Don't have an account yet?
+        - link "View plans" [ref=e566] [cursor=pointer]:
+          - /url: /

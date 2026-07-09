@@ -1,0 +1,94 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - navigation [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]: Admin
+        - link "Subscriptions" [ref=e6] [cursor=pointer]:
+          - /url: /admin
+          - img [ref=e7]
+          - text: Subscriptions
+        - link "Scanner" [ref=e12] [cursor=pointer]:
+          - /url: /admin/scanner
+          - img [ref=e13]
+          - text: Scanner
+        - link "Payment" [ref=e18] [cursor=pointer]:
+          - /url: /admin/settings
+          - img [ref=e19]
+          - text: Payment
+        - link "Content" [ref=e22] [cursor=pointer]:
+          - /url: /admin/content
+          - img [ref=e23]
+          - text: Content
+        - generic [ref=e26]:
+          - link "Diagnostics" [ref=e27] [cursor=pointer]:
+            - /url: /api/scanner/diag
+            - img [ref=e28]
+            - text: Diagnostics
+          - link "Live Dashboard" [ref=e30] [cursor=pointer]:
+            - /url: /dashboard
+            - img [ref=e31]
+            - text: Live Dashboard
+    - generic [ref=e36]:
+      - link "Back to dashboard" [ref=e37] [cursor=pointer]:
+        - /url: /admin
+        - img [ref=e38]
+        - text: Back to dashboard
+      - heading "Scanner & Data Sources" [level=1] [ref=e40]
+      - paragraph [ref=e41]: TradeFinder feeds sector/stock R-factor data. Upstox feeds 5m candles used to generate breakout signals.
+      - generic [ref=e42]:
+        - generic [ref=e43]:
+          - img [ref=e44]
+          - text: TradeFinder JWT set
+        - generic [ref=e47]:
+          - img [ref=e48]
+          - text: Upstox app configured
+        - generic [ref=e51]:
+          - img [ref=e52]
+          - text: Upstox token missing/expired
+      - generic [ref=e56]:
+        - heading "Daily Upstox authorization" [level=2] [ref=e57]
+        - paragraph [ref=e58]: Upstox tokens expire ~3:30 AM IST. Re-authorize each trading morning.
+        - link "Connect Upstox" [ref=e59] [cursor=pointer]:
+          - /url: https://api.upstox.com/v2/login/authorization/dialog?response_type=code&client_id=3f0a7dfe-1079-4e93-a55a-a8dcd4adfb4a&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fupstox%2Fcallback&state=admin
+      - generic [ref=e60]:
+        - generic [ref=e61]:
+          - generic [ref=e62]: TradeFinder JWT
+          - textbox [ref=e63]: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6IjgxMTU1YThhNjNiNTExZjE5NThkZTNhN2I2NjgxNzRjIiwiZW1haWwiOiJzaGVsYWRpeWFhYWthc2gxMjNAZ21haWwuY29tIiwic3RhcnQiOjE3ODA5NzY2NjMuMTA4NTE1LCJleHAiOjE3ODEwMDMxOTguODQxNzc0LCJwbGFuIjoiRElBTU9ORCIsInVzZXJfdHlwZSI6ImNsaWVudCIsImFjY2VzcyI6IntcIm1hcmtldF9wdWxzZVwiOiAxLCBcImluc2lkZXJfc3RyYXRlZ3lcIjogMSwgXCJzZWN0b3Jfc2NvcGVcIjogMSwgXCJzd2luZ19zcGVjdHJ1bVwiOiAxLCBcIm9wdGlvbl9jbG9ja1wiOiAxLCBcIm9wdGlvbl9hcGV4XCI6IDEsIFwiY29tbXVuaXR5XCI6IDF9IiwiYWNjb3VudF9leHAiOiIxODA3Mjk1NDAwIiwiYnJva2VyIjoiREhBTiJ9.ZUCBE3MqzyE4KNFxInyXF1Ksnl6hDmq4eQ2HsmlEBfw
+          - paragraph [ref=e64]: Used to fetch sector scope + stock R-factor data.
+        - generic [ref=e65]:
+          - generic [ref=e66]: Upstox API Key (client id)
+          - textbox [ref=e67]: 3f0a7dfe-1079-4e93-a55a-a8dcd4adfb4a
+        - generic [ref=e68]:
+          - generic [ref=e69]: Upstox API Secret
+          - textbox [ref=e70]: 3f0a7dfe-1079-4e93-a55a-a8dcd4adfb4a
+        - generic [ref=e71]:
+          - generic [ref=e72]: Upstox Redirect URI
+          - textbox "https://yourdomain.com/api/upstox/callback" [ref=e73]: http://localhost:3000/upstox/callback
+          - paragraph [ref=e74]: Must exactly match the redirect URL configured in your Upstox app.
+        - generic [ref=e75]:
+          - generic [ref=e76]: Telegram Bot Token
+          - textbox [ref=e77]
+          - paragraph [ref=e78]: Optional — for Telegram signal alerts.
+        - generic [ref=e79]:
+          - generic [ref=e80]:
+            - generic [ref=e81]: ADX threshold
+            - spinbutton [ref=e82]: "20"
+          - generic [ref=e83]:
+            - generic [ref=e84]: Min SL distance %
+            - spinbutton [ref=e85]: "0.3"
+        - generic [ref=e86]:
+          - checkbox "Scanner enabled" [checked] [ref=e87]
+          - text: Scanner enabled
+        - button "Save changes" [ref=e89]:
+          - img [ref=e90]
+          - text: Save changes
+      - paragraph [ref=e94]:
+        - text: "Diagnostics:"
+        - link "/api/scanner/diag" [ref=e95] [cursor=pointer]:
+          - /url: /api/scanner/diag
+        - text: (add
+        - code [ref=e96]: "?symbol=RELIANCE"
+        - text: to fetch a live candle sample).
+  - button "Open Next.js Dev Tools" [ref=e102] [cursor=pointer]:
+    - img [ref=e103]
+  - alert [ref=e106]

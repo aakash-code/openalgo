@@ -18,6 +18,10 @@ All surfaces share the Sandbox engine (₹1 Crore sandbox capital, exchange-alig
 **Repository**: https://github.com/marketcalls/openalgo
 **Documentation**: https://docs.openalgo.in
 
+## Downstream consumer: openalgo-chart
+
+`/Users/Shared/Project/trading/openalgo-chart` is a separate React + `lightweight-charts` trading UI that depends entirely on this backend — it has no DB or broker integration of its own. It consumes the `/api/v1/*` REST surface (`apikey` in body/query, no custom headers) and the WebSocket proxy on port 8765 (one connection per API key, `{action: 'authenticate'|'subscribe'|'unsubscribe', ...}` frames). When investigating feed stalls, stale ticks, or signal mismatches, the root cause may be upstream here (`broker/*/streaming/`, `websocket_proxy/`, `services/history_service.py`, `services/quotes_service.py`) even if the symptom surfaces in the chart app. This repo's `.claude/settings.local.json` has `permissions.additionalDirectories` set to that path for cross-repo investigation from a session started here.
+
 ## Security and Deployment Model
 
 - **Single user per deployment** — no multi-user, no privilege escalation. One user, one broker session per instance.

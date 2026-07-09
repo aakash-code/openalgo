@@ -1,0 +1,67 @@
+//@version=6
+// =============================================================================
+// EMA-Stack Directional Trend  (by Aakash + Claude)
+// -----------------------------------------------------------------------------
+// The signal that showed a real, regime-robust DIRECTIONAL edge on NIFTY spot
+// (+10,109 points 2022->2026, positive every single year, intraday).
+//
+//   Bullish  : EMA8 > EMA21 > EMA50   -> go/stay LONG  (or sell PUTs)
+//   Bearish  : EMA8 < EMA21 < EMA50   -> go/stay SHORT (or sell CALLs)
+//   Flat     : stack not aligned      -> no position
+//
+// Designed for the 3-minute chart (matches the backtest). Long-in-uptrend /
+// short-in-downtrend; flips only when the stack re-aligns (far fewer flips than
+// a breakout signal). Continuous EMAs (not session-reset).
+// =============================================================================
+indicator("EMA-Stack Directional Trend by Aakash", overlay=true, max_labels_count=500)
+
+// ---- Inputs ----
+g1 = "EMAs"
+len1 = input.int(8,  "Fast EMA",   minval=1, group=g1)
+len2 = input.int(21, "Mid EMA",    minval=1, group=g1)
+len3 = input.int(50, "Slow EMA",   minval=1, group=g1)
+
+g2 = "Display"
+showEmas   = input.bool(true,  "Plot EMAs",            group=g2)
+showBg     = input.bool(true,  "Color background by trend", group=g2)
+showMarks  = input.bool(true,  "BUY/SELL/EXIT markers", group=g2)
+
+g3 = "Session (optional)"
+useSession = input.bool(false, "Restrict signals to session", group=g3)
+sess       = input.session("0915-1525", "Session (Exchange Time)", group=g3)
+
+bullCol = color.new(color.green, 0)
+bearCol = color.new(color.red,   0)
+flatCol = color.new(color.gray,  0)
+
+// ---- EMAs + stack state ----
+e1 = ta.ema(close, len1)
+e2 = ta.ema(close, len2)
+e3 = ta.ema(close, len3)
+
+inSess  = not useSession or not na(time(timeframe.period, sess))
+bull    = e1 > e2 and e2 > e3
+bear    = e1 < e2 and e2 < e3
+state   = bull ? 1 : bear ? -1 : 0          // +1 long, -1 short, 0 flat
+state   := inSess ? state : 0
+
+// ---- Signals on state change ----
+buySig  = state ==  1 and state[1] !=  1
+sellSig = state == -1 and state[1] != -1
+exitSig = state ==  0 and state[1] !=  0
+
+// ---- Plots ----
+p1 = plot(showEmas ? e1 : na, "EMA Fast", color=color.new(color.aqua,   0), linewidth=1)
+p2 = plot(showEmas ? e2 : na, "EMA Mid",  color=color.new(color.orange, 0), linewidth=1)
+p3 = plot(showEmas ? e3 : na, "EMA Slow", color=color.new(color.fuchsia,0), linewidth=2)
+
+bgcolor(showBg ? (state == 1 ? color.new(color.green, 90) : state == -1 ? color.new(color.red, 90) : na) : na)
+
+plotshape(showMarks and buySig,  "BUY",  style=shape.triangleup,   location=location.belowbar, color=bullCol, text="BUY",  textcolor=color.white, size=size.small)
+plotshape(showMarks and sellSig, "SELL", style=shape.triangledown, location=location.abovebar, color=bearCol, text="SELL", textcolor=color.white, size=size.small)
+plotshape(showMarks and exitSig, "EXIT", style=shape.xcross,       location=location.absolute, color=flatCol, size=size.tiny)
+
+// ---- Alerts ----
+alertcondition(buySig,  "Bullish stack (BUY / sell PUTs)",  "EMA stack turned BULLISH: 8>21>50")
+alertcondition(sellSig, "Bearish stack (SELL / sell CALLs)", "EMA stack turned BEARISH: 8<21<50")
+alertcondition(exitSig, "Stack lost alignment (EXIT)",      "EMA stack no longer aligned -> flat")

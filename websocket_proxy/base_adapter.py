@@ -32,6 +32,43 @@ MAX_WEBSOCKET_CONNECTIONS = int(os.getenv("MAX_WEBSOCKET_CONNECTIONS", "3"))
 ENABLE_CONNECTION_POOLING = os.getenv("ENABLE_CONNECTION_POOLING", "true").lower() == "true"
 
 
+def get_mds_bridge_endpoint() -> str | None:
+    """Endpoint of the Flask-process MarketDataService bridge SUB, or None if
+    disabled.
+
+    When the websocket proxy runs as a subprocess, MarketDataService consumers
+    inside the Flask process (sandbox/analyzer execution engine, position MTM)
+    would otherwise receive no ticks — the proxy's zmq_listener feeds only the
+    MDS instance in its own process. Publishers therefore connect their PUB to
+    a SECOND endpoint bound by the Flask process (services/market_data_bridge),
+    so both processes get every tick. ZMQ PUB sockets support multiple
+    connects and simply drop messages for endpoints nobody has bound — so this
+    is free when the bridge isn't running. Set ZMQ_MDS_PORT=0 to disable.
+
+    NOTE: 5556 is deliberately avoided — it was the legacy bind-race fallback
+    port (see _connect_to_zmq_bus docstring).
+    """
+    port = os.getenv("ZMQ_MDS_PORT", "5557").strip()
+    if port in ("0", "", "off", "false", "disabled"):
+        return None
+    zmq_host = os.getenv("ZMQ_HOST", "127.0.0.1")
+    return f"tcp://{zmq_host}:{port}"
+
+
+def _connect_to_mds_bridge(pub_socket, log) -> None:
+    """Additionally connect a publisher PUB socket to the MDS bridge endpoint."""
+    endpoint = get_mds_bridge_endpoint()
+    if not endpoint:
+        return
+    try:
+        pub_socket.connect(endpoint)
+        log.info(f"Connected PUB to MDS bridge at {endpoint}")
+    except zmq.ZMQError as e:
+        # Bridge delivery is best-effort; the primary bus connect already
+        # succeeded, so never fail adapter startup over this.
+        log.warning(f"Could not connect publisher to MDS bridge at {endpoint}: {e}")
+
+
 def is_port_available(port):
     """
     Check if a port is available for use
@@ -219,6 +256,7 @@ class BaseBrokerWebSocketAdapter(ABC):
                 pass
             raise RuntimeError(f"Could not connect publisher to ZMQ bus at {endpoint}: {e}") from e
         self.logger.info(f"Connected PUB to ZMQ bus at {endpoint}")
+        _connect_to_mds_bridge(self.socket, self.logger)
         return zmq_port
 
     @abstractmethod

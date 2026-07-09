@@ -1,0 +1,433 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - navigation [ref=e3]:
+      - generic [ref=e4]:
+        - generic [ref=e5]:
+          - img [ref=e7]
+          - generic [ref=e10]: INDI-SIGNAL v5.6
+        - generic [ref=e11]:
+          - link "Features" [ref=e12] [cursor=pointer]:
+            - /url: "#features"
+          - link "Workflow" [ref=e13] [cursor=pointer]:
+            - /url: "#workflow"
+          - link "Pricing" [ref=e14] [cursor=pointer]:
+            - /url: "#pricing"
+          - link "FAQ" [ref=e15] [cursor=pointer]:
+            - /url: "#faq"
+        - generic [ref=e16]:
+          - link "Sign in" [ref=e17] [cursor=pointer]:
+            - /url: /login
+          - link "Get Started" [ref=e18] [cursor=pointer]:
+            - /url: "#pricing"
+    - generic [ref=e20]:
+      - generic [ref=e21]:
+        - generic [ref=e22]: Now Available for Subscription
+        - heading "Analyze Smarter with Precision Tools." [level=1] [ref=e23]:
+          - text: Analyze Smarter with
+          - text: Precision Tools.
+        - paragraph [ref=e24]: A confluence-based technical-analysis indicator for TradingView, built for the high volatility of Nifty, BankNifty and Indian equities. You stay in full control of every decision.
+        - paragraph [ref=e25]: A self-use charting tool — not investment advice. We do not provide buy/sell tips, calls, or recommendations.
+        - generic [ref=e26]:
+          - link "Join Now" [ref=e27] [cursor=pointer]:
+            - /url: "#pricing"
+            - text: Join Now
+            - img [ref=e28]
+          - link "How it works" [ref=e30] [cursor=pointer]:
+            - /url: "#how"
+      - generic [ref=e31]:
+        - generic [ref=e35]: Indicator Preview
+        - generic [ref=e36]:
+          - generic [ref=e37]:
+            - img "KALYANKJIL — Trend & momentum confluence view" [ref=e38]
+            - generic [ref=e39]:
+              - paragraph [ref=e40]: KALYANKJIL
+              - paragraph [ref=e41]: Trend & momentum confluence view
+          - button "Previous slide" [ref=e43]:
+            - img [ref=e44]
+          - button "Next slide" [ref=e47]:
+            - img [ref=e48]
+          - generic [ref=e50]:
+            - button "Go to slide 1" [ref=e51]
+            - button "Go to slide 2" [ref=e52]
+            - button "Go to slide 3" [ref=e53]
+      - paragraph [ref=e54]: Illustrative screenshots of the indicator on TradingView. Charts are for demonstration only and are not trading advice, recommendations, or an indication of future results.
+    - generic [ref=e57]:
+      - generic [ref=e58]:
+        - img [ref=e60]
+        - generic [ref=e63]: NSE & BSE
+        - generic [ref=e64]: Markets
+      - generic [ref=e65]:
+        - img [ref=e67]
+        - generic [ref=e71]: All
+        - generic [ref=e72]: Timeframes
+      - generic [ref=e73]:
+        - img [ref=e75]
+        - generic [ref=e77]: ~2 min
+        - generic [ref=e78]: Setup Time
+      - generic [ref=e79]:
+        - img [ref=e81]
+        - generic [ref=e83]: Invite-only
+        - generic [ref=e84]: Access
+    - generic [ref=e87]:
+      - generic [ref=e88]:
+        - heading "The Science Behind Indi-Signal v5.6" [level=2] [ref=e89]:
+          - text: The Science Behind
+          - text: Indi-Signal v5.6
+        - paragraph [ref=e90]:
+          - text: Most indicators rely on a single lagging formula. Indi-Signal uses a
+          - strong [ref=e91]: Multi-Variable Confluence Engine
+          - text: . We don't just look at price; we analyze the relationship between momentum, trend structure, and institutional participation.
+        - generic [ref=e92]:
+          - generic [ref=e93]:
+            - generic [ref=e94]: "1"
+            - generic [ref=e95]:
+              - heading "Momentum Analysis" [level=3] [ref=e96]
+              - paragraph [ref=e97]: Highlights momentum and volume shifts on your chart to help you cut through market noise as you form your own view.
+          - generic [ref=e98]:
+            - generic [ref=e99]: "2"
+            - generic [ref=e100]:
+              - heading "Adaptive Volatility Bands" [level=3] [ref=e101]
+              - paragraph [ref=e102]: The indicator adjusts its sensitivity to current market volatility (ATR-based) across both trending and range-bound markets.
+          - generic [ref=e103]:
+            - generic [ref=e104]: "3"
+            - generic [ref=e105]:
+              - heading "Multi-Timeframe View" [level=3] [ref=e106]
+              - paragraph [ref=e107]: Plots context across multiple timeframes (MTF) so you can read the broader market direction at a glance.
+      - generic [ref=e109]:
+        - heading "How it solves the Intraday Struggle" [level=3] [ref=e110]
+        - generic [ref=e111]:
+          - generic [ref=e112]:
+            - heading "Overcoming Fear & Greed" [level=4] [ref=e113]
+            - paragraph [ref=e114]: By providing objective entry and exit points, the indicator removes the "guesswork" that leads to emotional overtrading or missing high-probability setups.
+          - generic [ref=e115]:
+            - heading "Zero-Math Risk Management" [level=4] [ref=e116]
+            - paragraph [ref=e117]: The integrated India v5.6 Calculator handles all the complex brokerage and STT math instantly. You know your exact Net Profit/Loss before you even place the trade.
+          - generic [ref=e118]:
+            - heading "Time Efficiency" [level=4] [ref=e119]
+            - paragraph [ref=e120]: Stop staring at charts for 6 hours. Our alert system notifies you when the exact confluence of trend, volume, and momentum occurs.
+    - generic [ref=e122]:
+      - generic [ref=e123]:
+        - heading "How it works" [level=2] [ref=e124]
+        - paragraph [ref=e125]: From payment to live signals in three simple steps.
+      - generic [ref=e126]:
+        - generic [ref=e127]:
+          - generic [ref=e128]: "1"
+          - img [ref=e130]
+          - heading "Choose a plan & pay" [level=3] [ref=e132]
+          - paragraph [ref=e133]: Pick monthly, quarterly or yearly and pay securely via UPI (GPay / PhonePe / Paytm).
+        - generic [ref=e134]:
+          - generic [ref=e135]: "2"
+          - img [ref=e137]
+          - heading "Share your screenshot" [level=3] [ref=e140]
+          - paragraph [ref=e141]: Send the payment screenshot on WhatsApp or upload it on the checkout page with your TradingView username.
+        - generic [ref=e142]:
+          - generic [ref=e143]: "3"
+          - img [ref=e145]
+          - heading "Get access in ~3 hours" [level=3] [ref=e148]
+          - paragraph [ref=e149]: We grant invite-only access to your TradingView account and email you a confirmation.
+    - generic [ref=e151]:
+      - generic [ref=e152]:
+        - heading "Advanced Trading Suite" [level=2] [ref=e153]
+        - paragraph [ref=e154]: Everything you need to trade the Indian markets with institutional edge.
+      - generic [ref=e155]:
+        - generic [ref=e156]:
+          - img [ref=e158]
+          - heading "VWAP & MTF Filters" [level=3] [ref=e162]
+          - paragraph [ref=e163]: Triple-layer confirmation to help you read the prevailing trend on your chart.
+        - generic [ref=e164]:
+          - img [ref=e166]
+          - heading "India Risk Calculator" [level=3] [ref=e168]
+          - paragraph [ref=e169]: Live calculation of STT, Brokerage, and Net P&L for NSE/BSE segments.
+        - generic [ref=e170]:
+          - img [ref=e172]
+          - heading "Smart Exit Levels" [level=3] [ref=e176]
+          - paragraph [ref=e177]: Visual multi-target and trailing stop-loss levels plotted on your chart.
+        - generic [ref=e178]:
+          - img [ref=e180]
+          - heading "OpenAlgo Integration" [level=3] [ref=e182]
+          - paragraph [ref=e183]: Optional OpenAlgo connection you set up and control for your own automated execution.
+        - generic [ref=e184]:
+          - img [ref=e186]
+          - heading "Sideways Chop Filter" [level=3] [ref=e190]
+          - paragraph [ref=e191]: ADX-based logic that highlights non-trending, choppy market conditions.
+        - generic [ref=e192]:
+          - img [ref=e194]
+          - heading "Enhanced SL-Mode" [level=3] [ref=e197]
+          - paragraph [ref=e198]: Experimental mode that flips the indicator bias after a stop-loss level is hit.
+    - generic [ref=e200]:
+      - generic [ref=e201]:
+        - generic [ref=e202]: From setup to sized trade
+        - heading "A faster, more disciplined trading routine" [level=2] [ref=e203]
+        - paragraph [ref=e204]: Indi-Signal does the slow, error-prone parts of an intraday trade — sizing, stop-loss, charges and exits — the instant a setup appears, so you can focus on execution. You stay in control of every click.
+      - generic [ref=e205]:
+        - generic [ref=e206]:
+          - generic [ref=e207]:
+            - img [ref=e209]
+            - generic [ref=e210]: "1"
+          - heading "Set your risk once" [level=3] [ref=e211]
+          - paragraph [ref=e212]: Enter your capital, segment (Equity / F&O, NSE / BSE) and a max risk per trade — say 1%. That is the whole setup.
+          - img [ref=e213]
+        - generic [ref=e215]:
+          - generic [ref=e216]:
+            - img [ref=e218]
+            - generic [ref=e220]: "2"
+          - heading "Get filtered setups" [level=3] [ref=e221]
+          - paragraph [ref=e222]: Breakout setups are screened through VWAP, higher-timeframe trend, volume, ADX and a chop filter — weak, sideways setups are skipped.
+          - img [ref=e223]
+        - generic [ref=e225]:
+          - generic [ref=e226]:
+            - img [ref=e228]
+            - generic [ref=e231]: "3"
+          - heading "Auto stop-loss + size" [level=3] [ref=e232]
+          - paragraph [ref=e233]: The moment a setup prints, the stop-loss is plotted (swing or ATR) and your quantity is auto-calculated to risk exactly your chosen %.
+          - img [ref=e234]
+        - generic [ref=e236]:
+          - generic [ref=e237]:
+            - img [ref=e239]
+            - generic [ref=e242]: "4"
+          - heading "See net P&L upfront" [level=3] [ref=e243]
+          - paragraph [ref=e244]: Up to 6 targets, R:R, required win-rate and net profit after real Indian charges (STT, brokerage, GST) — before you place the order.
+          - img [ref=e245]
+        - generic [ref=e247]:
+          - generic [ref=e248]:
+            - img [ref=e250]
+            - generic [ref=e253]: "5"
+          - heading "Stay disciplined" [level=3] [ref=e254]
+          - paragraph [ref=e255]: After one stop-out it switches to SL-mode for the day and mutes opposite signals inside an open zone — guardrails against revenge trading.
+      - generic [ref=e257]:
+        - generic [ref=e258]:
+          - generic [ref=e259]:
+            - img [ref=e260]
+            - text: Risk per trade — handled automatically
+          - heading "You pick the risk. It does the math." [level=3] [ref=e263]
+          - paragraph [ref=e264]:
+            - text: Tell the calculator the most you will risk on a trade. It reads the stop-loss distance and works out the exact quantity, so a stop-out can't cost more than that. The size is
+            - strong [ref=e265]: locked when the signal fires
+            - text: ", so it won't drift as the candle moves."
+        - generic [ref=e266]:
+          - generic [ref=e267]:
+            - generic [ref=e268]: Capital × Risk %
+            - generic [ref=e269]: ₹3,00,000 × 1%
+          - generic [ref=e270]:
+            - generic [ref=e271]: = Max loss
+            - generic [ref=e272]: ₹3,000
+          - generic [ref=e274]:
+            - generic [ref=e275]: Max loss ÷ SL distance
+            - generic [ref=e276]: auto
+          - generic [ref=e277]:
+            - generic [ref=e278]: = Position size
+            - generic [ref=e279]: calculated for you
+      - generic [ref=e280]:
+        - heading "Where it saves you time" [level=3] [ref=e281]
+        - paragraph [ref=e282]: Every step that usually costs you seconds during a fast move.
+        - generic [ref=e283]:
+          - generic [ref=e284]:
+            - generic [ref=e285]: Task
+            - generic [ref=e286]: Doing it manually
+            - generic [ref=e287]: With Indi-Signal
+          - generic [ref=e288]:
+            - generic [ref=e289]: Position size
+            - generic [ref=e290]:
+              - img [ref=e291]
+              - text: Mental math or a spreadsheet
+            - generic [ref=e294]:
+              - img [ref=e295]
+              - text: Instant, risk-based quantity
+          - generic [ref=e298]:
+            - generic [ref=e299]: Stop-loss
+            - generic [ref=e300]:
+              - img [ref=e301]
+              - text: Eyeball a level
+            - generic [ref=e304]:
+              - img [ref=e305]
+              - text: Auto-plotted at swing / ATR
+          - generic [ref=e308]:
+            - generic [ref=e309]: Charges & net P&L
+            - generic [ref=e310]:
+              - img [ref=e311]
+              - text: Open a brokerage calculator
+            - generic [ref=e314]:
+              - img [ref=e315]
+              - text: Built-in (STT, brokerage, GST)
+          - generic [ref=e318]:
+            - generic [ref=e319]: Targets & exits
+            - generic [ref=e320]:
+              - img [ref=e321]
+              - text: Guess as you go
+            - generic [ref=e324]:
+              - img [ref=e325]
+              - text: 6 targets + partial booking
+          - generic [ref=e328]:
+            - generic [ref=e329]: Overtrading
+            - generic [ref=e330]:
+              - img [ref=e331]
+              - text: Willpower
+            - generic [ref=e334]:
+              - img [ref=e335]
+              - text: Auto SL-mode lock for the day
+    - generic [ref=e339]:
+      - generic [ref=e340]:
+        - heading "Built for Self-Directed Traders" [level=2] [ref=e341]
+        - paragraph [ref=e342]: How traders use the toolkit within their own workflow.
+      - generic [ref=e343]:
+        - generic [ref=e344]:
+          - generic [ref=e345]:
+            - generic [ref=e346]: ★
+            - generic [ref=e347]: ★
+            - generic [ref=e348]: ★
+            - generic [ref=e349]: ★
+            - generic [ref=e350]: ★
+          - paragraph [ref=e351]: "\"The risk calculator saves me time on STT and brokerage math — everything I need is on one chart.\""
+          - generic [ref=e352]:
+            - generic [ref=e353]: Rahul S.
+            - generic [ref=e354]: Full-time Trader
+        - generic [ref=e355]:
+          - generic [ref=e356]:
+            - generic [ref=e357]: ★
+            - generic [ref=e358]: ★
+            - generic [ref=e359]: ★
+            - generic [ref=e360]: ★
+            - generic [ref=e361]: ★
+          - paragraph [ref=e362]: "\"Clean, uncluttered visuals that are easy to read during fast-moving markets.\""
+          - generic [ref=e363]:
+            - generic [ref=e364]: Anish K.
+            - generic [ref=e365]: Intraday Specialist
+        - generic [ref=e366]:
+          - generic [ref=e367]:
+            - generic [ref=e368]: ★
+            - generic [ref=e369]: ★
+            - generic [ref=e370]: ★
+            - generic [ref=e371]: ★
+            - generic [ref=e372]: ★
+          - paragraph [ref=e373]: "\"Setup on TradingView was quick and the multi-timeframe layout keeps my analysis organized.\""
+          - generic [ref=e374]:
+            - generic [ref=e375]: Vikram M.
+            - generic [ref=e376]: Part-time Trader
+    - generic [ref=e378]:
+      - generic [ref=e379]:
+        - heading "Choose Your Plan" [level=2] [ref=e380]
+        - paragraph [ref=e381]: Get access to the full v5.6 indicator toolkit.
+      - generic [ref=e382]:
+        - text: You are subscribing to a technical-analysis charting tool for your own use. We are
+        - strong [ref=e383]: not
+        - text: SEBI-registered and do
+        - strong [ref=e384]: not
+        - text: provide buy/sell calls, tips, or recommendations. Trading involves risk of loss.
+      - generic [ref=e385]:
+        - generic [ref=e386]:
+          - heading "Monthly" [level=3] [ref=e387]
+          - generic [ref=e388]:
+            - generic [ref=e389]: ₹1,500
+            - generic [ref=e390]: /mo
+          - list [ref=e391]:
+            - listitem [ref=e392]:
+              - img [ref=e393]
+              - text: Full Indicator Access
+            - listitem [ref=e396]:
+              - img [ref=e397]
+              - text: India v5.6 Risk Suite
+            - listitem [ref=e400]:
+              - img [ref=e401]
+              - text: Real-time On-Chart Alerts
+            - listitem [ref=e404]:
+              - img [ref=e405]
+              - text: Private Community Access
+            - listitem [ref=e408]:
+              - img [ref=e409]
+              - text: Standard Support
+          - button "Subscribe Monthly" [ref=e412]
+        - generic [ref=e413]:
+          - generic [ref=e414]: Most Popular
+          - heading "Quarterly" [level=3] [ref=e415]
+          - generic [ref=e416]:
+            - generic [ref=e417]: ₹4,000
+            - generic [ref=e418]: ₹4,500
+          - list [ref=e419]:
+            - listitem [ref=e420]:
+              - img [ref=e421]
+              - text: Everything in Monthly
+            - listitem [ref=e424]:
+              - img [ref=e425]
+              - text: 10% Savings Included
+            - listitem [ref=e428]:
+              - img [ref=e429]
+              - text: Priority Setup Guide
+            - listitem [ref=e432]:
+              - img [ref=e433]
+              - text: Indicator Update Access
+            - listitem [ref=e436]:
+              - img [ref=e437]
+              - text: Priority Email Support
+          - button "Subscribe Quarterly" [ref=e440]
+        - generic [ref=e441]:
+          - heading "Yearly" [level=3] [ref=e442]
+          - generic [ref=e443]:
+            - generic [ref=e444]: ₹12,000
+            - generic [ref=e445]: ₹18,000
+          - list [ref=e446]:
+            - listitem [ref=e447]:
+              - img [ref=e448]
+              - text: Everything in Quarterly
+            - listitem [ref=e451]:
+              - img [ref=e452]
+              - text: OpenAlgo Ready Script
+            - listitem [ref=e455]:
+              - img [ref=e456]
+              - text: API Bridge Support
+            - listitem [ref=e459]:
+              - img [ref=e460]
+              - text: Webhook Integration Guide
+            - listitem [ref=e463]:
+              - img [ref=e464]
+              - text: Flat 33% Massive Discount
+          - button "Subscribe Yearly" [ref=e467]
+    - generic [ref=e469]:
+      - generic [ref=e470]:
+        - heading "Frequently Asked Questions" [level=2] [ref=e471]
+        - paragraph [ref=e472]: Everything you need to know before you subscribe.
+      - generic [ref=e473]:
+        - button "How quickly do I get access after paying?" [ref=e475]:
+          - generic [ref=e476]: How quickly do I get access after paying?
+          - img [ref=e477]
+        - button "What information do you need from me?" [ref=e479]:
+          - generic [ref=e480]: What information do you need from me?
+          - img [ref=e481]
+        - button "How do I pay?" [ref=e483]:
+          - generic [ref=e484]: How do I pay?
+          - img [ref=e485]
+        - button "Which markets and timeframes does it support?" [ref=e487]:
+          - generic [ref=e488]: Which markets and timeframes does it support?
+          - img [ref=e489]
+        - button "How do renewals work?" [ref=e491]:
+          - generic [ref=e492]: How do renewals work?
+          - img [ref=e493]
+        - button "Do you offer refunds?" [ref=e495]:
+          - generic [ref=e496]: Do you offer refunds?
+          - img [ref=e497]
+    - generic [ref=e499]:
+      - heading "Still have questions?" [level=2] [ref=e500]
+      - paragraph [ref=e501]: Reach out before you buy — we usually reply within minutes during market hours.
+      - link "Chat on WhatsApp" [ref=e503] [cursor=pointer]:
+        - /url: https://wa.me/919876543210
+        - img [ref=e504]
+        - text: Chat on WhatsApp
+    - contentinfo [ref=e506]:
+      - generic [ref=e507]:
+        - generic [ref=e508]:
+          - generic [ref=e509]:
+            - img [ref=e510]
+            - generic [ref=e513]: Indi-Signal v5.6
+          - generic [ref=e514]:
+            - link "Terms" [ref=e515] [cursor=pointer]:
+              - /url: /terms
+            - link "Privacy" [ref=e516] [cursor=pointer]:
+              - /url: /privacy
+            - link "Refund Policy" [ref=e517] [cursor=pointer]:
+              - /url: /refund
+            - link "Risk Disclaimer" [ref=e518] [cursor=pointer]:
+              - /url: /disclaimer
+          - generic [ref=e519]: © 2026 Indi-Signal. All rights reserved.
+        - generic [ref=e520]: "Disclaimer: Indi-Signal is a technical-analysis charting tool provided for educational and informational purposes only. We are not SEBI-registered and do not provide investment advice, buy/sell calls, tips, or recommendations. Trading in financial markets involves substantial risk of loss and is not suitable for every investor. Past performance is not indicative of future results. You are solely responsible for your own trading decisions."
+  - button "Open Next.js Dev Tools" [ref=e526] [cursor=pointer]:
+    - img [ref=e527]
+  - alert [ref=e530]

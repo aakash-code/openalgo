@@ -1,0 +1,47 @@
+{
+  "version": 1,
+  "skills": {
+    "algo-expert": {
+      "source": "marketcalls/openalgo-execution-skills",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/algo-expert/SKILL.md",
+      "computedHash": "e07536b0477b4a4ddcc3e5fc67949f0022696738ce370c17b41918c017a5a1a5"
+    },
+    "algo-host": {
+      "source": "marketcalls/openalgo-execution-skills",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/algo-host/SKILL.md",
+      "computedHash": "fd9669938bb3f61949737dfeb2f515d926db15a5356244609c870ec4a1a5a3f3"
+    },
+    "algo-options": {
+      "source": "marketcalls/openalgo-execution-skills",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/algo-options/SKILL.md",
+      "computedHash": "4a02780aa5843042e49644f15c48c56c9e84d1579ce2fe27aa060d99d9b6c6ea"
+    },
+    "algo-portfolio": {
+      "source": "marketcalls/openalgo-execution-skills",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/algo-portfolio/SKILL.md",
+      "computedHash": "1a5f2e4d2276c04c6adccd9b51b319e3eb02888cc9ca944d6072d855b00a9fdd"
+    },
+    "algo-risk-test": {
+      "source": "marketcalls/openalgo-execution-skills",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/algo-risk-test/SKILL.md",
+      "computedHash": "ca094df0810f0ae792711d8a7b62692fc5f6475a0dc03fdaa1913b7899798609"
+    },
+    "algo-setup": {
+      "source": "marketcalls/openalgo-execution-skills",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/algo-setup/SKILL.md",
+      "computedHash": "54d694e69b00e5eb8d9bd727707c2a8b4902c2edbce65d40cff33a1242d372d7"
+    },
+    "algo-strategy": {
+      "source": "marketcalls/openalgo-execution-skills",
+      "sourceType": "github",
+      "skillPath": ".claude/skills/algo-strategy/SKILL.md",
+      "computedHash": "1c1349c0263e825c30d0e7753844fe24723552d7a65076d46d6f45ac0d122779"
+    }
+  }
+}

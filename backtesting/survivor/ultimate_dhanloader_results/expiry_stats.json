@@ -1,0 +1,893 @@
+[
+  {
+    "expiry": "2024-07-04",
+    "trades": 21,
+    "total_credit": 67372.5,
+    "total_margin_in": 2038921.51,
+    "peak_margin": 2038921.51,
+    "realised_pnl": 62621.25,
+    "roi_on_peak_margin": 3.07
+  },
+  {
+    "expiry": "2024-07-11",
+    "trades": 43,
+    "total_credit": 131580.0,
+    "total_margin_in": 4301526.1,
+    "peak_margin": 4301526.1,
+    "realised_pnl": 131415.0,
+    "roi_on_peak_margin": 3.06
+  },
+  {
+    "expiry": "2024-07-18",
+    "trades": 34,
+    "total_credit": 148293.75,
+    "total_margin_in": 3838562.9,
+    "peak_margin": 3838562.9,
+    "realised_pnl": -169346.25,
+    "roi_on_peak_margin": -4.41
+  },
+  {
+    "expiry": "2024-07-25",
+    "trades": 87,
+    "total_credit": 746388.75,
+    "total_margin_in": 10036424.08,
+    "peak_margin": 10036424.08,
+    "realised_pnl": 670725.0,
+    "roi_on_peak_margin": 6.68
+  },
+  {
+    "expiry": "2024-08-01",
+    "trades": 54,
+    "total_credit": 218797.5,
+    "total_margin_in": 5795206.29,
+    "peak_margin": 5795206.29,
+    "realised_pnl": 214473.75,
+    "roi_on_peak_margin": 3.7
+  },
+  {
+    "expiry": "2024-08-08",
+    "trades": 5,
+    "total_credit": 29145.0,
+    "total_margin_in": 503475.64,
+    "peak_margin": 503475.64,
+    "realised_pnl": -42847.5,
+    "roi_on_peak_margin": -8.51
+  },
+  {
+    "expiry": "2024-08-14",
+    "trades": 64,
+    "total_credit": 424098.75,
+    "total_margin_in": 7030293.14,
+    "peak_margin": 7030293.14,
+    "realised_pnl": 377876.25,
+    "roi_on_peak_margin": 5.37
+  },
+  {
+    "expiry": "2024-08-22",
+    "trades": 25,
+    "total_credit": 90645.0,
+    "total_margin_in": 2467906.64,
+    "peak_margin": 2467906.64,
+    "realised_pnl": -45476.25,
+    "roi_on_peak_margin": -1.84
+  },
+  {
+    "expiry": "2024-08-29",
+    "trades": 18,
+    "total_credit": 53655.0,
+    "total_margin_in": 1808831.9,
+    "peak_margin": 1808831.9,
+    "realised_pnl": 30626.25,
+    "roi_on_peak_margin": 1.69
+  },
+  {
+    "expiry": "2024-09-05",
+    "trades": 13,
+    "total_credit": 48866.25,
+    "total_margin_in": 1318786.83,
+    "peak_margin": 1318786.83,
+    "realised_pnl": 48817.5,
+    "roi_on_peak_margin": 3.7
+  },
+  {
+    "expiry": "2024-09-12",
+    "trades": 70,
+    "total_credit": 284880.0,
+    "total_margin_in": 7237866.52,
+    "peak_margin": 7237866.52,
+    "realised_pnl": -290358.75,
+    "roi_on_peak_margin": -4.01
+  },
+  {
+    "expiry": "2024-09-19",
+    "trades": 36,
+    "total_credit": 138843.75,
+    "total_margin_in": 3770807.69,
+    "peak_margin": 3770807.69,
+    "realised_pnl": 46541.25,
+    "roi_on_peak_margin": 1.23
+  },
+  {
+    "expiry": "2024-09-26",
+    "trades": 61,
+    "total_credit": 468795.0,
+    "total_margin_in": 9219023.54,
+    "peak_margin": 9219023.54,
+    "realised_pnl": -495671.25,
+    "roi_on_peak_margin": -5.38
+  },
+  {
+    "expiry": "2024-10-03",
+    "trades": 35,
+    "total_credit": 134418.75,
+    "total_margin_in": 3660428.08,
+    "peak_margin": 3660428.08,
+    "realised_pnl": -106143.75,
+    "roi_on_peak_margin": -2.9
+  },
+  {
+    "expiry": "2024-10-10",
+    "trades": 148,
+    "total_credit": 1229422.5,
+    "total_margin_in": 16734775.24,
+    "peak_margin": 16734775.24,
+    "realised_pnl": 1003916.25,
+    "roi_on_peak_margin": 6.0
+  },
+  {
+    "expiry": "2024-10-17",
+    "trades": 44,
+    "total_credit": 182786.25,
+    "total_margin_in": 4537710.02,
+    "peak_margin": 4537710.02,
+    "realised_pnl": 16863.75,
+    "roi_on_peak_margin": 0.37
+  },
+  {
+    "expiry": "2024-10-24",
+    "trades": 104,
+    "total_credit": 455220.0,
+    "total_margin_in": 11133973.95,
+    "peak_margin": 11133973.95,
+    "realised_pnl": 134838.75,
+    "roi_on_peak_margin": 1.21
+  },
+  {
+    "expiry": "2024-10-31",
+    "trades": 98,
+    "total_credit": 454305.0,
+    "total_margin_in": 10170701.49,
+    "peak_margin": 10170701.49,
+    "realised_pnl": 406481.25,
+    "roi_on_peak_margin": 4.0
+  },
+  {
+    "expiry": "2024-11-07",
+    "trades": 77,
+    "total_credit": 576873.75,
+    "total_margin_in": 8154271.12,
+    "peak_margin": 8154271.12,
+    "realised_pnl": 434148.75,
+    "roi_on_peak_margin": 5.32
+  },
+  {
+    "expiry": "2024-11-14",
+    "trades": 109,
+    "total_credit": 513401.25,
+    "total_margin_in": 11297642.8,
+    "peak_margin": 10810484.02,
+    "realised_pnl": -336127.5,
+    "roi_on_peak_margin": -3.11
+  },
+  {
+    "expiry": "2024-11-21",
+    "trades": 49,
+    "total_credit": 260587.5,
+    "total_margin_in": 5299638.26,
+    "peak_margin": 5299638.26,
+    "realised_pnl": 138318.75,
+    "roi_on_peak_margin": 2.61
+  },
+  {
+    "expiry": "2024-11-28",
+    "trades": 70,
+    "total_credit": 511563.75,
+    "total_margin_in": 7473865.13,
+    "peak_margin": 7473865.13,
+    "realised_pnl": 81930.0,
+    "roi_on_peak_margin": 1.1
+  },
+  {
+    "expiry": "2024-12-05",
+    "trades": 79,
+    "total_credit": 550507.5,
+    "total_margin_in": 8779311.76,
+    "peak_margin": 8779311.76,
+    "realised_pnl": -199421.25,
+    "roi_on_peak_margin": -2.27
+  },
+  {
+    "expiry": "2024-12-12",
+    "trades": 60,
+    "total_credit": 588855.0,
+    "total_margin_in": 6922240.09,
+    "peak_margin": 6922240.09,
+    "realised_pnl": 588487.5,
+    "roi_on_peak_margin": 8.5
+  },
+  {
+    "expiry": "2024-12-19",
+    "trades": 106,
+    "total_credit": 645225.0,
+    "total_margin_in": 11223326.45,
+    "peak_margin": 11223326.45,
+    "realised_pnl": -388740.0,
+    "roi_on_peak_margin": -3.46
+  },
+  {
+    "expiry": "2024-12-26",
+    "trades": 51,
+    "total_credit": 460657.5,
+    "total_margin_in": 5940512.28,
+    "peak_margin": 5940512.28,
+    "realised_pnl": 430526.25,
+    "roi_on_peak_margin": 7.25
+  },
+  {
+    "expiry": "2025-01-02",
+    "trades": 81,
+    "total_credit": 376293.75,
+    "total_margin_in": 7817032.2,
+    "peak_margin": 7817032.2,
+    "realised_pnl": -509647.5,
+    "roi_on_peak_margin": -6.52
+  },
+  {
+    "expiry": "2025-01-09",
+    "trades": 109,
+    "total_credit": 749793.75,
+    "total_margin_in": 10928886.4,
+    "peak_margin": 10928886.4,
+    "realised_pnl": 113201.25,
+    "roi_on_peak_margin": 1.04
+  },
+  {
+    "expiry": "2025-01-16",
+    "trades": 51,
+    "total_credit": 302171.25,
+    "total_margin_in": 4983340.33,
+    "peak_margin": 4983340.33,
+    "realised_pnl": 289653.75,
+    "roi_on_peak_margin": 5.81
+  },
+  {
+    "expiry": "2025-01-23",
+    "trades": 81,
+    "total_credit": 534041.25,
+    "total_margin_in": 9883445.97,
+    "peak_margin": 9883445.97,
+    "realised_pnl": 530846.25,
+    "roi_on_peak_margin": 5.37
+  },
+  {
+    "expiry": "2025-01-30",
+    "trades": 56,
+    "total_credit": 434403.75,
+    "total_margin_in": 5956578.77,
+    "peak_margin": 5956578.77,
+    "realised_pnl": 411427.5,
+    "roi_on_peak_margin": 6.91
+  },
+  {
+    "expiry": "2025-02-06",
+    "trades": 33,
+    "total_credit": 412515.0,
+    "total_margin_in": 3109867.18,
+    "peak_margin": 3109867.18,
+    "realised_pnl": 412402.5,
+    "roi_on_peak_margin": 13.26
+  },
+  {
+    "expiry": "2025-02-13",
+    "trades": 96,
+    "total_credit": 496815.0,
+    "total_margin_in": 9544974.85,
+    "peak_margin": 9544974.85,
+    "realised_pnl": 51630.0,
+    "roi_on_peak_margin": 0.54
+  },
+  {
+    "expiry": "2025-02-20",
+    "trades": 63,
+    "total_credit": 417618.75,
+    "total_margin_in": 6181970.47,
+    "peak_margin": 6181970.47,
+    "realised_pnl": 379410.0,
+    "roi_on_peak_margin": 6.14
+  },
+  {
+    "expiry": "2025-02-27",
+    "trades": 32,
+    "total_credit": 176437.5,
+    "total_margin_in": 2922082.36,
+    "peak_margin": 2922082.36,
+    "realised_pnl": 109271.25,
+    "roi_on_peak_margin": 3.74
+  },
+  {
+    "expiry": "2025-03-06",
+    "trades": 44,
+    "total_credit": 157335.0,
+    "total_margin_in": 3919409.16,
+    "peak_margin": 3919409.16,
+    "realised_pnl": -155070.0,
+    "roi_on_peak_margin": -3.96
+  },
+  {
+    "expiry": "2025-03-13",
+    "trades": 66,
+    "total_credit": 280387.5,
+    "total_margin_in": 6227008.04,
+    "peak_margin": 6227008.04,
+    "realised_pnl": 264116.25,
+    "roi_on_peak_margin": 4.24
+  },
+  {
+    "expiry": "2025-03-20",
+    "trades": 41,
+    "total_credit": 136905.0,
+    "total_margin_in": 3727163.94,
+    "peak_margin": 3727163.94,
+    "realised_pnl": -157653.75,
+    "roi_on_peak_margin": -4.23
+  },
+  {
+    "expiry": "2025-03-27",
+    "trades": 81,
+    "total_credit": 325350.0,
+    "total_margin_in": 8038035.24,
+    "peak_margin": 8038035.24,
+    "realised_pnl": 278272.5,
+    "roi_on_peak_margin": 3.46
+  },
+  {
+    "expiry": "2025-04-03",
+    "trades": 71,
+    "total_credit": 285393.75,
+    "total_margin_in": 7152427.44,
+    "peak_margin": 7152427.44,
+    "realised_pnl": 83126.25,
+    "roi_on_peak_margin": 1.16
+  },
+  {
+    "expiry": "2025-04-17",
+    "trades": 9,
+    "total_credit": 18907.5,
+    "total_margin_in": 939373.88,
+    "peak_margin": 939373.88,
+    "realised_pnl": 17212.5,
+    "roi_on_peak_margin": 1.83
+  },
+  {
+    "expiry": "2025-04-24",
+    "trades": 41,
+    "total_credit": 310473.75,
+    "total_margin_in": 4004014.16,
+    "peak_margin": 4004014.16,
+    "realised_pnl": 310402.5,
+    "roi_on_peak_margin": 7.75
+  },
+  {
+    "expiry": "2025-04-30",
+    "trades": 54,
+    "total_credit": 398891.25,
+    "total_margin_in": 5833212.81,
+    "peak_margin": 5833212.81,
+    "realised_pnl": 122055.0,
+    "roi_on_peak_margin": 2.09
+  },
+  {
+    "expiry": "2025-05-08",
+    "trades": 29,
+    "total_credit": 128898.75,
+    "total_margin_in": 2941867.49,
+    "peak_margin": 2941867.49,
+    "realised_pnl": 126273.75,
+    "roi_on_peak_margin": 4.29
+  },
+  {
+    "expiry": "2025-05-15",
+    "trades": 73,
+    "total_credit": 629621.25,
+    "total_margin_in": 8388075.3,
+    "peak_margin": 8388075.3,
+    "realised_pnl": -753322.5,
+    "roi_on_peak_margin": -8.98
+  },
+  {
+    "expiry": "2025-05-22",
+    "trades": 100,
+    "total_credit": 810401.25,
+    "total_margin_in": 11280968.33,
+    "peak_margin": 11280968.33,
+    "realised_pnl": 547657.5,
+    "roi_on_peak_margin": 4.85
+  },
+  {
+    "expiry": "2025-05-29",
+    "trades": 79,
+    "total_credit": 802305.0,
+    "total_margin_in": 8683710.71,
+    "peak_margin": 8683710.71,
+    "realised_pnl": 748331.25,
+    "roi_on_peak_margin": 8.62
+  },
+  {
+    "expiry": "2025-06-05",
+    "trades": 34,
+    "total_credit": 373916.25,
+    "total_margin_in": 4066995.94,
+    "peak_margin": 4066995.94,
+    "realised_pnl": 369570.0,
+    "roi_on_peak_margin": 9.09
+  },
+  {
+    "expiry": "2025-06-12",
+    "trades": 49,
+    "total_credit": 349863.75,
+    "total_margin_in": 5413429.33,
+    "peak_margin": 5413429.33,
+    "realised_pnl": 311418.75,
+    "roi_on_peak_margin": 5.75
+  },
+  {
+    "expiry": "2025-06-19",
+    "trades": 48,
+    "total_credit": 228495.0,
+    "total_margin_in": 4811182.23,
+    "peak_margin": 4811182.23,
+    "realised_pnl": 185025.0,
+    "roi_on_peak_margin": 3.85
+  },
+  {
+    "expiry": "2025-06-26",
+    "trades": 44,
+    "total_credit": 248426.25,
+    "total_margin_in": 4421670.81,
+    "peak_margin": 4421670.81,
+    "realised_pnl": -304717.5,
+    "roi_on_peak_margin": -6.89
+  },
+  {
+    "expiry": "2025-07-03",
+    "trades": 38,
+    "total_credit": 198723.75,
+    "total_margin_in": 4002866.17,
+    "peak_margin": 4002866.17,
+    "realised_pnl": 195228.75,
+    "roi_on_peak_margin": 4.88
+  },
+  {
+    "expiry": "2025-07-10",
+    "trades": 31,
+    "total_credit": 128523.75,
+    "total_margin_in": 3283989.24,
+    "peak_margin": 3283989.24,
+    "realised_pnl": 128403.75,
+    "roi_on_peak_margin": 3.91
+  },
+  {
+    "expiry": "2025-07-17",
+    "trades": 34,
+    "total_credit": 131730.0,
+    "total_margin_in": 3450832.69,
+    "peak_margin": 3450832.69,
+    "realised_pnl": 131565.0,
+    "roi_on_peak_margin": 3.81
+  },
+  {
+    "expiry": "2025-07-24",
+    "trades": 37,
+    "total_credit": 127856.25,
+    "total_margin_in": 3730358.76,
+    "peak_margin": 3730358.76,
+    "realised_pnl": 127717.5,
+    "roi_on_peak_margin": 3.42
+  },
+  {
+    "expiry": "2025-07-31",
+    "trades": 57,
+    "total_credit": 183393.75,
+    "total_margin_in": 5802003.1,
+    "peak_margin": 5802003.1,
+    "realised_pnl": 180678.75,
+    "roi_on_peak_margin": 3.11
+  },
+  {
+    "expiry": "2025-08-07",
+    "trades": 46,
+    "total_credit": 203583.75,
+    "total_margin_in": 4862116.03,
+    "peak_margin": 4862116.03,
+    "realised_pnl": 203400.0,
+    "roi_on_peak_margin": 4.18
+  },
+  {
+    "expiry": "2025-08-14",
+    "trades": 56,
+    "total_credit": 202713.75,
+    "total_margin_in": 5519964.43,
+    "peak_margin": 5519964.43,
+    "realised_pnl": 161805.0,
+    "roi_on_peak_margin": 2.93
+  },
+  {
+    "expiry": "2025-08-21",
+    "trades": 15,
+    "total_credit": 37560.0,
+    "total_margin_in": 1501690.56,
+    "peak_margin": 1501690.56,
+    "realised_pnl": -5051.25,
+    "roi_on_peak_margin": -0.34
+  },
+  {
+    "expiry": "2025-08-28",
+    "trades": 32,
+    "total_credit": 82293.75,
+    "total_margin_in": 3309236.29,
+    "peak_margin": 3309236.29,
+    "realised_pnl": 10575.0,
+    "roi_on_peak_margin": 0.32
+  },
+  {
+    "expiry": "2025-09-02",
+    "trades": 25,
+    "total_credit": 81885.0,
+    "total_margin_in": 2469477.04,
+    "peak_margin": 2469477.04,
+    "realised_pnl": 81791.25,
+    "roi_on_peak_margin": 3.31
+  },
+  {
+    "expiry": "2025-09-09",
+    "trades": 28,
+    "total_credit": 91162.5,
+    "total_margin_in": 2978966.1,
+    "peak_margin": 2978966.1,
+    "realised_pnl": 43458.75,
+    "roi_on_peak_margin": 1.46
+  },
+  {
+    "expiry": "2025-09-16",
+    "trades": 15,
+    "total_credit": 40931.25,
+    "total_margin_in": 1508923.75,
+    "peak_margin": 1508923.75,
+    "realised_pnl": -765.0,
+    "roi_on_peak_margin": -0.05
+  },
+  {
+    "expiry": "2025-09-23",
+    "trades": 17,
+    "total_credit": 41572.5,
+    "total_margin_in": 1730399.53,
+    "peak_margin": 1730399.53,
+    "realised_pnl": 41508.75,
+    "roi_on_peak_margin": 2.4
+  },
+  {
+    "expiry": "2025-09-30",
+    "trades": 43,
+    "total_credit": 138761.25,
+    "total_margin_in": 4312796.39,
+    "peak_margin": 4312796.39,
+    "realised_pnl": 93768.75,
+    "roi_on_peak_margin": 2.17
+  },
+  {
+    "expiry": "2025-10-07",
+    "trades": 27,
+    "total_credit": 84468.75,
+    "total_margin_in": 2690218.58,
+    "peak_margin": 2690218.58,
+    "realised_pnl": -29876.25,
+    "roi_on_peak_margin": -1.11
+  },
+  {
+    "expiry": "2025-10-14",
+    "trades": 50,
+    "total_credit": 128718.75,
+    "total_margin_in": 5064132.16,
+    "peak_margin": 5064132.16,
+    "realised_pnl": 128193.75,
+    "roi_on_peak_margin": 2.53
+  },
+  {
+    "expiry": "2025-10-16",
+    "trades": 21,
+    "total_credit": 97533.75,
+    "total_margin_in": 2132627.89,
+    "peak_margin": 2132627.89,
+    "realised_pnl": -166095.0,
+    "roi_on_peak_margin": -7.79
+  },
+  {
+    "expiry": "2025-10-20",
+    "trades": 22,
+    "total_credit": 64537.5,
+    "total_margin_in": 2271062.07,
+    "peak_margin": 2271062.07,
+    "realised_pnl": 64458.75,
+    "roi_on_peak_margin": 2.84
+  },
+  {
+    "expiry": "2025-10-28",
+    "trades": 26,
+    "total_credit": 70822.5,
+    "total_margin_in": 2710240.51,
+    "peak_margin": 2710240.51,
+    "realised_pnl": 70661.25,
+    "roi_on_peak_margin": 2.61
+  },
+  {
+    "expiry": "2025-11-04",
+    "trades": 53,
+    "total_credit": 284328.75,
+    "total_margin_in": 5735908.6,
+    "peak_margin": 5735908.6,
+    "realised_pnl": 86058.75,
+    "roi_on_peak_margin": 1.5
+  },
+  {
+    "expiry": "2025-11-11",
+    "trades": 21,
+    "total_credit": 95351.25,
+    "total_margin_in": 2268563.97,
+    "peak_margin": 2268563.97,
+    "realised_pnl": 95268.75,
+    "roi_on_peak_margin": 4.2
+  },
+  {
+    "expiry": "2025-11-18",
+    "trades": 59,
+    "total_credit": 255967.5,
+    "total_margin_in": 6245015.3,
+    "peak_margin": 6245015.3,
+    "realised_pnl": 160522.5,
+    "roi_on_peak_margin": 2.57
+  },
+  {
+    "expiry": "2025-11-25",
+    "trades": 48,
+    "total_credit": 183198.75,
+    "total_margin_in": 5039281.54,
+    "peak_margin": 5039281.54,
+    "realised_pnl": 99798.75,
+    "roi_on_peak_margin": 1.98
+  },
+  {
+    "expiry": "2025-12-02",
+    "trades": 38,
+    "total_credit": 132401.25,
+    "total_margin_in": 4004314.45,
+    "peak_margin": 4004314.45,
+    "realised_pnl": 104073.75,
+    "roi_on_peak_margin": 2.6
+  },
+  {
+    "expiry": "2025-12-09",
+    "trades": 46,
+    "total_credit": 151140.0,
+    "total_margin_in": 5040033.93,
+    "peak_margin": 5040033.93,
+    "realised_pnl": 78225.0,
+    "roi_on_peak_margin": 1.55
+  },
+  {
+    "expiry": "2025-12-16",
+    "trades": 55,
+    "total_credit": 215880.0,
+    "total_margin_in": 5832731.43,
+    "peak_margin": 5832731.43,
+    "realised_pnl": 215670.0,
+    "roi_on_peak_margin": 3.7
+  },
+  {
+    "expiry": "2025-12-23",
+    "trades": 30,
+    "total_credit": 89272.5,
+    "total_margin_in": 3125518.69,
+    "peak_margin": 3125518.69,
+    "realised_pnl": -65283.75,
+    "roi_on_peak_margin": -2.09
+  },
+  {
+    "expiry": "2025-12-30",
+    "trades": 10,
+    "total_credit": 26568.75,
+    "total_margin_in": 1054631.73,
+    "peak_margin": 1054631.73,
+    "realised_pnl": 2838.75,
+    "roi_on_peak_margin": 0.27
+  },
+  {
+    "expiry": "2026-01-06",
+    "trades": 25,
+    "total_credit": 60802.5,
+    "total_margin_in": 2627181.53,
+    "peak_margin": 2627181.53,
+    "realised_pnl": 37196.25,
+    "roi_on_peak_margin": 1.42
+  },
+  {
+    "expiry": "2026-01-13",
+    "trades": 69,
+    "total_credit": 181893.75,
+    "total_margin_in": 7406012.96,
+    "peak_margin": 6351469.9,
+    "realised_pnl": 148541.25,
+    "roi_on_peak_margin": 2.34
+  },
+  {
+    "expiry": "2026-01-20",
+    "trades": 45,
+    "total_credit": 247635.0,
+    "total_margin_in": 4979330.74,
+    "peak_margin": 4979330.74,
+    "realised_pnl": -215482.5,
+    "roi_on_peak_margin": -4.33
+  },
+  {
+    "expiry": "2026-01-27",
+    "trades": 72,
+    "total_credit": 435330.0,
+    "total_margin_in": 8117810.98,
+    "peak_margin": 8117810.98,
+    "realised_pnl": 393787.5,
+    "roi_on_peak_margin": 4.85
+  },
+  {
+    "expiry": "2026-02-03",
+    "trades": 68,
+    "total_credit": 891146.25,
+    "total_margin_in": 7401543.54,
+    "peak_margin": 7401543.54,
+    "realised_pnl": -181530.0,
+    "roi_on_peak_margin": -2.45
+  },
+  {
+    "expiry": "2026-02-10",
+    "trades": 51,
+    "total_credit": 242190.0,
+    "total_margin_in": 5374075.52,
+    "peak_margin": 5374075.52,
+    "realised_pnl": 49803.75,
+    "roi_on_peak_margin": 0.93
+  },
+  {
+    "expiry": "2026-02-17",
+    "trades": 31,
+    "total_credit": 96018.75,
+    "total_margin_in": 3212171.7,
+    "peak_margin": 3212171.7,
+    "realised_pnl": 86662.5,
+    "roi_on_peak_margin": 2.7
+  },
+  {
+    "expiry": "2026-02-24",
+    "trades": 87,
+    "total_credit": 405375.0,
+    "total_margin_in": 9190899.18,
+    "peak_margin": 9190899.18,
+    "realised_pnl": 181425.0,
+    "roi_on_peak_margin": 1.97
+  },
+  {
+    "expiry": "2026-03-02",
+    "trades": 51,
+    "total_credit": 273236.25,
+    "total_margin_in": 5428864.19,
+    "peak_margin": 5428864.19,
+    "realised_pnl": 11070.0,
+    "roi_on_peak_margin": 0.2
+  },
+  {
+    "expiry": "2026-03-10",
+    "trades": 41,
+    "total_credit": 487976.25,
+    "total_margin_in": 4564421.76,
+    "peak_margin": 4564421.76,
+    "realised_pnl": 36607.5,
+    "roi_on_peak_margin": 0.8
+  },
+  {
+    "expiry": "2026-03-17",
+    "trades": 95,
+    "total_credit": 984386.25,
+    "total_margin_in": 9901371.88,
+    "peak_margin": 9901371.88,
+    "realised_pnl": 246547.5,
+    "roi_on_peak_margin": 2.49
+  },
+  {
+    "expiry": "2026-03-24",
+    "trades": 52,
+    "total_credit": 751042.5,
+    "total_margin_in": 5116720.05,
+    "peak_margin": 5116720.05,
+    "realised_pnl": -135562.5,
+    "roi_on_peak_margin": -2.65
+  },
+  {
+    "expiry": "2026-04-07",
+    "trades": 44,
+    "total_credit": 433117.5,
+    "total_margin_in": 4469394.15,
+    "peak_margin": 4469394.15,
+    "realised_pnl": -14175.0,
+    "roi_on_peak_margin": -0.32
+  },
+  {
+    "expiry": "2026-04-21",
+    "trades": 46,
+    "total_credit": 244665.0,
+    "total_margin_in": 4501378.13,
+    "peak_margin": 4501378.13,
+    "realised_pnl": 156483.75,
+    "roi_on_peak_margin": 3.48
+  },
+  {
+    "expiry": "2026-04-28",
+    "trades": 34,
+    "total_credit": 323681.25,
+    "total_margin_in": 3407056.5,
+    "peak_margin": 3407056.5,
+    "realised_pnl": 159671.25,
+    "roi_on_peak_margin": 4.69
+  },
+  {
+    "expiry": "2026-05-05",
+    "trades": 28,
+    "total_credit": 256443.75,
+    "total_margin_in": 2820779.74,
+    "peak_margin": 2820779.74,
+    "realised_pnl": 233681.25,
+    "roi_on_peak_margin": 8.28
+  },
+  {
+    "expiry": "2026-05-12",
+    "trades": 36,
+    "total_credit": 366506.25,
+    "total_margin_in": 3693340.99,
+    "peak_margin": 3693340.99,
+    "realised_pnl": -148473.75,
+    "roi_on_peak_margin": -4.02
+  },
+  {
+    "expiry": "2026-05-19",
+    "trades": 89,
+    "total_credit": 881130.0,
+    "total_margin_in": 8715898.89,
+    "peak_margin": 8715898.89,
+    "realised_pnl": 825963.75,
+    "roi_on_peak_margin": 9.48
+  },
+  {
+    "expiry": "2026-05-26",
+    "trades": 54,
+    "total_credit": 454901.25,
+    "total_margin_in": 5733986.75,
+    "peak_margin": 3633344.96,
+    "realised_pnl": 443928.75,
+    "roi_on_peak_margin": 12.22
+  },
+  {
+    "expiry": "2026-06-02",
+    "trades": 6,
+    "total_credit": 47463.75,
+    "total_margin_in": 580130.92,
+    "peak_margin": 580130.92,
+    "realised_pnl": 47463.75,
+    "roi_on_peak_margin": 8.18
+  }
+]

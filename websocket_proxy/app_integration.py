@@ -228,6 +228,26 @@ def _terminate_websocket_subprocess():
         _websocket_subprocess = None
 
 
+def _subprocess_mode_enabled() -> bool:
+    """
+    Decide whether the WS proxy should run as a child process.
+
+    Default is True (subprocess) even without eventlet: the proxy's asyncio
+    fan-out loop and the broker feed's protobuf-decode thread must not share
+    a GIL with Flask request threads doing pandas-heavy /history work —
+    measured on this deployment, that contention delayed tick delivery and
+    inflated history latency (p95 ~10s at market open).
+
+    Set WEBSOCKET_PROXY_SUBPROCESS=false to force the legacy in-process
+    thread. Note: in-process mode is required if you rely on the sandbox
+    (analyzer) execution engine receiving live ticks via MarketDataService
+    inside the Flask process, since MDS is fed by the proxy's zmq_listener
+    in whichever process the proxy runs.
+    """
+    override = os.getenv("WEBSOCKET_PROXY_SUBPROCESS", "true").strip().lower()
+    return override not in ("0", "false", "no", "never", "inproc")
+
+
 def start_websocket_server():
     """
     Start the WebSocket proxy server.
@@ -235,13 +255,26 @@ def start_websocket_server():
     Under gunicorn+eventlet: spawned as a child process (avoids the
     eventlet/asyncio cross-OS-thread greenlet crash class).
 
-    Under the dev server (no eventlet): run as a real OS thread inside the
-    Flask process, preserving the long-standing dev workflow.
+    Under the dev server (no eventlet): also spawned as a child process by
+    default (GIL isolation from pandas-heavy Flask request threads); set
+    WEBSOCKET_PROXY_SUBPROCESS=false to restore the legacy in-process thread.
     """
     global _websocket_proxy_instance, _websocket_thread
 
-    if _eventlet_active():
+    if _eventlet_active() or _subprocess_mode_enabled():
         _spawn_websocket_subprocess()
+        # The proxy's zmq_listener now feeds MarketDataService in the CHILD
+        # process only. Start the MDS bridge so consumers in THIS process
+        # (sandbox/analyzer execution engine, MTM) still get every tick.
+        # Skipped under eventlet: blocking zmq recv in a green thread would
+        # stall the hub; eventlet deployments predate the bridge and keep
+        # their existing behavior.
+        if not _eventlet_active():
+            try:
+                from services.market_data_bridge import start_market_data_bridge
+                start_market_data_bridge()
+            except Exception as e:
+                logger.warning(f"Could not start MDS bridge (sandbox ticks unavailable): {e}")
         # Register signal handlers so Ctrl+C in dev forwards cleanly. Under
         # systemd these are typically replaced by the unit's signal handling.
         try:

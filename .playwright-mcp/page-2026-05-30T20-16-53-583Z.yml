@@ -1,0 +1,40 @@
+- generic:
+  - generic:
+    - generic:
+      - generic:
+        - generic:
+          - generic:
+            - generic:
+              - generic:
+                - img
+              - generic: Connect Your Trading Account
+              - generic: Welcome, admin!
+            - generic:
+              - generic:
+                - generic:
+                  - generic: Login with your Broker
+                  - combobox [expanded]:
+                    - generic: Upstox
+                    - img
+                  - combobox
+                - button:
+                  - img
+                  - text: Connect Account
+          - generic:
+            - heading [level=1]: Connect Your Broker
+            - paragraph: Link your trading account to start executing trades through OpenAlgo's algorithmic trading platform.
+            - alert:
+              - img
+              - heading [level=5]: Need Help?
+              - generic: Check our documentation for broker setup guides.
+            - generic:
+              - link:
+                - /url: https://docs.openalgo.in
+                - img
+                - text: Documentation
+    - region "Notifications alt+T"
+  - listbox [ref=e34]:
+    - option "Upstox" [active] [selected] [ref=e35]:
+      - generic [ref=e37]:
+        - img
+      - generic [ref=e38]: Upstox

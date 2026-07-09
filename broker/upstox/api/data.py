@@ -1,7 +1,9 @@
 import json
 import os
+import threading
 import time
 import urllib.parse
+from collections import OrderedDict
 from datetime import datetime, timedelta
 
 import httpx
@@ -14,9 +16,80 @@ from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+# ---------------------------------------------------------------------------
+# History chunk cache
+#
+# Upstox caps standard APIs (incl. historical candles) at 500 req/min and
+# 2,000 req/30min per user. Measured on this deployment, chart + scanner
+# consumers were issuing ~7k /history calls per hour at market open, blowing
+# through that quota and turning p95 latency into tens of seconds (retry
+# storms). Candle chunks whose date range ended before today are immutable,
+# so we cache them at the chunk level; only the today-chunk (live intraday
+# candles) needs a short TTL. get_history() also splits chunks so that no
+# chunk spans both past days and today — keeping past chunks fully cacheable.
+# ---------------------------------------------------------------------------
+_CHUNK_CACHE: "OrderedDict[tuple, tuple[float, pd.DataFrame]]" = OrderedDict()
+_CHUNK_CACHE_LOCK = threading.Lock()
+_CHUNK_CACHE_MAX_ENTRIES = 512
+_CHUNK_TTL_TODAY = 15.0  # seconds — chunk includes live (still-forming) candles
+_CHUNK_TTL_PAST = 6 * 3600.0  # seconds — finalized candles; bounded for safety
+
+
+def _chunk_cache_get(key: tuple, ttl: float) -> pd.DataFrame | None:
+    with _CHUNK_CACHE_LOCK:
+        entry = _CHUNK_CACHE.get(key)
+        if entry is None:
+            return None
+        stored_at, df = entry
+        if time.time() - stored_at > ttl:
+            _CHUNK_CACHE.pop(key, None)
+            return None
+        _CHUNK_CACHE.move_to_end(key)
+        return df.copy()
+
+
+def _chunk_cache_put(key: tuple, df: pd.DataFrame) -> None:
+    with _CHUNK_CACHE_LOCK:
+        _CHUNK_CACHE[key] = (time.time(), df.copy())
+        _CHUNK_CACHE.move_to_end(key)
+        while len(_CHUNK_CACHE) > _CHUNK_CACHE_MAX_ENTRIES:
+            _CHUNK_CACHE.popitem(last=False)
+
+
+# ---------------------------------------------------------------------------
+# Upstox standard-API rate guard (data APIs only — never order placement).
+# Official limits per user: 50/sec, 500/min, 2000/30min. The 500/min window is
+# the one this deployment blew through (retry storms, feed stalls); we hold a
+# small headroom below it and briefly queue callers instead of letting Upstox
+# throttle/suspend the account.
+# ---------------------------------------------------------------------------
+_RATE_WINDOW_SEC = 60.0
+_RATE_MAX_IN_WINDOW = 450  # headroom under the official 500/min
+_rate_lock = threading.Lock()
+_rate_stamps: "list[float]" = []
+
+
+def _rate_guard() -> None:
+    while True:
+        with _rate_lock:
+            now = time.time()
+            cutoff = now - _RATE_WINDOW_SEC
+            while _rate_stamps and _rate_stamps[0] < cutoff:
+                _rate_stamps.pop(0)
+            if len(_rate_stamps) < _RATE_MAX_IN_WINDOW:
+                _rate_stamps.append(now)
+                return
+            wait = _rate_stamps[0] + _RATE_WINDOW_SEC - now
+        logger.warning(
+            f"Upstox data-API rate guard: {_RATE_MAX_IN_WINDOW}/min reached, "
+            f"queueing for {wait:.1f}s"
+        )
+        time.sleep(min(max(wait, 0.05), 5.0))
+
 
 def get_api_response(endpoint, auth, method="GET", payload=""):
     """Common function to make API calls to Upstox v3 using httpx with connection pooling"""
+    _rate_guard()
     AUTH_TOKEN = auth
 
     # Get the shared httpx client with connection pooling
@@ -607,10 +680,21 @@ class BrokerData:
             chunk_count = 0
             successful_chunks = 0
 
+            # Keep the today-chunk separate from past-day chunks: past chunks
+            # are immutable and served from the long-TTL cache, while the
+            # today-chunk (live candles) refreshes on a short TTL. Without
+            # this split, a single chunk spanning [past..today] would expire
+            # every few seconds and re-fetch weeks of already-final data.
+            today = pd.Timestamp(datetime.now().date())
+
             while current_start <= to_date:
                 chunk_count += 1
                 # Calculate chunk end date
                 current_end = min(current_start + timedelta(days=chunk_days - 1), to_date)
+                if current_start < today <= current_end:
+                    # Chunk would span past days AND today — stop it at yesterday;
+                    # the next iteration emits today as its own chunk.
+                    current_end = today - timedelta(days=1)
 
                 logger.debug(
                     f"Processing chunk {chunk_count}: {current_start.date()} to {current_end.date()}"
@@ -717,6 +801,24 @@ class BrokerData:
             to_date = end_date.strftime("%Y-%m-%d")
 
             current_date = datetime.now()
+
+            # Chunk cache: past-day chunks of intraday/daily candles are
+            # immutable → long TTL. Chunks touching today (live candles), and
+            # weekly/monthly requests (the current week/month candle is still
+            # forming even in "past" ranges), use the short TTL.
+            cache_key = (instrument_key, unit, interval_value, from_date, to_date, interval)
+            chunk_is_final = (
+                end_date.date() < current_date.date() and unit not in ("weeks", "months")
+            )
+            cache_ttl = _CHUNK_TTL_PAST if chunk_is_final else _CHUNK_TTL_TODAY
+            cached_df = _chunk_cache_get(cache_key, cache_ttl)
+            if cached_df is not None:
+                logger.debug(
+                    f"Chunk cache hit: {instrument_key} {unit}/{interval_value} "
+                    f"{from_date}..{to_date}"
+                )
+                return cached_df
+
             all_candles = []
 
             # Try intraday endpoint first for current day data
@@ -987,6 +1089,11 @@ class BrokerData:
 
             # Reorder columns to match Angel format
             df = df[["close", "high", "low", "open", "timestamp", "volume", "oi"]]
+
+            # Cache non-empty chunks only — an empty frame can mean a transient
+            # upstream failure, which must not be pinned for the long TTL.
+            if not df.empty:
+                _chunk_cache_put(cache_key, df)
 
             return df
 

@@ -1,0 +1,573 @@
+- generic [ref=e2]:
+  - generic [ref=e34]:
+    - link "Skip to chart" [ref=e35] [cursor=pointer]:
+      - /url: "#main-chart"
+    - generic [ref=e45]:
+      - button "Menu" [ref=e47] [cursor=pointer]:
+        - img [ref=e49]
+      - generic [ref=e53]:
+        - button "Symbol Search" [ref=e54] [cursor=pointer]:
+          - img [ref=e56]
+          - generic [ref=e58]: HINDZINC
+        - button "Compare or Add Symbol" [ref=e59] [cursor=pointer]:
+          - img [ref=e61]
+        - button "Option Strategy Chart" [ref=e65] [cursor=pointer]:
+          - img [ref=e67]
+        - button "Auto Spread Builder" [ref=e73] [cursor=pointer]:
+          - img [ref=e75]
+      - button "1m" [ref=e1949] [cursor=pointer]:
+        - generic [ref=e82]: 1m
+      - button [ref=e87] [cursor=pointer]:
+        - img [ref=e89]
+      - generic [ref=e96]:
+        - button "Indicators" [ref=e98] [cursor=pointer]:
+          - img [ref=e100]
+          - generic [ref=e103]: Indicators
+        - button "Pine Script Editor" [ref=e105] [cursor=pointer]:
+          - img [ref=e107]
+          - generic [ref=e110]: Pine
+      - generic [ref=e113]:
+        - button "Create Alert" [ref=e114] [cursor=pointer]:
+          - img [ref=e116]
+          - generic [ref=e119]: Alert
+        - button "Create Indicator Alert" [ref=e121] [cursor=pointer]:
+          - img [ref=e123]
+          - generic [ref=e125]: Indicator Alert
+        - button "Bar Replay" [ref=e126] [cursor=pointer]:
+          - img [ref=e128]
+          - generic [ref=e130]: Replay
+        - button "Option Chain" [ref=e131] [cursor=pointer]:
+          - img [ref=e133]
+          - generic [ref=e135]: Options
+        - button "Sector Heatmap" [ref=e137] [cursor=pointer]:
+          - img [ref=e139]
+          - generic [ref=e141]: Heatmap
+      - generic [ref=e144]:
+        - button "Undo" [ref=e146] [cursor=pointer]:
+          - img [ref=e148]
+        - button "Redo" [ref=e151] [cursor=pointer]:
+          - img [ref=e153]
+      - generic [ref=e155]:
+        - button "Layout setup" [ref=e157] [cursor=pointer]:
+          - img [ref=e159]
+        - button "Save" [ref=e161] [cursor=pointer]:
+          - generic [ref=e162]: Save
+        - button "Templates" [ref=e164] [cursor=pointer]:
+          - img [ref=e166]
+        - button "Indicator Templates" [ref=e169] [cursor=pointer]:
+          - img [ref=e171]
+        - button "Switch to Light Mode" [ref=e175] [cursor=pointer]:
+          - img [ref=e177]
+        - button "Settings" [ref=e182] [cursor=pointer]:
+          - img [ref=e184]
+        - button "Fullscreen" [ref=e188] [cursor=pointer]:
+          - img [ref=e190]
+        - button "Snapshot" [ref=e194] [cursor=pointer]:
+          - img [ref=e196]
+    - generic [ref=e199]:
+      - generic [ref=e201]:
+        - generic [ref=e203]:
+          - generic "Cross" [ref=e204] [cursor=pointer]:
+            - img [ref=e206]
+          - img [ref=e211] [cursor=pointer]
+        - generic [ref=e215]:
+          - generic "Trend Line" [ref=e216] [cursor=pointer]:
+            - img [ref=e218]
+          - img [ref=e223] [cursor=pointer]
+        - generic [ref=e227]:
+          - generic "Fib Retracement" [ref=e228] [cursor=pointer]:
+            - img [ref=e230]
+          - img [ref=e238] [cursor=pointer]
+        - generic [ref=e242]:
+          - generic "Brush" [ref=e243] [cursor=pointer]:
+            - img [ref=e245]
+          - img [ref=e250] [cursor=pointer]
+        - generic [ref=e254]:
+          - generic "Text" [ref=e255] [cursor=pointer]:
+            - img [ref=e257]
+          - img [ref=e260] [cursor=pointer]
+        - generic [ref=e264]:
+          - generic "Elliott Impulse Wave (12345)" [ref=e265] [cursor=pointer]:
+            - img [ref=e267]
+          - img [ref=e274] [cursor=pointer]
+        - generic [ref=e278]:
+          - generic "Long Position" [ref=e279] [cursor=pointer]:
+            - img [ref=e281]
+          - img [ref=e285] [cursor=pointer]
+        - generic "Measure" [ref=e290] [cursor=pointer]:
+          - img [ref=e292]
+        - generic "Zoom In" [ref=e296] [cursor=pointer]:
+          - img [ref=e298]
+        - generic "Show Timer" [ref=e306] [cursor=pointer]:
+          - img [ref=e308]
+        - generic "Lock All Drawing Tools" [ref=e314] [cursor=pointer]:
+          - img [ref=e316]
+        - generic "Sequential Drawing Mode" [ref=e320] [cursor=pointer]:
+          - img [ref=e322]
+        - generic "Hide All Drawings" [ref=e330] [cursor=pointer]:
+          - img [ref=e332]
+        - generic "Remove Objects" [ref=e336] [cursor=pointer]:
+          - img [ref=e338]
+      - generic [ref=e340]:
+        - generic [ref=e344]:
+          - generic [ref=e346]:
+            - table [ref=e347]:
+              - row [ref=e348]:
+                - cell
+                - cell [ref=e349]
+                - cell [ref=e353]
+              - row [ref=e369]:
+                - cell
+                - cell [ref=e370]
+                - cell [ref=e374]
+            - generic:
+              - button "Zoom Out" [ref=e1825] [cursor=pointer]:
+                - img [ref=e1826]
+              - button "Zoom In" [ref=e1827] [cursor=pointer]:
+                - img [ref=e1828]
+              - button "Scroll Left" [ref=e1830] [cursor=pointer]:
+                - img [ref=e1831]
+              - button "Scroll Right" [ref=e1833] [cursor=pointer]:
+                - img [ref=e1834]
+              - button "Reset View" [ref=e1836] [cursor=pointer]:
+                - img [ref=e1837]
+          - generic:
+            - generic: HINDZINC:NSE
+            - generic: · 1M
+            - generic:
+              - generic:
+                - generic: O
+                - generic: "556.00"
+              - generic:
+                - generic: H
+                - generic: "556.00"
+              - generic:
+                - generic: L
+                - generic: "556.00"
+              - generic:
+                - generic: C
+                - generic: "556.00"
+              - generic:
+                - generic: +0.00 (+0.00%)
+          - generic [ref=e391]:
+            - generic [ref=e392]:
+              - generic [ref=e393]:
+                - generic [ref=e394]: Volume
+                - generic [ref=e395]: "100042.00"
+              - generic [ref=e396]:
+                - generic [ref=e397]: EMA 8
+                - generic [ref=e398]: "556.41"
+              - generic [ref=e399]:
+                - generic [ref=e400]: EMA 21
+                - generic [ref=e401]: "557.27"
+              - generic [ref=e402]:
+                - generic [ref=e403]: VWAP hlc3
+                - generic [ref=e404]: "561.38"
+              - generic [ref=e1814]:
+                - generic [ref=e1815]: Intraday BUY/SELL
+                - generic [ref=e1816]: "--"
+            - generic "Hide indicator legend" [ref=e405] [cursor=pointer]:
+              - img [ref=e406]
+        - generic [ref=e418]:
+          - generic "Drag to resize" [ref=e419]
+          - generic [ref=e421]:
+            - generic [ref=e422]:
+              - img [ref=e423]
+              - generic [ref=e426]: Account Manager
+            - generic [ref=e427]:
+              - generic [ref=e428]:
+                - generic [ref=e429]: Unrealized P&L
+                - generic [ref=e430]: +₹0.00
+              - generic [ref=e431]:
+                - generic [ref=e432]: Realized P&L
+                - generic [ref=e433]: ₹-2,518.33
+              - generic [ref=e434]:
+                - generic [ref=e435]: Available
+                - generic [ref=e436]: ₹1,06,88,680.90
+              - generic [ref=e437]:
+                - generic [ref=e438]: Used
+                - generic [ref=e439]: ₹0.00
+              - generic [ref=e440]:
+                - generic [ref=e441]: Margin Used
+                - generic [ref=e442]: 0.0%
+            - generic [ref=e443]:
+              - button "Refresh data" [ref=e444] [cursor=pointer]:
+                - img [ref=e445]
+              - button "Table Settings" [ref=e450] [cursor=pointer]:
+                - img [ref=e451]
+              - button "Restore panel" [ref=e1789] [cursor=pointer]:
+                - img [ref=e455]
+              - button "Maximize panel" [ref=e456] [cursor=pointer]:
+                - img [ref=e457]
+              - button "Close panel" [ref=e462] [cursor=pointer]:
+                - img [ref=e463]
+        - generic [ref=e486]:
+          - generic [ref=e487]:
+            - generic [ref=e488] [cursor=pointer]: 1D
+            - generic [ref=e489] [cursor=pointer]: 5D
+            - generic [ref=e490] [cursor=pointer]: 1M
+            - generic [ref=e491] [cursor=pointer]: 3M
+            - generic [ref=e492] [cursor=pointer]: 6M
+            - generic [ref=e493] [cursor=pointer]: YTD
+            - generic [ref=e494] [cursor=pointer]: 1Y
+            - generic [ref=e495] [cursor=pointer]: 5Y
+            - generic [ref=e496] [cursor=pointer]: All
+          - generic [ref=e497]:
+            - generic "WebSocket connected - receiving live data" [ref=e498]:
+              - img [ref=e1968]
+            - generic [ref=e503]:
+              - generic [ref=e504]: "Local:"
+              - generic [ref=e505]: 17:21:42
+            - generic [ref=e507]:
+              - generic "Time synced with WorldTimeAPI" [ref=e508]
+              - generic [ref=e509]: "IST:"
+              - generic [ref=e510]: 17:21:45
+            - generic [ref=e513] [cursor=pointer]: UTC+5:30
+            - generic "Toggle Account Manager Panel" [ref=e515] [cursor=pointer]: Account
+            - generic [ref=e517] [cursor=pointer]: log
+            - generic [ref=e518] [cursor=pointer]: auto
+            - generic "Reset Chart View" [ref=e519] [cursor=pointer]: reset
+      - generic [ref=e520]:
+        - generic "Drag to resize" [ref=e521]
+        - generic [ref=e1531]:
+          - generic [ref=e1532]:
+            - generic [ref=e1533]:
+              - img [ref=e1534]
+              - generic [ref=e1535]: Sector Scope
+              - generic [ref=e1953]: "15"
+            - generic [ref=e1537]:
+              - button "Sector" [ref=e1538] [cursor=pointer]
+              - button "Backtest 11 stocks (NIFTY METAL)" [ref=e1843] [cursor=pointer]:
+                - img [ref=e1540]
+              - button "Refresh (auto in 12s)" [ref=e1971] [cursor=pointer]:
+                - img
+                - img [ref=e1543]
+          - generic [ref=e1548]:
+            - button "PHARMA +2.3" [ref=e1549] [cursor=pointer]:
+              - generic [ref=e1550]: PHARMA
+              - generic [ref=e1553]: "+2.3"
+            - button "ENERGY +0.6" [ref=e1554] [cursor=pointer]:
+              - generic [ref=e1555]: ENERGY
+              - generic [ref=e1558]: "+0.6"
+            - button "FMCG +0.4" [ref=e1559] [cursor=pointer]:
+              - generic [ref=e1560]: FMCG
+              - generic [ref=e1563]: "+0.4"
+            - button "MID SELECT +0.0" [ref=e1564] [cursor=pointer]:
+              - generic [ref=e1565]: MID SELECT
+              - generic [ref=e1568]: "+0.0"
+            - button "BANK -0.0" [ref=e1569] [cursor=pointer]:
+              - generic [ref=e1570]: BANK
+              - generic [ref=e1573]: "-0.0"
+            - button "PVT BANK -0.1" [ref=e1574] [cursor=pointer]:
+              - generic [ref=e1575]: PVT BANK
+              - generic [ref=e1578]: "-0.1"
+            - button "FIN SERVICE -0.2" [ref=e1579] [cursor=pointer]:
+              - generic [ref=e1580]: FIN SERVICE
+              - generic [ref=e1583]: "-0.2"
+            - button "PSU BANK -0.3" [ref=e1584] [cursor=pointer]:
+              - generic [ref=e1585]: PSU BANK
+              - generic [ref=e1588]: "-0.3"
+            - button "AUTO -0.4" [ref=e1589] [cursor=pointer]:
+              - generic [ref=e1590]: AUTO
+              - generic [ref=e1593]: "-0.4"
+            - button "REALTY -0.5" [ref=e1594] [cursor=pointer]:
+              - generic [ref=e1595]: REALTY
+              - generic [ref=e1598]: "-0.5"
+            - button "CEMENT -0.6" [ref=e1599] [cursor=pointer]:
+              - generic [ref=e1600]: CEMENT
+              - generic [ref=e1603]: "-0.6"
+            - button "SENSEX -1.0" [ref=e1604] [cursor=pointer]:
+              - generic [ref=e1605]: SENSEX
+              - generic [ref=e1608]: "-1.0"
+            - button "METAL -2.7" [ref=e1609] [cursor=pointer]:
+              - generic [ref=e1610]: METAL
+              - generic [ref=e1613]: "-2.7"
+            - button "IT -2.9" [ref=e1614] [cursor=pointer]:
+              - generic [ref=e1615]: IT
+              - generic [ref=e1618]: "-2.9"
+            - button "50 -3.3" [ref=e1619] [cursor=pointer]:
+              - generic [ref=e1620]: "50"
+              - generic [ref=e1623]: "-3.3"
+          - generic [ref=e1625]:
+            - generic [ref=e1626]:
+              - generic [ref=e1627]: Symbol
+              - generic [ref=e1628]: Pre C
+              - generic [ref=e1629]: "%"
+              - button "R Fact ↓" [ref=e1630] [cursor=pointer]
+              - generic [ref=e1631]: Sig
+            - generic "HINDZINC · click to open chart" [ref=e1845] [cursor=pointer]:
+              - generic [ref=e1846]: HINDZINC
+              - generic [ref=e1847]: "566.8"
+              - generic [ref=e1848]: "-1.99"
+              - generic [ref=e1849]: "4.42"
+              - img [ref=e1851]
+            - generic "SAIL · click to open chart" [ref=e1854] [cursor=pointer]:
+              - generic [ref=e1855]: SAIL
+              - generic [ref=e1856]: "190.56"
+              - generic [ref=e1857]: "-3.76"
+              - generic [ref=e1858]: "2.78"
+              - img [ref=e1860]
+            - generic "JSWSTEEL · click to open chart" [ref=e1863] [cursor=pointer]:
+              - generic [ref=e1864]: JSWSTEEL
+              - generic [ref=e1865]: 1,284
+              - generic [ref=e1866]: "-2.05"
+              - generic [ref=e1867]: "2.72"
+              - img [ref=e1869]
+            - generic "TATASTEEL · click to open chart" [ref=e1872] [cursor=pointer]:
+              - generic [ref=e1873]: TATASTEEL
+              - generic [ref=e1874]: "206.77"
+              - generic [ref=e1875]: "-2.34"
+              - generic [ref=e1876]: "2.68"
+              - img [ref=e1878]
+            - generic "NATIONALUM · click to open chart" [ref=e1881] [cursor=pointer]:
+              - generic [ref=e1882]: NATIONALUM
+              - generic [ref=e1883]: "395.7"
+              - generic [ref=e1884]: "-4.88"
+              - generic [ref=e1885]: "2.65"
+              - img [ref=e1887]
+            - generic "JINDALSTEL · click to open chart" [ref=e1890] [cursor=pointer]:
+              - generic [ref=e1891]: JINDALSTEL
+              - generic [ref=e1892]: 1,181.3
+              - generic [ref=e1893]: "-2.47"
+              - generic [ref=e1894]: "2.54"
+              - img [ref=e1896]
+            - generic "HINDALCO · click to open chart" [ref=e1899] [cursor=pointer]:
+              - generic [ref=e1900]: HINDALCO
+              - generic [ref=e1901]: 1,092.6
+              - generic [ref=e1902]: "-3.72"
+              - generic [ref=e1903]: "2.34"
+              - img [ref=e1905]
+            - generic "NMDC · click to open chart" [ref=e1908] [cursor=pointer]:
+              - generic [ref=e1909]: NMDC
+              - generic [ref=e1910]: "92.9"
+              - generic [ref=e1911]: "-4.06"
+              - generic [ref=e1912]: "1.95"
+              - img [ref=e1914]
+            - generic "APLAPOLLO · click to open chart" [ref=e1917] [cursor=pointer]:
+              - generic [ref=e1918]: APLAPOLLO
+              - generic [ref=e1919]: 1,822.6
+              - generic [ref=e1920]: "-0.52"
+              - generic [ref=e1921]: "1.83"
+              - img [ref=e1923]
+            - generic "VEDL · click to open chart" [ref=e1926] [cursor=pointer]:
+              - generic [ref=e1927]: VEDL
+              - generic [ref=e1928]: "315.6"
+              - generic [ref=e1929]: "-3.87"
+              - generic [ref=e1930]: "1.47"
+              - img [ref=e1932]
+            - generic "ADANIENT · click to open chart" [ref=e1935] [cursor=pointer]:
+              - generic [ref=e1936]: ADANIENT
+              - generic [ref=e1937]: 3,048.2
+              - generic [ref=e1938]: "-2.85"
+              - generic [ref=e1939]: "1.11"
+              - img [ref=e1941]
+          - generic [ref=e1758]:
+            - generic [ref=e1759]: 17:20:51
+            - generic [ref=e1955]: ↻ 12s
+      - generic [ref=e1474]:
+        - generic "Watchlist" [ref=e1475] [cursor=pointer]:
+          - img [ref=e1476]
+        - generic "Object Tree" [ref=e1477] [cursor=pointer]:
+          - img [ref=e1478]
+        - generic "Market Screener" [ref=e1482] [cursor=pointer]:
+          - img [ref=e1483]
+        - generic "Position Flow" [ref=e1485] [cursor=pointer]:
+          - img [ref=e1486]
+        - generic "Breakout Scanner (5m)" [ref=e1489] [cursor=pointer]:
+          - img [ref=e1490]
+        - generic "ANN Scanner" [ref=e1492] [cursor=pointer]:
+          - img [ref=e1493]
+        - generic "CPR Scanner" [ref=e1501] [cursor=pointer]:
+          - img [ref=e1502]
+        - generic "Intraday Boost" [ref=e1506] [cursor=pointer]:
+          - img [ref=e1507]
+        - generic "Sector Scope" [ref=e1509] [cursor=pointer]:
+          - img [ref=e1510]
+        - generic "Alerts" [ref=e1511] [cursor=pointer]:
+          - img [ref=e1512]
+        - generic "Depth of Market" [ref=e1515] [cursor=pointer]:
+          - img [ref=e1516]
+        - generic "Trade Panel" [ref=e1520] [cursor=pointer]:
+          - img [ref=e1521]
+  - generic [ref=e1974]:
+    - generic [ref=e1975]:
+      - heading "Symbol Search" [level=2] [ref=e1976]
+      - button "Close" [ref=e1977] [cursor=pointer]:
+        - img [ref=e1978]
+    - generic [ref=e1982]:
+      - img [ref=e1983]
+      - textbox "Search symbol (e.g. NIFTY, RELIANCE, GOLD)" [active] [ref=e1986]
+    - generic [ref=e1987]:
+      - button "All" [ref=e1988] [cursor=pointer]
+      - button "Stocks" [ref=e1989] [cursor=pointer]
+      - button "Futures" [ref=e1990] [cursor=pointer]
+      - button "Options" [ref=e1991] [cursor=pointer]
+      - button "Indices" [ref=e1992] [cursor=pointer]
+    - generic [ref=e1993]:
+      - generic [ref=e1994]: RECENT
+      - generic [ref=e1995] [cursor=pointer]:
+        - button [ref=e1996]:
+          - img [ref=e1997]
+        - generic [ref=e1999]: 🇮🇳
+        - generic [ref=e2000]: NIFTY_MID_SELECT
+        - generic [ref=e2001]: Nifty MidCap Select Index
+        - generic [ref=e2002]:
+          - generic [ref=e2003]: index
+          - generic [ref=e2004]: NSE
+      - generic [ref=e2005] [cursor=pointer]:
+        - button [ref=e2006]:
+          - img [ref=e2007]
+        - generic [ref=e2009]: B
+        - generic [ref=e2010]: BHARATFORG
+        - generic [ref=e2011]: BHARAT FORGE LTD
+        - generic [ref=e2012]:
+          - generic [ref=e2013]: stock
+          - generic [ref=e2014]: NSE
+      - generic [ref=e2015] [cursor=pointer]:
+        - button [ref=e2016]:
+          - img [ref=e2017]
+        - generic [ref=e2019]: C
+        - generic [ref=e2020]: COALINDIA
+        - generic [ref=e2021]: COAL INDIA LTD
+        - generic [ref=e2022]:
+          - generic [ref=e2023]: stock
+          - generic [ref=e2024]: NSE
+      - generic [ref=e2025] [cursor=pointer]:
+        - button [ref=e2026]:
+          - img [ref=e2027]
+        - generic [ref=e2029]: G
+        - generic [ref=e2030]: GMRAIRPORT
+        - generic [ref=e2031]: GMR AIRPORTS LIMITED
+        - generic [ref=e2032]:
+          - generic [ref=e2033]: stock
+          - generic [ref=e2034]: NSE
+      - generic [ref=e2035] [cursor=pointer]:
+        - button [ref=e2036]:
+          - img [ref=e2037]
+        - generic [ref=e2039]: L
+        - generic [ref=e2040]: LODHA
+        - generic [ref=e2041]: LODHA DEVELOPERS LIMITED
+        - generic [ref=e2042]:
+          - generic [ref=e2043]: stock
+          - generic [ref=e2044]: NSE
+      - generic [ref=e2045] [cursor=pointer]:
+        - button [ref=e2046]:
+          - img [ref=e2047]
+        - generic [ref=e2049]: "N"
+        - generic [ref=e2050]: NYKAA
+        - generic [ref=e2051]: FSN E COMMERCE VENTURES
+        - generic [ref=e2052]:
+          - generic [ref=e2053]: stock
+          - generic [ref=e2054]: NSE
+      - generic [ref=e2055] [cursor=pointer]:
+        - button [ref=e2056]:
+          - img [ref=e2057]
+        - generic [ref=e2059]: P
+        - generic [ref=e2060]: POWERINDIA
+        - generic [ref=e2061]: HITACHI ENERGY INDIA LTD
+        - generic [ref=e2062]:
+          - generic [ref=e2063]: stock
+          - generic [ref=e2064]: NSE
+      - generic [ref=e2065] [cursor=pointer]:
+        - button [ref=e2066]:
+          - img [ref=e2067]
+        - generic [ref=e2069]: A
+        - generic [ref=e2070]: ASIANPAINT
+        - generic [ref=e2071]: ASIAN PAINTS LTD.
+        - generic [ref=e2073]: BSE
+      - generic [ref=e2074] [cursor=pointer]:
+        - button [ref=e2075]:
+          - img [ref=e2076]
+        - generic [ref=e2078]: A
+        - generic [ref=e2079]: ASIANPAINT
+        - generic [ref=e2080]: ASIAN PAINTS LIMITED
+        - generic [ref=e2081]:
+          - generic [ref=e2082]: stock
+          - generic [ref=e2083]: NSE
+      - generic [ref=e2084] [cursor=pointer]:
+        - button [ref=e2085]:
+          - img [ref=e2086]
+        - generic [ref=e2088]: "50"
+        - generic [ref=e2089]: NIFTY
+        - generic [ref=e2090]: Nifty 50 Index
+        - generic [ref=e2091]:
+          - generic [ref=e2092]: index
+          - generic [ref=e2093]: NSE
+      - generic [ref=e2094]: POPULAR
+      - option "Add to favorites 🏦 BANKNIFTY Nifty Bank Index index NSE" [ref=e2095] [cursor=pointer]:
+        - button "Add to favorites" [ref=e2096]:
+          - img [ref=e2097]
+        - generic [ref=e2099]: 🏦
+        - generic [ref=e2100]: BANKNIFTY
+        - generic [ref=e2101]: Nifty Bank Index
+        - generic [ref=e2102]:
+          - generic [ref=e2103]: index
+          - generic [ref=e2104]: NSE
+      - option "Add to favorites 🇮🇳 CNXSMALLCAP Nifty SmallCap 100 Index index NSE" [ref=e2105] [cursor=pointer]:
+        - button "Add to favorites" [ref=e2106]:
+          - img [ref=e2107]
+        - generic [ref=e2109]: 🇮🇳
+        - generic [ref=e2110]: CNXSMALLCAP
+        - generic [ref=e2111]: Nifty SmallCap 100 Index
+        - generic [ref=e2112]:
+          - generic [ref=e2113]: index
+          - generic [ref=e2114]: NSE
+      - option "Add to favorites 🇮🇳 CNXIT Nifty IT Index index NSE" [ref=e2115] [cursor=pointer]:
+        - button "Add to favorites" [ref=e2116]:
+          - img [ref=e2117]
+        - generic [ref=e2119]: 🇮🇳
+        - generic [ref=e2120]: CNXIT
+        - generic [ref=e2121]: Nifty IT Index
+        - generic [ref=e2122]:
+          - generic [ref=e2123]: index
+          - generic [ref=e2124]: NSE
+      - option "Add to favorites 🇮🇳 CNXFINANCE Nifty Financial Services Index index NSE" [ref=e2125] [cursor=pointer]:
+        - button "Add to favorites" [ref=e2126]:
+          - img [ref=e2127]
+        - generic [ref=e2129]: 🇮🇳
+        - generic [ref=e2130]: CNXFINANCE
+        - generic [ref=e2131]: Nifty Financial Services Index
+        - generic [ref=e2132]:
+          - generic [ref=e2133]: index
+          - generic [ref=e2134]: NSE
+      - option "Add to favorites R RELIANCE Reliance Industries Ltd stock NSE" [ref=e2135] [cursor=pointer]:
+        - button "Add to favorites" [ref=e2136]:
+          - img [ref=e2137]
+        - generic [ref=e2139]: R
+        - generic [ref=e2140]: RELIANCE
+        - generic [ref=e2141]: Reliance Industries Ltd
+        - generic [ref=e2142]:
+          - generic [ref=e2143]: stock
+          - generic [ref=e2144]: NSE
+      - option "Add to favorites T TCS Tata Consultancy Services stock NSE" [ref=e2145] [cursor=pointer]:
+        - button "Add to favorites" [ref=e2146]:
+          - img [ref=e2147]
+        - generic [ref=e2149]: T
+        - generic [ref=e2150]: TCS
+        - generic [ref=e2151]: Tata Consultancy Services
+        - generic [ref=e2152]:
+          - generic [ref=e2153]: stock
+          - generic [ref=e2154]: NSE
+      - option "Add to favorites I INFY Infosys Ltd stock NSE" [ref=e2155] [cursor=pointer]:
+        - button "Add to favorites" [ref=e2156]:
+          - img [ref=e2157]
+        - generic [ref=e2159]: I
+        - generic [ref=e2160]: INFY
+        - generic [ref=e2161]: Infosys Ltd
+        - generic [ref=e2162]:
+          - generic [ref=e2163]: stock
+          - generic [ref=e2164]: NSE
+      - option "Add to favorites H HDFCBANK HDFC Bank Ltd stock NSE" [ref=e2165] [cursor=pointer]:
+        - button "Add to favorites" [ref=e2166]:
+          - img [ref=e2167]
+        - generic [ref=e2169]: H
+        - generic [ref=e2170]: HDFCBANK
+        - generic [ref=e2171]: HDFC Bank Ltd
+        - generic [ref=e2172]:
+          - generic [ref=e2173]: stock
+          - generic [ref=e2174]: NSE
+  - alert [ref=e1801]:
+    - img [ref=e1803]
+    - generic [ref=e1805]: "Error:"
+    - button "Dismiss notification" [ref=e1806] [cursor=pointer]:
+      - img [ref=e1807]

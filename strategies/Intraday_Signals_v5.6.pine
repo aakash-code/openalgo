@@ -1,0 +1,1330 @@
+//@version=6
+indicator("Intraday Signals & Risk Calculator [India v5.6]", overlay=true, max_labels_count=500, max_lines_count=500, max_boxes_count=500)
+max_bars_back(time, 500)
+
+// ==========================================
+// PART 1: INTRADAY BUY/SELL & AUTO SL
+// ==========================================
+
+g0 = "0) Mode"
+enhancedMode = input.bool(true, title="Enhanced Mode — EXPERIMENTAL (Entry Lines + Zone Suppression + SL-mode)", group=g0, tooltip="EXPERIMENTAL FEATURES:\n• Adds an ENTRY dashed line at the signal candle's close.\n• Two-color zone fill: RED baseline→entry (pre-entry), GREEN entry→favorable (profit).\n• Suppresses opposite signals while price is inside the active red zone.\n• On SL hit, auto-creates the opposite signal on that candle with both dashed lines (SL at candle high/low, entry at close).\n• After the first SL-hit in a session/day, SL-mode only: normal single/double signals are disabled for the rest of the session.\n\nTurn OFF to restore the original (classic) behavior.")
+
+g1 = "1) Session"
+sessStr = input.session("0915-1525", "Session Window (Exchange Time)", group=g1)
+
+g2 = "2) Signals"
+enableBuy    = input.bool(true,  "Enable Buy Signal", group=g2)
+enableSell   = input.bool(true,  "Enable Sell Signal", group=g2)
+enableDouble = input.bool(true,  "Enable Double-Candle Breakouts", group=g2)
+uniqueSignal = input.bool(false, "Allow Multiple Signals", group=g2)
+
+g3 = "3) Visual — Markers"
+buyColor       = input.color(color.rgb(0, 145, 75), "Buy Color",  group=g3)
+sellColor      = input.color(color.rgb(158, 0, 0),  "Sell Color", group=g3)
+signalTextSize = input.string("Tiny", "Text/Marker Size", options=["Tiny","Small","Normal","Large","Huge"], group=g3)
+yOffsetTicks   = input.int(150, "Vertical Offset (ticks)", minval=0, group=g3)
+
+g4 = "4) Visual — Lines"
+showLines      = input.bool(true, "Show Horizontal Lines", group=g4)
+buyLineColor   = input.color(color.new(#00974e, 0), "Buy Line Color", group=g4)
+sellLineColor  = input.color(color.new(#a30000, 0), "Sell Line Color", group=g4)
+lineStyleInput = input.string("Dashed", "Line Style", options=["Solid","Dashed","Dotted"], group=g4)
+lineWidth      = input.int(1, "Line Width", minval=1, maxval=5, group=g4)
+entryBuyLineColor  = input.color(color.new(#00974e, 30), "Buy Entry Line Color (Enhanced)", group=g4)
+entrySellLineColor = input.color(color.new(#a30000, 30), "Sell Entry Line Color (Enhanced)", group=g4)
+
+g5 = "5) Visual — Break Candle Paint"
+paintBreakCandle = input.bool(true, "Paint Breaking Candle", group=g5)
+breakBullColor   = input.color(color.new(#4caf4f, 50), "Bull Break Paint", group=g5)
+breakBearColor   = input.color(color.new(#ff5252, 50), "Bear Break Paint",  group=g5)
+
+g6 = "6) Visual — Line→Price Gradient"
+enableGradient = input.bool(true,  "Enable Line-Age Gradient", group=g6)
+gradientBars   = input.int(100,    "Bars To Max Opacity", minval=1, group=g6)
+startTransp    = input.int(95,     "Start Transparency", minval=0, maxval=100, group=g6)
+endTransp      = input.int(70,     "Max Opacity Transparency", minval=0, maxval=100, group=g6)
+
+g7 = "7) VWAP Filter"
+useVWAPFilter = input.bool(true, "Enable VWAP Filter", group=g7, tooltip="If enabled, Buy signals only occur above VWAP and Sell signals only occur below VWAP.")
+showVWAP      = input.bool(true, "Show VWAP Line", group=g7)
+vwapColor     = input.color(color.new(color.gray, 50), "VWAP Color", group=g7)
+
+g8 = "8) ATR Volatility SL (Experimental)"
+useATRSL      = input.bool(false, "Use ATR-based Stop Loss", group=g8, tooltip="If enabled, SL will be calculated as Entry +/- (ATR * Multiplier) instead of recent High/Low.")
+atrLen        = input.int(14, "ATR Period", minval=1, group=g8)
+atrMult       = input.float(1.5, "ATR Multiplier", minval=0.1, step=0.1, group=g8)
+
+g9 = "9) MTF Trend Filter"
+useMTFFilter  = input.bool(false, "Enable MTF Trend Filter", group=g9, tooltip="If enabled, Buy signals only fire when the Higher Timeframe is Bullish, and vice versa.")
+htfPeriod     = input.timeframe("60", "Higher Timeframe", group=g9)
+htfEmaLen     = input.int(200, "HTF Trend EMA Length", minval=1, group=g9)
+
+g10 = "10) Volume Confirmation"
+useVolFilter  = input.bool(false, "Enable Volume Spike Filter", group=g10, tooltip="If enabled, signals only fire if the breaking candle's volume is significantly higher than average.")
+volLookback   = input.int(10, "Volume Average Period", minval=1, group=g10)
+volMultiplier = input.float(1.5, "Volume Multiplier", minval=0.1, step=0.1, group=g10, tooltip="Breakout volume must be > (Average * Multiplier)")
+
+g11 = "11) Sideways Filter (ADX)"
+useADXFilter  = input.bool(false, "Enable ADX Filter", group=g11, tooltip="If enabled, signals only fire if the ADX is above the threshold, avoiding sideways/choppy markets.")
+adxLen        = input.int(14, "ADX Period", minval=1, group=g11)
+adxThreshold  = input.int(20, "ADX Threshold", minval=1, group=g11, tooltip="ADX > 20 indicates a trending market. < 20 indicates sideways chop.")
+
+g12 = "12) VWAP Chop Filter"
+useVWAPChopFilter = input.bool(false, "Enable VWAP Chop Filter", group=g12, tooltip="If enabled, signals are suppressed if the price has crossed or touched VWAP too many times recently (indicating lack of trend).")
+vwapChopLookback  = input.int(15, "Lookback Period", minval=5, group=g12, tooltip="Number of recent candles to check for VWAP touches.")
+vwapChopMaxTouches= input.int(3, "Max Allowed Touches", minval=1, group=g12, tooltip="Maximum number of times price can touch VWAP within the lookback period.")
+
+sizeVal = switch signalTextSize
+    "Tiny"   => size.tiny
+    "Small"  => size.small
+    "Normal" => size.normal
+    "Large"  => size.large
+    "Huge"   => size.huge
+    => size.normal
+
+styleSel = switch lineStyleInput
+    "Solid"  => line.style_solid
+    "Dashed" => line.style_dashed
+    "Dotted" => line.style_dotted
+    => line.style_dashed
+
+// ATR Calculation
+atrVal = ta.atr(atrLen)
+atrDist = atrVal * atrMult
+
+// VWAP Calculation
+vwapVal = ta.vwap
+vwapBuyCond  = not useVWAPFilter or close > vwapVal
+vwapSellCond = not useVWAPFilter or close < vwapVal
+
+// VWAP Chop Filter Calculation
+vwapTouch = (high >= vwapVal and low <= vwapVal) ? 1 : 0
+vwapTouchCount = math.sum(vwapTouch, vwapChopLookback)
+vwapChopCond = not useVWAPChopFilter or (vwapTouchCount <= vwapChopMaxTouches)
+
+// MTF Trend Calculation
+htfEma = request.security(syminfo.tickerid, htfPeriod, ta.ema(close, htfEmaLen), lookahead=barmerge.lookahead_on)
+htfClose = request.security(syminfo.tickerid, htfPeriod, close, lookahead=barmerge.lookahead_on)
+htfBullish = htfClose > htfEma
+htfBearish = htfClose < htfEma
+
+mtfBuyCond  = not useMTFFilter or htfBullish
+mtfSellCond = not useMTFFilter or htfBearish
+
+// Volume Spike Calculation
+avgVol = ta.sma(volume, volLookback)
+volSpikeCond = not useVolFilter or (volume > avgVol * volMultiplier)
+
+// ADX Sideways Filter Calculation
+[diplus, diminus, adxValue] = ta.dmi(adxLen, adxLen)
+adxCond = not useADXFilter or (adxValue >= adxThreshold)
+
+var label[] sessionLabels = array.new_label()
+var line[]  lines   = array.new_line()
+var float[] levels  = array.new_float()
+var int[]   kinds   = array.new_int()
+var bool[]  actives = array.new_bool()
+var int[]   bornBar = array.new_int()
+
+var line[]  entryLines  = array.new_line()
+var float[] entryPrices = array.new_float()
+var int[]   entryBars   = array.new_int()
+
+var bool slModeOnly = false
+var int  lastSignal = 0
+
+// Latest signal generated in the CURRENT session — drives the risk panel.
+var int   lastSigDir   = 0
+var float lastSigEntry = na
+var float lastSigSL    = na
+var int   lastSigStart = na
+
+// SL% locked at signal-fire time; quantity is computed in Part 2 where balance/maxLossPct are declared.
+var float lockedSLPct = na
+
+float activeBuyLvl    = na
+float activeSellLvl   = na
+int   activeBuyStart  = na
+int   activeSellStart = na
+float activeBuyEntry  = na
+float activeSellEntry = na
+
+inSess      = not na(time(timeframe.period, sessStr))
+inSessInt   = inSess ? 1 : 0
+prev1InSess = nz(inSessInt[1], 0) == 1
+prev2InSess = nz(inSessInt[2], 0) == 1
+newSession  = inSess and not prev1InSess
+var int sessBar = na
+sessBar := inSess ? (prev1InSess ? nz(sessBar[1], -1) + 1 : 0) : na
+
+if newSession
+    szLab = array.size(sessionLabels)
+    if szLab > 0
+        for i = 0 to szLab - 1
+            label.delete(array.get(sessionLabels, i))
+    array.clear(sessionLabels)
+    szDel = array.size(lines)
+    if szDel > 0
+        for i = 0 to szDel - 1
+            line.delete(array.get(lines, i))
+    array.clear(lines), array.clear(levels), array.clear(kinds), array.clear(actives), array.clear(bornBar)
+    szEL = array.size(entryLines)
+    if szEL > 0
+        for i = 0 to szEL - 1
+            line.delete(array.get(entryLines, i))
+    array.clear(entryLines), array.clear(entryPrices), array.clear(entryBars)
+    lastSignal := 0
+    slModeOnly := false
+    lastSigDir   := 0
+    lastSigEntry := na
+    lastSigSL    := na
+    lastSigStart := na
+    lockedSLPct  := na
+
+isGreen    = close > open
+isRed      = close < open
+prevGreen  = prev1InSess and close[1] > open[1]
+prevRed    = prev1InSess and close[1] < open[1]
+prev2Green = prev2InSess and close[2] > open[2]
+prev2Red   = prev2InSess and close[2] < open[2]
+
+buy1  = inSess and enableBuy  and isGreen and prevRed                 and (close > high[1])
+sell1 = inSess and enableSell and isRed   and prevGreen               and (close < low[1])
+buy2  = enableDouble and inSess and enableBuy  and isGreen and prevGreen  and prev2Red   and (close > high[2])
+sell2 = enableDouble and inSess and enableSell and isRed   and prevRed    and prev2Green and (close < low[2])
+
+buyCondBase  = buy1 or buy2
+sellCondBase = sell1 or sell2
+
+hasActiveBuy  = false
+hasActiveSell = false
+szChk = array.size(lines)
+if szChk > 0
+    for i = 0 to szChk - 1
+        if array.get(actives, i)
+            hasActiveBuy  := hasActiveBuy  or array.get(kinds, i) ==  1
+            hasActiveSell := hasActiveSell or array.get(kinds, i) == -1
+
+buyCond  = buyCondBase  and (uniqueSignal ? (lastSignal !=  1) : (not hasActiveBuy)) and not newSession
+sellCond = sellCondBase and (uniqueSignal ? (lastSignal != -1) : (not hasActiveSell)) and not newSession
+
+brokeThisBar = false
+forcedOppositeDone = false
+bool blockBuyThisBar  = false
+bool blockSellThisBar = false
+
+szBrk = array.size(lines)
+if szBrk > 0
+    for i = 0 to szBrk - 1
+        if array.get(actives, i)
+            k   = array.get(kinds, i)
+            lvl = array.get(levels, i)
+            bAt = array.get(bornBar, i)
+            brk = (k ==  1 and close < lvl and bar_index > bAt) or (k == -1 and close > lvl and bar_index > bAt)
+            if brk
+                ln = array.get(lines, i)
+                line.set_extend(ln, extend.none)
+                line.set_x2(ln, bar_index)
+                line.set_y2(ln, lvl)
+                if enhancedMode and array.size(entryLines) > i
+                    eln = array.get(entryLines, i)
+                    line.set_extend(eln, extend.none)
+                    line.set_x2(eln, bar_index)
+                    line.set_y2(eln, array.get(entryPrices, i))
+                array.set(actives, i, false)
+                brokeThisBar := true
+                if enhancedMode and not forcedOppositeDone and showLines
+                    if k == 1 and vwapSellCond and mtfSellCond and volSpikeCond and adxCond and vwapChopCond
+                        y  = high + syminfo.mintick * yOffsetTicks
+                        array.push(sessionLabels, label.new(bar_index, y, "", style=label.style_triangledown, textcolor=color.white, color=sellColor, size=sizeVal))
+                        lvlNew = high
+                        float slLvlNew1 = useATRSL ? (close + atrDist) : lvlNew
+                        lnNew  = line.new(bar_index - 1, slLvlNew1, bar_index, slLvlNew1, xloc.bar_index, extend.right, sellLineColor, styleSel, lineWidth)
+                        array.push(lines, lnNew), array.push(levels, slLvlNew1), array.push(kinds, -1), array.push(actives, true), array.push(bornBar, bar_index)
+                        activeSellLvl := slLvlNew1
+                        activeSellStart := bar_index
+                        if showLines
+                            epxNew = close
+                            elnNew = line.new(bar_index - 1, epxNew, bar_index, epxNew, xloc.bar_index, extend.right, entrySellLineColor, styleSel, lineWidth)
+                            array.push(entryLines, elnNew), array.push(entryPrices, epxNew), array.push(entryBars, bar_index)
+                            activeSellEntry := epxNew
+                        lastSignal := -1
+                        lastSigDir := -1
+                        lastSigEntry := close
+                        lastSigSL := useATRSL ? (close + atrDist) : lvlNew
+                        lastSigStart := bar_index
+                        float _ld1 = useATRSL ? atrDist : math.abs(close - lvlNew)
+                        lockedSLPct := close > 0 and _ld1 > 0 ? (_ld1 / close) * 100 : na
+                        blockSellThisBar := true
+                        slModeOnly := true
+                        forcedOppositeDone := true
+                    else if k == -1 and vwapBuyCond and mtfBuyCond and volSpikeCond and adxCond and vwapChopCond
+                        y  = low - syminfo.mintick * yOffsetTicks
+                        array.push(sessionLabels, label.new(bar_index, y, "", style=label.style_triangleup, textcolor=color.white, color=buyColor, size=sizeVal))
+                        lvlNew = low
+                        float slLvlNew2 = useATRSL ? (close - atrDist) : lvlNew
+                        lnNew  = line.new(bar_index - 1, slLvlNew2, bar_index, slLvlNew2, xloc.bar_index, extend.right, buyLineColor, styleSel, lineWidth)
+                        array.push(lines, lnNew), array.push(levels, slLvlNew2), array.push(kinds, 1), array.push(actives, true), array.push(bornBar, bar_index)
+                        activeBuyLvl := slLvlNew2
+                        activeBuyStart := bar_index
+                        if showLines
+                            epxNew = close
+                            elnNew = line.new(bar_index - 1, epxNew, bar_index, epxNew, xloc.bar_index, extend.right, entryBuyLineColor, styleSel, lineWidth)
+                            array.push(entryLines, elnNew), array.push(entryPrices, epxNew), array.push(entryBars, bar_index)
+                            activeBuyEntry := epxNew
+                        lastSignal := 1
+                        lastSigDir := 1
+                        lastSigEntry := close
+                        lastSigSL := useATRSL ? (close - atrDist) : lvlNew
+                        lastSigStart := bar_index
+                        float _ld2 = useATRSL ? atrDist : math.abs(close - lvlNew)
+                        lockedSLPct := close > 0 and _ld2 > 0 ? (_ld2 / close) * 100 : na
+                        blockBuyThisBar := true
+                        slModeOnly := true
+                        forcedOppositeDone := true
+
+szAct = array.size(lines)
+if szAct > 0
+    for i = 0 to szAct - 1
+        if array.get(actives, i)
+            if array.get(kinds, i) ==  1
+                activeBuyLvl    := array.get(levels, i)
+                activeBuyStart  := array.get(bornBar, i)
+                if enhancedMode and array.size(entryPrices) > i
+                    activeBuyEntry := array.get(entryPrices, i)
+            if array.get(kinds, i) == -1
+                activeSellLvl    := array.get(levels, i)
+                activeSellStart  := array.get(bornBar, i)
+                if enhancedMode and array.size(entryPrices) > i
+                    activeSellEntry := array.get(entryPrices, i)
+
+insideBuyRedZone  = enhancedMode and not na(activeBuyLvl)  and not na(activeBuyEntry)  and close >= math.min(activeBuyLvl,  activeBuyEntry)  and close <= math.max(activeBuyLvl,  activeBuyEntry)
+insideSellRedZone = enhancedMode and not na(activeSellLvl) and not na(activeSellEntry) and close >= math.min(activeSellEntry, activeSellLvl) and close <= math.max(activeSellEntry, activeSellLvl)
+
+buyFire  = (enhancedMode ? (buyCond  and not insideSellRedZone and not slModeOnly) : buyCond) and vwapBuyCond and mtfBuyCond and volSpikeCond and adxCond and vwapChopCond
+sellFire = (enhancedMode ? (sellCond and not insideBuyRedZone  and not slModeOnly) : sellCond) and vwapSellCond and mtfSellCond and volSpikeCond and adxCond and vwapChopCond
+
+if buyFire and not blockBuyThisBar
+    y = low - syminfo.mintick * yOffsetTicks
+    array.push(sessionLabels, label.new(bar_index, y, "", style=label.style_triangleup, textcolor=color.white, color=buyColor, size=sizeVal))
+    lvl = buy1 ? math.min(low, low[1]) : math.min(low, math.min(low[1], low[2]))
+    float slLvl = useATRSL ? (close - atrDist) : lvl
+    ln  = line.new(bar_index - 1, slLvl, bar_index, slLvl, xloc.bar_index, extend.right, buyLineColor, styleSel, lineWidth)
+    array.push(lines, ln), array.push(levels, slLvl), array.push(kinds, 1), array.push(actives, true), array.push(bornBar, bar_index)
+    activeBuyLvl := slLvl
+    activeBuyStart := bar_index
+    if enhancedMode and showLines
+        epx = close
+        eln = line.new(bar_index - 1, epx, bar_index, epx, xloc.bar_index, extend.right, entryBuyLineColor, styleSel, lineWidth)
+        array.push(entryLines, eln), array.push(entryPrices, epx), array.push(entryBars, bar_index)
+        activeBuyEntry := epx
+    lastSignal := 1
+    lastSigDir := 1
+    lastSigEntry := close
+    lastSigSL := useATRSL ? (close - atrDist) : lvl
+    lastSigStart := bar_index
+    float _buyDist = useATRSL ? atrDist : math.abs(close - lvl)
+    lockedSLPct := close > 0 and _buyDist > 0 ? (_buyDist / close) * 100 : na
+
+if sellFire and not blockSellThisBar
+    y = high + syminfo.mintick * yOffsetTicks
+    array.push(sessionLabels, label.new(bar_index, y, "", style=label.style_triangledown, textcolor=color.white, color=sellColor, size=sizeVal))
+    lvl = sell1 ? math.max(high, high[1]) : math.max(high, math.max(high[1], high[2]))
+    float slLvl2 = useATRSL ? (close + atrDist) : lvl
+    ln  = line.new(bar_index - 1, slLvl2, bar_index, slLvl2, xloc.bar_index, extend.right, sellLineColor, styleSel, lineWidth)
+    array.push(lines, ln), array.push(levels, slLvl2), array.push(kinds, -1), array.push(actives, true), array.push(bornBar, bar_index)
+    activeSellLvl := slLvl2
+    activeSellStart := bar_index
+    if enhancedMode and showLines
+        epx = close
+        eln = line.new(bar_index - 1, epx, bar_index, epx, xloc.bar_index, extend.right, entrySellLineColor, styleSel, lineWidth)
+        array.push(entryLines, eln), array.push(entryPrices, epx), array.push(entryBars, bar_index)
+        activeSellEntry := epx
+    lastSignal := -1
+    lastSigDir := -1
+    lastSigEntry := close
+    lastSigSL := useATRSL ? (close + atrDist) : lvl
+    lastSigStart := bar_index
+    float _sellDist = useATRSL ? atrDist : math.abs(close - lvl)
+    lockedSLPct := close > 0 and _sellDist > 0 ? (_sellDist / close) * 100 : na
+
+buyActive  = not na(activeBuyLvl)  and showLines
+sellActive = not na(activeSellLvl) and showLines
+
+buyAge    = buyActive  ? bar_index - activeBuyStart  : 0
+sellAge   = sellActive ? bar_index - activeSellStart : 0
+ratioBuy  = buyActive  ? math.min(1.0, buyAge  / gradientBars) : 0.0
+ratioSell = sellActive ? math.min(1.0, sellAge / gradientBars) : 0.0
+transpBuy  = math.round(startTransp + (endTransp - startTransp) * ratioBuy)
+transpSell = math.round(startTransp + (endTransp - startTransp) * ratioSell)
+
+currHighBody = isGreen ? close : open
+currLowBody  = isGreen ? open  : close
+
+pBuyPreTop   = plot(enhancedMode and buyActive  and not na(activeBuyEntry)  ? activeBuyEntry : na, color=na)
+pBuyPreBot   = plot(enhancedMode and buyActive                              ? activeBuyLvl   : na, color=na)
+pBuyProfTop  = plot(enhancedMode and buyActive  and not na(activeBuyEntry) and (currHighBody > activeBuyEntry) ? currHighBody   : na, color=na)
+pBuyProfBot  = plot(enhancedMode and buyActive  and not na(activeBuyEntry) and (currHighBody > activeBuyEntry) ? activeBuyEntry : na, color=na)
+
+pSellPreTop  = plot(enhancedMode and sellActive                             ? activeSellLvl   : na, color=na)
+pSellPreBot  = plot(enhancedMode and sellActive and not na(activeSellEntry) ? activeSellEntry : na, color=na)
+pSellProfTop = plot(enhancedMode and sellActive and not na(activeSellEntry) and (currLowBody < activeSellEntry) ? activeSellEntry : na, color=na)
+pSellProfBot = plot(enhancedMode and sellActive and not na(activeSellEntry) and (currLowBody < activeSellEntry) ? currLowBody    : na, color=na)
+
+pC_BuyTop  = plot((not enhancedMode) and buyActive  ? activeBuyLvl             : na, color=na)
+pC_BuyBot  = plot((not enhancedMode) and buyActive  ? (isGreen ? open : close) : na, color=na)
+pC_SellTop = plot((not enhancedMode) and sellActive ? (isGreen ? close : open) : na, color=na)
+pC_SellBot = plot((not enhancedMode) and sellActive ? activeSellLvl            : na, color=na)
+
+fill(pBuyPreTop,  pBuyPreBot,  color = (enhancedMode and enableGradient and buyActive)  ? color.new(sellLineColor, transpBuy)  : na)
+fill(pBuyProfTop, pBuyProfBot, color = (enhancedMode and enableGradient and buyActive)  ? color.new(buyLineColor,  transpBuy)  : na)
+fill(pSellPreTop, pSellPreBot, color = (enhancedMode and enableGradient and sellActive) ? color.new(sellLineColor, transpSell) : na)
+fill(pSellProfTop,pSellProfBot,color = (enhancedMode and enableGradient and sellActive) ? color.new(buyLineColor,  transpSell) : na)
+
+fill(pC_BuyTop,  pC_BuyBot,  color = ((not enhancedMode) and enableGradient and buyActive)  ? color.new(buyLineColor,  transpBuy)  : na)
+fill(pC_SellTop, pC_SellBot, color = ((not enhancedMode) and enableGradient and sellActive) ? color.new(sellLineColor, transpSell) : na)
+
+plot(showVWAP ? vwapVal : na, "VWAP Line", color=vwapColor, linewidth=1)
+
+barcolor(paintBreakCandle and brokeThisBar and not (inSess and sessBar == 0) ? (close >= open ? breakBullColor : breakBearColor) : na)
+
+alertcondition(buyFire,  "Buy Signal",  "Buy Signal: Confirmed by VWAP, MTF, Vol, ADX & Chop Filter")
+alertcondition(sellFire, "Sell Signal", "Sell Signal: Confirmed by VWAP, MTF, Vol, ADX & Chop Filter")
+
+// ==========================================
+// PART 2: RISK CALCULATOR [India v5.6]
+// ==========================================
+
+// ==================== ACCOUNT SETTINGS ====================
+grpAccount = "RC 1) ACCOUNT"
+balance = input.float(311000, "Balance", minval=1, group=grpAccount, tooltip="Your trading capital")
+leverage = input.float(5, "Leverage", minval=1, maxval=100, step=1, group=grpAccount, tooltip="Broker leverage (5x = 20% margin)")
+tradeSegment = input.string("Equity Intraday", "Segment", options=["Equity Delivery", "Equity Intraday", "F&O Futures", "F&O Options"], group=grpAccount, tooltip="Trading segment for charges calculation")
+exchange = input.string("NSE", "Exchange", options=["NSE", "BSE"], group=grpAccount)
+
+// ==================== TRADE SETTINGS ====================
+grpTrade = "RC 2) TRADE LEVELS"
+startDate = input.time(timestamp("2026-01-24 09:15"), "Start", group=grpTrade, tooltip="Start time for drawing")
+entryPrice = input.price(defval=0, title="Entry", group=grpTrade)
+targetPrice = input.price(defval=0, title="Target 1 (T1)", group=grpTrade)
+stopLossPrice = input.price(defval=0, title="Stop Loss", group=grpTrade)
+maxLossPct = input.float(1, "Max Loss (%)", minval=0.1, maxval=100, step=0.1, group=grpTrade, tooltip="Maximum % of capital to risk per trade")
+
+// ==================== MULTIPLE TARGETS ====================
+grpTargets = "RC 3) MULTIPLE TARGETS"
+enableT2 = input.bool(true, "Enable Target 2 (T2)", group=grpTargets, tooltip="Show T2 on chart with calculations")
+target2Price = input.price(defval=0, title="Target 2 (T2) Price", group=grpTargets, tooltip="Drag on chart to set T2 level")
+
+enableT3 = input.bool(true, "Enable Target 3 (T3)", group=grpTargets, tooltip="Show T3 on chart with calculations")
+target3Price = input.price(defval=0, title="Target 3 (T3) Price", group=grpTargets, tooltip="Drag on chart to set T3 level")
+
+enableT4 = input.bool(true, "Enable Target 4 (T4)", group=grpTargets, tooltip="Show T4 on chart with calculations")
+target4Price = input.price(defval=0, title="Target 4 (T4) Price", group=grpTargets, tooltip="Drag on chart to set T4 level")
+
+enableT5 = input.bool(true, "Enable Target 5 (T5)", group=grpTargets, tooltip="Show T5 on chart with calculations")
+target5Price = input.price(defval=0, title="Target 5 (T5) Price", group=grpTargets, tooltip="Drag on chart to set T5 level")
+
+enableT6 = input.bool(true, "Enable Target 6 (T6)", group=grpTargets, tooltip="Show T6 on chart with calculations")
+target6Price = input.price(defval=0, title="Target 6 (T6) Price", group=grpTargets, tooltip="Drag on chart to set T6 level")
+
+// ==================== PARTIAL BOOKING ====================
+grpPartial = "RC 4) PARTIAL BOOKING"
+enablePartial = input.bool(true, "Enable Partial Booking", group=grpPartial, tooltip="Split position exit across T1/T2/T3 and calculate combined net P&L")
+t1BookPct = input.float(30, "T1 Exit %", minval=1, maxval=100, step=5, group=grpPartial, tooltip="% of total position to exit at T1")
+t2BookPct = input.float(40, "T2 Exit %", minval=1, maxval=100, step=5, group=grpPartial, tooltip="% of total position to exit at T2")
+t3BookPct = input.float(30, "T3 Exit %", minval=1, maxval=100, step=5, group=grpPartial, tooltip="% of total position to exit at T3")
+
+// ==================== POSITION SETTINGS ====================
+grpPosition = "RC 5) POSITION"
+extendBars = input.int(20, "Extend", minval=1, maxval=200, group=grpPosition)
+rc_textSize = input.string("normal", "Size", options=["tiny", "small", "normal", "large", "huge"], group=grpPosition)
+entryColorInput = input.color(color.rgb(33, 150, 243), "Entry", inline="colors", group=grpPosition)
+targetColorInput = input.color(color.rgb(76, 175, 80), "Take Profit", inline="colors", group=grpPosition)
+target2ColorInput = input.color(color.rgb(0, 150, 136), "Target 2", inline="colors2", group=grpPosition)
+target3ColorInput = input.color(color.rgb(0, 188, 212), "Target 3", inline="colors2", group=grpPosition)
+target4ColorInput = input.color(color.rgb(156, 39, 176), "Target 4", inline="colors4", group=grpPosition)
+target5ColorInput = input.color(color.rgb(103, 58, 183), "Target 5", inline="colors4", group=grpPosition)
+target6ColorInput = input.color(color.rgb(63, 81, 181), "Target 6", inline="colors4", group=grpPosition)
+stopColorInput = input.color(color.rgb(244, 67, 54), "Stop Loss", inline="colors3", group=grpPosition)
+
+// Display toggles
+grpDisplay = "RC 6) DISPLAY OPTIONS"
+showValue = input.bool(true, "Value", inline="disp1", group=grpDisplay)
+showMargin = input.bool(true, "Margin", inline="disp1", group=grpDisplay)
+showRR = input.bool(true, "RR", inline="disp1", group=grpDisplay)
+showPL = input.bool(true, "P&L", inline="disp2", group=grpDisplay)
+showROI = input.bool(true, "ROI", inline="disp2", group=grpDisplay)
+showPoints = input.bool(true, "Points", inline="disp2", group=grpDisplay)
+showLiveStatus = input.bool(true, "Live Status", inline="disp3", group=grpDisplay)
+showCharges = input.bool(true, "Charges", inline="disp3", group=grpDisplay)
+
+// ==================== TABLE SETTINGS ====================
+grpTable = "RC 7) TABLE"
+showTable = input.bool(true, "Show Table", group=grpTable)
+tableYPos = input.string("top", "Position", options=["top", "middle", "bottom"], inline="tblpos", group=grpTable)
+tableXPos = input.string("right", "", options=["left", "center", "right"], inline="tblpos", group=grpTable)
+headerTextColor = input.color(color.white, "Header", inline="tblclr", group=grpTable)
+headerBgColor = input.color(color.rgb(30, 30, 30), "Background", inline="tblclr", group=grpTable)
+tableSizeInput = input.string("normal", "Size", options=["tiny", "small", "normal", "large"], group=grpTable)
+
+// ==================== TABLE SECTIONS ====================
+grpTableSections = "RC 8) TABLE SECTIONS"
+showSectionAccount  = input.bool(true,  "Account Info",      inline="sec1", group=grpTableSections, tooltip="Balance / Leverage / Segment / Direction / Risk")
+showSectionPosition = input.bool(true,  "Position Info",     inline="sec1", group=grpTableSections, tooltip="Quantity / Value / Initial Margin")
+showSectionTargets  = input.bool(true,  "Targets & Loss",    inline="sec2", group=grpTableSections, tooltip="T1/T2/T3 gross profit rows + Potential Loss")
+showSectionRR       = input.bool(true,  "Risk:Reward",       inline="sec2", group=grpTableSections, tooltip="R:R ratios + Required Win Rate")
+
+// ==================== STYLE SETTINGS ====================
+grpStyle = "RC 9) GRAPHIC OBJECTS"
+showBoxes = input.bool(true, "Boxes", group=grpStyle)
+showPaneLabels = input.bool(true, "Pane labels", group=grpStyle)
+rc_showLines = input.bool(true, "Lines", group=grpStyle)
+showBreakeven = input.bool(true, "Break-even line", group=grpStyle)
+showCurrentPrice = input.bool(true, "Current price marker", group=grpStyle)
+
+// ==================== HELPER FUNCTIONS ====================
+rc_getTextSize(s) =>
+    switch s
+        "tiny"   => size.tiny
+        "small"  => size.small
+        "normal" => size.normal
+        "large"  => size.large
+        "huge"   => size.huge
+        => size.normal
+
+rc_getTablePos(y, x) =>
+    if y == "top" and x == "left"
+        position.top_left
+    else if y == "top" and x == "center"
+        position.top_center
+    else if y == "top" and x == "right"
+        position.top_right
+    else if y == "middle" and x == "left"
+        position.middle_left
+    else if y == "middle" and x == "center"
+        position.middle_center
+    else if y == "middle" and x == "right"
+        position.middle_right
+    else if y == "bottom" and x == "left"
+        position.bottom_left
+    else if y == "bottom" and x == "center"
+        position.bottom_center
+    else
+        position.bottom_right
+
+rc_formatCurrency(val) =>
+    "Rs." + str.tostring(val, "#,##,###.##")
+
+rc_formatQty(val) =>
+    str.tostring(math.floor(val), "#,###")
+
+// ==================== AUTO-DETECT LEVELS FROM SIGNALS ====================
+int   autoDir   = lastSigDir
+float sigEntry  = autoDir != 0 ? lastSigEntry : float(na)
+float sigPriceSL = autoDir != 0 ? lastSigSL : float(na)
+float autoEntry = sigEntry
+float autoSL    = sigPriceSL
+int   autoStart = autoDir != 0 ? lastSigStart : int(na)
+
+// ==================== PRICE SETUP ====================
+float entry = entryPrice > 0 ? entryPrice : (not na(autoEntry) ? autoEntry : close)
+bool isLong = targetPrice > entryPrice ? (targetPrice > 0 ? true : (autoDir != 0 ? autoDir == 1 : true)) : (autoDir != 0 ? autoDir == 1 : true)
+float stopLoss = stopLossPrice > 0 ? stopLossPrice : (not na(autoSL) ? autoSL : (isLong ? entry * 0.98 : entry * 1.02))
+
+float defaultTarget1 = isLong ? entry + (math.abs(entry - stopLoss) * 2) : entry - (math.abs(entry - stopLoss) * 2)
+float defaultTarget2 = isLong ? entry + (math.abs(entry - stopLoss) * 3) : entry - (math.abs(entry - stopLoss) * 3)
+float defaultTarget3 = isLong ? entry + (math.abs(entry - stopLoss) * 4) : entry - (math.abs(entry - stopLoss) * 4)
+float defaultTarget4 = isLong ? entry + (math.abs(entry - stopLoss) * 5) : entry - (math.abs(entry - stopLoss) * 5)
+float defaultTarget5 = isLong ? entry + (math.abs(entry - stopLoss) * 6) : entry - (math.abs(entry - stopLoss) * 6)
+float defaultTarget6 = isLong ? entry + (math.abs(entry - stopLoss) * 7) : entry - (math.abs(entry - stopLoss) * 7)
+
+float target  = targetPrice  > 0 ? targetPrice  : defaultTarget1
+float target2 = target2Price > 0 ? target2Price : defaultTarget2
+float target3 = target3Price > 0 ? target3Price : defaultTarget3
+float target4 = target4Price > 0 ? target4Price : defaultTarget4
+float target5 = target5Price > 0 ? target5Price : defaultTarget5
+float target6 = target6Price > 0 ? target6Price : defaultTarget6
+
+bool isT2Active = enableT2 and target2 > 0
+bool isT3Active = enableT3 and target3 > 0
+bool isT4Active = enableT4 and target4 > 0
+bool isT5Active = enableT5 and target5 > 0
+bool isT6Active = enableT6 and target6 > 0
+
+string direction = isLong ? "LONG" : "SHORT"
+bool rc_isValidSetup = isLong ? (stopLoss < entry) : (stopLoss > entry)
+
+bool isT2Valid = not isT2Active or (isLong ? target2 > target : target2 < target)
+bool isT3Valid = not isT3Active or (isLong ? target3 > (isT2Active ? target2 : target) : target3 < (isT2Active ? target2 : target))
+bool isT4Valid = not isT4Active or (isLong ? target4 > (isT3Active ? target3 : (isT2Active ? target2 : target)) : target4 < (isT3Active ? target3 : (isT2Active ? target2 : target)))
+bool isT5Valid = not isT5Active or (isLong ? target5 > (isT4Active ? target4 : (isT3Active ? target3 : target)) : target5 < (isT4Active ? target4 : (isT3Active ? target3 : target)))
+bool isT6Valid = not isT6Active or (isLong ? target6 > (isT5Active ? target5 : (isT4Active ? target4 : target)) : target6 < (isT5Active ? target5 : (isT4Active ? target4 : target)))
+
+// ============ CALCULATION LOGIC ============
+float riskAmount   = balance * (maxLossPct / 100)
+float stopDistance = math.abs(entry - stopLoss)
+float stopPct      = (stopDistance / entry) * 100
+float stopPoints   = stopDistance
+
+float targetDistance  = math.abs(target  - entry)
+float targetPct       = (targetDistance / entry) * 100
+float targetPoints    = targetDistance
+
+float target2Distance = isT2Active ? math.abs(target2 - entry) : 0
+float target2Pct      = isT2Active ? (target2Distance / entry) * 100 : 0
+float target2Points   = isT2Active ? target2Distance : 0
+
+float target3Distance = isT3Active ? math.abs(target3 - entry) : 0
+float target3Pct      = isT3Active ? (target3Distance / entry) * 100 : 0
+float target3Points   = isT3Active ? target3Distance : 0
+
+float target4Distance = isT4Active ? math.abs(target4 - entry) : 0
+float target4Pct      = isT4Active ? (target4Distance / entry) * 100 : 0
+float target4Points   = isT4Active ? target4Distance : 0
+
+float target5Distance = isT5Active ? math.abs(target5 - entry) : 0
+float target5Pct      = isT5Active ? (target5Distance / entry) * 100 : 0
+float target5Points   = isT5Active ? target5Distance : 0
+
+float target6Distance = isT6Active ? math.abs(target6 - entry) : 0
+float target6Pct      = isT6Active ? (target6Distance / entry) * 100 : 0
+float target6Points   = isT6Active ? target6Distance : 0
+
+float positionValue   = stopPct > 0 ? riskAmount / (stopPct / 100) : 0
+float quantity        = entry > 0 ? positionValue / entry : 0
+float quantityRounded = math.floor(quantity)
+
+// Recompute qty from the SL% locked at signal-fire time so it never drifts with candle closes.
+float displayQty = not na(lockedSLPct) and lockedSLPct > 0 and not na(lastSigEntry) and lastSigEntry > 0 ? math.floor((balance * (maxLossPct / 100)) / (lockedSLPct / 100) / lastSigEntry) : quantityRounded
+
+float actualPositionValue = displayQty * entry
+float initialMargin       = actualPositionValue / leverage
+float marginPctOfBalance  = (initialMargin / balance) * 100
+
+float rrRatio  = stopDistance > 0 ? targetDistance  / stopDistance : 0
+float rr2Ratio = isT2Active and stopDistance > 0 ? target2Distance / stopDistance : 0
+float rr3Ratio = isT3Active and stopDistance > 0 ? target3Distance / stopDistance : 0
+float rr4Ratio = isT4Active and stopDistance > 0 ? target4Distance / stopDistance : 0
+float rr5Ratio = isT5Active and stopDistance > 0 ? target5Distance / stopDistance : 0
+float rr6Ratio = isT6Active and stopDistance > 0 ? target6Distance / stopDistance : 0
+
+float potentialProfit  = displayQty * targetDistance
+float potentialProfit2 = isT2Active ? displayQty * target2Distance : 0
+float potentialProfit3 = isT3Active ? displayQty * target3Distance : 0
+float potentialProfit4 = isT4Active ? displayQty * target4Distance : 0
+float potentialProfit5 = isT5Active ? displayQty * target5Distance : 0
+float potentialProfit6 = isT6Active ? displayQty * target6Distance : 0
+float potentialLoss    = displayQty * stopDistance
+
+float profitROI  = initialMargin > 0 ? (potentialProfit  / initialMargin) * 100 : 0
+float profit2ROI = isT2Active and initialMargin > 0 ? (potentialProfit2 / initialMargin) * 100 : 0
+float profit3ROI = isT3Active and initialMargin > 0 ? (potentialProfit3 / initialMargin) * 100 : 0
+float profit4ROI = isT4Active and initialMargin > 0 ? (potentialProfit4 / initialMargin) * 100 : 0
+float profit5ROI = isT5Active and initialMargin > 0 ? (potentialProfit5 / initialMargin) * 100 : 0
+float profit6ROI = isT6Active and initialMargin > 0 ? (potentialProfit6 / initialMargin) * 100 : 0
+float lossROI    = initialMargin > 0 ? (potentialLoss / initialMargin) * 100 : 0
+float marginReqPct = 100 / leverage
+
+// ============ ACCURATE CHARGES CALCULATION (Indian Market) ============
+float txnChargeRate = 0.0
+if exchange == "NSE"
+    if tradeSegment == "Equity Delivery" or tradeSegment == "Equity Intraday"
+        txnChargeRate := 0.0000297
+    else if tradeSegment == "F&O Futures"
+        txnChargeRate := 0.0000173
+    else if tradeSegment == "F&O Options"
+        txnChargeRate := 0.0003503
+else
+    if tradeSegment == "Equity Delivery" or tradeSegment == "Equity Intraday"
+        txnChargeRate := 0.0000375
+    else if tradeSegment == "F&O Futures"
+        txnChargeRate := 0.0
+    else if tradeSegment == "F&O Options"
+        txnChargeRate := 0.000325
+
+float sttBuyRate = 0.0
+float sttSellRate = 0.0
+if tradeSegment == "Equity Delivery"
+    sttBuyRate  := 0.001
+    sttSellRate := 0.001
+else if tradeSegment == "Equity Intraday"
+    sttBuyRate  := 0.0
+    sttSellRate := 0.00025
+else if tradeSegment == "F&O Futures"
+    sttBuyRate  := 0.0
+    sttSellRate := 0.0005
+else if tradeSegment == "F&O Options"
+    sttBuyRate  := 0.0
+    sttSellRate := 0.0015
+
+float stampDutyRate = 0.0
+if tradeSegment == "Equity Delivery"
+    stampDutyRate := 0.00015
+else if tradeSegment == "Equity Intraday"
+    stampDutyRate := 0.00003
+else if tradeSegment == "F&O Futures"
+    stampDutyRate := 0.00002
+else if tradeSegment == "F&O Options"
+    stampDutyRate := 0.00003
+
+float sebiChargeRate = 0.000001
+
+float brokeragePerSide = 0.0
+if tradeSegment == "Equity Delivery" or tradeSegment == "Equity Intraday"
+    float brokerageByPct = actualPositionValue * 0.0003
+    brokeragePerSide := math.min(brokerageByPct, 20)
+else
+    brokeragePerSide := 20
+
+float buyValue  = actualPositionValue
+float sellValue = actualPositionValue
+
+float sttOnBuy  = buyValue  * sttBuyRate
+float sttOnSell = sellValue * sttSellRate
+float totalSTT  = sttOnBuy + sttOnSell
+
+float txnOnBuy      = buyValue  * txnChargeRate
+float txnOnSell     = sellValue * txnChargeRate
+float totalTxnCharges = txnOnBuy + txnOnSell
+
+float sebiOnBuy  = buyValue  * sebiChargeRate
+float sebiOnSell = sellValue * sebiChargeRate
+float totalSEBI  = sebiOnBuy + sebiOnSell
+
+float stampDuty     = buyValue * stampDutyRate
+float totalBrokerage = brokeragePerSide * 2
+
+float gstBase  = totalBrokerage + totalTxnCharges + totalSEBI
+float totalGST = gstBase * 0.18
+
+float totalCharges = totalSTT + totalTxnCharges + totalSEBI + stampDuty + totalBrokerage + totalGST
+
+float netProfit  = potentialProfit  - totalCharges
+float netProfit2 = isT2Active ? potentialProfit2 - totalCharges : 0
+float netProfit3 = isT3Active ? potentialProfit3 - totalCharges : 0
+float netProfit4 = isT4Active ? potentialProfit4 - totalCharges : 0
+float netProfit5 = isT5Active ? potentialProfit5 - totalCharges : 0
+float netProfit6 = isT6Active ? potentialProfit6 - totalCharges : 0
+float netLoss    = potentialLoss + totalCharges
+
+float breakEvenPoints = displayQty > 0 ? totalCharges / displayQty : 0
+
+// ============ LIVE P&L TRACKING ============
+float currentPnL    = isLong ? (close - entry) * displayQty : (entry - close) * displayQty
+float currentPnLPct = initialMargin > 0 ? (currentPnL / initialMargin) * 100 : 0
+string tradeStatus  = currentPnL > 0 ? "IN PROFIT" : currentPnL < 0 ? "IN LOSS" : "AT ENTRY"
+color statusColor   = currentPnL > 0 ? color.green : currentPnL < 0 ? color.red : color.gray
+
+float breakEvenPrice = entry
+float reqWinRate     = rrRatio > 0 ? (1 / (1 + rrRatio)) * 100 : 50
+
+float maxBuyingPower   = balance * leverage
+bool exceedsBuyingPower = actualPositionValue > maxBuyingPower
+
+// ============ PARTIAL BOOKING CALCULATIONS ============
+float totalBookPct = t1BookPct + t2BookPct + t3BookPct
+bool isPartialValid = math.abs(totalBookPct - 100) < 0.01
+
+float qtyT1Partial = math.floor(displayQty * t1BookPct / 100)
+float qtyT2Partial = math.floor(displayQty * t2BookPct / 100)
+float qtyT3Partial = displayQty - qtyT1Partial - qtyT2Partial
+
+float partialProfitT1 = qtyT1Partial * targetDistance
+float partialProfitT2 = isT2Active ? qtyT2Partial * target2Distance : 0
+float partialProfitT3 = isT3Active ? qtyT3Partial * target3Distance : 0
+
+float brkBuy = tradeSegment == "Equity Delivery" or tradeSegment == "Equity Intraday" ? math.min(actualPositionValue * 0.0003, 20) : 20
+
+float sellT1 = qtyT1Partial * target
+float sellT2 = isT2Active ? qtyT2Partial * target2 : 0
+float sellT3 = isT3Active ? qtyT3Partial * target3 : 0
+
+float brkSellT1 = tradeSegment == "Equity Delivery" or tradeSegment == "Equity Intraday" ? math.min(sellT1 * 0.0003, 20) : 20
+float brkSellT2 = tradeSegment == "Equity Delivery" or tradeSegment == "Equity Intraday" ? math.min(sellT2 * 0.0003, 20) : 20
+float brkSellT3 = tradeSegment == "Equity Delivery" or tradeSegment == "Equity Intraday" ? math.min(sellT3 * 0.0003, 20) : 20
+
+float sttT1 = sellT1 * sttSellRate
+float sttT2 = sellT2 * sttSellRate
+float sttT3 = sellT3 * sttSellRate
+
+float txnT1 = sellT1 * txnChargeRate
+float txnT2 = sellT2 * txnChargeRate
+float txnT3 = sellT3 * txnChargeRate
+
+float sebiT1sell = sellT1 * sebiChargeRate
+float sebiT2sell = sellT2 * sebiChargeRate
+float sebiT3sell = sellT3 * sebiChargeRate
+
+float gstT1 = (brkSellT1 + txnT1 + sebiT1sell) * 0.18
+float gstT2 = (brkSellT2 + txnT2 + sebiT2sell) * 0.18
+float gstT3 = (brkSellT3 + txnT3 + sebiT3sell) * 0.18
+
+float buySTT_T1  = buyValue * sttBuyRate     * t1BookPct / 100
+float buySTT_T2  = buyValue * sttBuyRate     * t2BookPct / 100
+float buySTT_T3  = buyValue * sttBuyRate     * t3BookPct / 100
+
+float buyTxn_T1  = buyValue * txnChargeRate  * t1BookPct / 100
+float buyTxn_T2  = buyValue * txnChargeRate  * t2BookPct / 100
+float buyTxn_T3  = buyValue * txnChargeRate  * t3BookPct / 100
+
+float buySebi_T1 = buyValue * sebiChargeRate * t1BookPct / 100
+float buySebi_T2 = buyValue * sebiChargeRate * t2BookPct / 100
+float buySebi_T3 = buyValue * sebiChargeRate * t3BookPct / 100
+
+float buyStamp_T1 = buyValue * stampDutyRate * t1BookPct / 100
+float buyStamp_T2 = buyValue * stampDutyRate * t2BookPct / 100
+float buyStamp_T3 = buyValue * stampDutyRate * t3BookPct / 100
+
+float brkBuy_T1  = brkBuy * t1BookPct / 100
+float brkBuy_T2  = brkBuy * t2BookPct / 100
+float brkBuy_T3  = brkBuy * t3BookPct / 100
+
+float gstBuyT1 = (brkBuy_T1 + buyTxn_T1 + buySebi_T1) * 0.18
+float gstBuyT2 = (brkBuy_T2 + buyTxn_T2 + buySebi_T2) * 0.18
+float gstBuyT3 = (brkBuy_T3 + buyTxn_T3 + buySebi_T3) * 0.18
+
+float chargesT1 = buySTT_T1 + buyTxn_T1 + buySebi_T1 + buyStamp_T1 + brkBuy_T1 + gstBuyT1 + sttT1 + txnT1 + sebiT1sell + brkSellT1 + gstT1
+float chargesT2 = isT2Active ? (buySTT_T2 + buyTxn_T2 + buySebi_T2 + buyStamp_T2 + brkBuy_T2 + gstBuyT2 + sttT2 + txnT2 + sebiT2sell + brkSellT2 + gstT2) : 0
+float chargesT3 = isT3Active ? (buySTT_T3 + buyTxn_T3 + buySebi_T3 + buyStamp_T3 + brkBuy_T3 + gstBuyT3 + sttT3 + txnT3 + sebiT3sell + brkSellT3 + gstT3) : 0
+
+float netPartialT1 = partialProfitT1 - chargesT1
+float netPartialT2 = isT2Active ? partialProfitT2 - chargesT2 : 0
+float netPartialT3 = isT3Active ? partialProfitT3 - chargesT3 : 0
+
+float totalPartialCharges = chargesT1 + chargesT2 + chargesT3
+float totalNetPartial     = netPartialT1 + netPartialT2 + netPartialT3
+float totalPartialROI     = initialMargin > 0 ? (totalNetPartial / initialMargin) * 100 : 0
+float totalPartialGross   = partialProfitT1 + (isT2Active ? partialProfitT2 : 0) + (isT3Active ? partialProfitT3 : 0)
+
+// ==================== FIND START BAR INDEX ====================
+int barInterval = int(ta.change(time))
+if na(barInterval) or barInterval <= 0
+    barInterval := int(nz(ta.change(time[1]), 60000))
+if barInterval <= 0
+    barInterval := 60000
+
+int drawStartTime = not na(autoStart) ? nz(int(time[bar_index - autoStart]), int(time)) : int(startDate)
+int drawEndTime   = time + (barInterval * extendBars)
+
+// ==================== DRAWING ====================
+var line targetLine    = na
+var line target2Line   = na
+var line target3Line   = na
+var line target4Line   = na
+var line target5Line   = na
+var line target6Line   = na
+var line entryLine     = na
+var line stopLine      = na
+var line breakEvenLine = na
+var label targetLabel        = na
+var label target2Label       = na
+var label target3Label       = na
+var label target4Label       = na
+var label target5Label       = na
+var label target6Label       = na
+var label entryLabel         = na
+var label stopLabel          = na
+var label currentPriceLabel  = na
+var box profitBox  = na
+var box profit2Box = na
+var box profit3Box = na
+var box profit4Box = na
+var box profit5Box = na
+var box profit6Box = na
+var box lossBox    = na
+
+line.delete(targetLine),   line.delete(target2Line), line.delete(target3Line)
+line.delete(target4Line),  line.delete(target5Line), line.delete(target6Line)
+line.delete(entryLine),    line.delete(stopLine),    line.delete(breakEvenLine)
+label.delete(targetLabel), label.delete(target2Label), label.delete(target3Label)
+label.delete(target4Label),label.delete(target5Label), label.delete(target6Label)
+label.delete(entryLabel),  label.delete(stopLabel),    label.delete(currentPriceLabel)
+box.delete(profitBox), box.delete(profit2Box), box.delete(profit3Box)
+box.delete(profit4Box),box.delete(profit5Box), box.delete(profit6Box)
+box.delete(lossBox)
+
+lblSize = rc_getTextSize(rc_textSize)
+
+string stopText = "Stop: " + str.tostring(stopLoss, format.mintick) + " (-" + str.tostring(stopPct, "#.##") + "%)"
+if showPoints
+    stopText += " [" + str.tostring(stopPoints, "#.##") + " pts]"
+if showPL
+    stopText += " Loss: " + rc_formatCurrency(potentialLoss)
+if showROI
+    stopText += " ROI: -" + str.tostring(lossROI, "#.##") + "%"
+
+string entryText = "Entry: " + str.tostring(entry, format.mintick)
+if showValue
+    entryText += " Value: " + rc_formatCurrency(actualPositionValue)
+if showMargin
+    entryText += " Margin: " + rc_formatCurrency(initialMargin)
+if showRR
+    entryText += " RR: " + str.tostring(rrRatio, "#.##")
+
+string targetText = "T1: " + str.tostring(target, format.mintick) + " (+" + str.tostring(targetPct, "#.##") + "%)"
+if showPoints
+    targetText += " [" + str.tostring(targetPoints, "#.##") + " pts]"
+if showPL
+    targetText += " Profit: " + rc_formatCurrency(potentialProfit)
+if showROI
+    targetText += " ROI: +" + str.tostring(profitROI, "#.##") + "%"
+
+string target2Text = ""
+if isT2Active
+    target2Text := "T2: " + str.tostring(target2, format.mintick) + " (+" + str.tostring(target2Pct, "#.##") + "%)"
+    if showPoints
+        target2Text += " [" + str.tostring(target2Points, "#.##") + " pts]"
+    if showRR
+        target2Text += " RR: " + str.tostring(rr2Ratio, "#.##")
+    if showPL
+        target2Text += " Profit: " + rc_formatCurrency(potentialProfit2)
+    if showROI
+        target2Text += " ROI: +" + str.tostring(profit2ROI, "#.##") + "%"
+
+string target3Text = ""
+if isT3Active
+    target3Text := "T3: " + str.tostring(target3, format.mintick) + " (+" + str.tostring(target3Pct, "#.##") + "%)"
+    if showPoints
+        target3Text += " [" + str.tostring(target3Points, "#.##") + " pts]"
+    if showRR
+        target3Text += " RR: " + str.tostring(rr3Ratio, "#.##")
+    if showPL
+        target3Text += " Profit: " + rc_formatCurrency(potentialProfit3)
+    if showROI
+        target3Text += " ROI: +" + str.tostring(profit3ROI, "#.##") + "%"
+
+string target4Text = ""
+if isT4Active
+    target4Text := "T4: " + str.tostring(target4, format.mintick) + " (+" + str.tostring(target4Pct, "#.##") + "%)"
+    if showPoints
+        target4Text += " [" + str.tostring(target4Points, "#.##") + " pts]"
+    if showRR
+        target4Text += " RR: " + str.tostring(rr4Ratio, "#.##")
+    if showPL
+        target4Text += " Profit: " + rc_formatCurrency(potentialProfit4)
+    if showROI
+        target4Text += " ROI: +" + str.tostring(profit4ROI, "#.##") + "%"
+
+string target5Text = ""
+if isT5Active
+    target5Text := "T5: " + str.tostring(target5, format.mintick) + " (+" + str.tostring(target5Pct, "#.##") + "%)"
+    if showPoints
+        target5Text += " [" + str.tostring(target5Points, "#.##") + " pts]"
+    if showRR
+        target5Text += " RR: " + str.tostring(rr5Ratio, "#.##")
+    if showPL
+        target5Text += " Profit: " + rc_formatCurrency(potentialProfit5)
+    if showROI
+        target5Text += " ROI: +" + str.tostring(profit5ROI, "#.##") + "%"
+
+string target6Text = ""
+if isT6Active
+    target6Text := "T6: " + str.tostring(target6, format.mintick) + " (+" + str.tostring(target6Pct, "#.##") + "%)"
+    if showPoints
+        target6Text += " [" + str.tostring(target6Points, "#.##") + " pts]"
+    if showRR
+        target6Text += " RR: " + str.tostring(rr6Ratio, "#.##")
+    if showPL
+        target6Text += " Profit: " + rc_formatCurrency(potentialProfit6)
+    if showROI
+        target6Text += " ROI: +" + str.tostring(profit6ROI, "#.##") + "%"
+
+if rc_showLines and rc_isValidSetup
+    targetLine := line.new(drawStartTime, target, drawEndTime, target, xloc=xloc.bar_time, color=targetColorInput, width=2, style=line.style_solid)
+    entryLine  := line.new(drawStartTime, entry,  drawEndTime, entry,  xloc=xloc.bar_time, color=entryColorInput,  width=2, style=line.style_solid)
+    stopLine   := line.new(drawStartTime, stopLoss, drawEndTime, stopLoss, xloc=xloc.bar_time, color=stopColorInput, width=2, style=line.style_solid)
+    if isT2Active
+        target2Line := line.new(drawStartTime, target2, drawEndTime, target2, xloc=xloc.bar_time, color=target2ColorInput, width=2, style=line.style_dashed)
+    if isT3Active
+        target3Line := line.new(drawStartTime, target3, drawEndTime, target3, xloc=xloc.bar_time, color=target3ColorInput, width=2, style=line.style_dashed)
+    if isT4Active
+        target4Line := line.new(drawStartTime, target4, drawEndTime, target4, xloc=xloc.bar_time, color=target4ColorInput, width=2, style=line.style_dashed)
+    if isT5Active
+        target5Line := line.new(drawStartTime, target5, drawEndTime, target5, xloc=xloc.bar_time, color=target5ColorInput, width=2, style=line.style_dashed)
+    if isT6Active
+        target6Line := line.new(drawStartTime, target6, drawEndTime, target6, xloc=xloc.bar_time, color=target6ColorInput, width=2, style=line.style_dashed)
+
+if showBreakeven and rc_isValidSetup
+    breakEvenLine := line.new(drawStartTime, breakEvenPrice, drawEndTime, breakEvenPrice, xloc=xloc.bar_time, color=color.gray, width=1, style=line.style_dotted)
+
+if showBoxes and rc_isValidSetup
+    profitBox := box.new(drawStartTime, entry, drawEndTime, target, xloc=xloc.bar_time, bgcolor=color.new(targetColorInput, 85), border_color=color.new(targetColorInput, 100))
+    lossBox   := box.new(drawStartTime, entry, drawEndTime, stopLoss, xloc=xloc.bar_time, bgcolor=color.new(stopColorInput, 85), border_color=color.new(stopColorInput, 100))
+    if isT2Active
+        profit2Box := box.new(drawStartTime, target, drawEndTime, target2, xloc=xloc.bar_time, bgcolor=color.new(target2ColorInput, 90), border_color=color.new(target2ColorInput, 100))
+    if isT3Active
+        float t3BoxStart = isT2Active ? target2 : target
+        profit3Box := box.new(drawStartTime, t3BoxStart, drawEndTime, target3, xloc=xloc.bar_time, bgcolor=color.new(target3ColorInput, 90), border_color=color.new(target3ColorInput, 100))
+    if isT4Active
+        float t4BoxStart = isT3Active ? target3 : (isT2Active ? target2 : target)
+        profit4Box := box.new(drawStartTime, t4BoxStart, drawEndTime, target4, xloc=xloc.bar_time, bgcolor=color.new(target4ColorInput, 90), border_color=color.new(target4ColorInput, 100))
+    if isT5Active
+        float t5BoxStart = isT4Active ? target4 : (isT3Active ? target3 : (isT2Active ? target2 : target))
+        profit5Box := box.new(drawStartTime, t5BoxStart, drawEndTime, target5, xloc=xloc.bar_time, bgcolor=color.new(target5ColorInput, 90), border_color=color.new(target5ColorInput, 100))
+    if isT6Active
+        float t6BoxStart = isT5Active ? target5 : (isT4Active ? target4 : (isT3Active ? target3 : (isT2Active ? target2 : target)))
+        profit6Box := box.new(drawStartTime, t6BoxStart, drawEndTime, target6, xloc=xloc.bar_time, bgcolor=color.new(target6ColorInput, 90), border_color=color.new(target6ColorInput, 100))
+
+if showPaneLabels and rc_isValidSetup
+    targetLabel := label.new(drawEndTime, target,   targetText, xloc=xloc.bar_time, color=targetColorInput, textcolor=color.white, style=label.style_label_left, size=lblSize)
+    entryLabel  := label.new(drawEndTime, entry,    entryText,  xloc=xloc.bar_time, color=entryColorInput,  textcolor=color.white, style=label.style_label_left, size=lblSize)
+    stopLabel   := label.new(drawEndTime, stopLoss, stopText,   xloc=xloc.bar_time, color=stopColorInput,   textcolor=color.white, style=label.style_label_left, size=lblSize)
+    if isT2Active
+        target2Label := label.new(drawEndTime, target2, target2Text, xloc=xloc.bar_time, color=target2ColorInput, textcolor=color.white, style=label.style_label_left, size=lblSize)
+    if isT3Active
+        target3Label := label.new(drawEndTime, target3, target3Text, xloc=xloc.bar_time, color=target3ColorInput, textcolor=color.white, style=label.style_label_left, size=lblSize)
+    if isT4Active
+        target4Label := label.new(drawEndTime, target4, target4Text, xloc=xloc.bar_time, color=target4ColorInput, textcolor=color.white, style=label.style_label_left, size=lblSize)
+    if isT5Active
+        target5Label := label.new(drawEndTime, target5, target5Text, xloc=xloc.bar_time, color=target5ColorInput, textcolor=color.white, style=label.style_label_left, size=lblSize)
+    if isT6Active
+        target6Label := label.new(drawEndTime, target6, target6Text, xloc=xloc.bar_time, color=target6ColorInput, textcolor=color.white, style=label.style_label_left, size=lblSize)
+
+if showCurrentPrice and rc_isValidSetup
+    string cpText = "NOW: " + str.tostring(close, format.mintick) + " | P&L: " + rc_formatCurrency(currentPnL) + " (" + str.tostring(currentPnLPct, "#.##") + "%)"
+    currentPriceLabel := label.new(time, close, cpText, xloc=xloc.bar_time, color=statusColor, textcolor=color.white, style=label.style_label_right, size=size.small)
+
+// ==================== INFO TABLE ====================
+var table infoTable = na
+
+if showTable
+    tablePos = rc_getTablePos(tableYPos, tableXPos)
+    tblSize  = rc_getTextSize(tableSizeInput)
+
+    if na(infoTable)
+        infoTable := table.new(tablePos, 2, 100, bgcolor=color.new(color.black, 20), border_width=1, border_color=color.gray, frame_width=2, frame_color=color.gray)
+
+    if barstate.islast
+        int row = 0
+
+        // ---- Account Info Section ----
+        if showSectionAccount
+            table.cell(infoTable, 0, row, "Balance:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+            table.cell(infoTable, 1, row, rc_formatCurrency(balance), text_color=color.white, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+            row += 1
+
+            table.cell(infoTable, 0, row, "Leverage:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+            table.cell(infoTable, 1, row, str.tostring(leverage, "#") + "x (" + str.tostring(marginReqPct, "#") + "% margin)", text_color=color.white, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+            row += 1
+
+            table.cell(infoTable, 0, row, "Segment:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+            table.cell(infoTable, 1, row, tradeSegment, text_color=color.aqua, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+            row += 1
+
+            table.cell(infoTable, 0, row, "Direction:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+            dirColor = isLong ? color.green : color.red
+            table.cell(infoTable, 1, row, direction, text_color=dirColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+            row += 1
+
+            table.cell(infoTable, 0, row, "Risk:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+            table.cell(infoTable, 1, row, str.tostring(maxLossPct, "#.##") + "%", text_color=color.white, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+            row += 1
+
+            row += 1  // spacer
+
+        if rc_isValidSetup
+            // ---- Position Info Section ----
+            if showSectionPosition
+                table.cell(infoTable, 0, row, "Quantity:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                table.cell(infoTable, 1, row, rc_formatQty(displayQty) + " shares", text_color=color.yellow, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+                table.cell(infoTable, 0, row, "Value:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                table.cell(infoTable, 1, row, rc_formatCurrency(actualPositionValue), text_color=color.rgb(33, 150, 243), text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+                table.cell(infoTable, 0, row, "Initial Margin:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                marginColor = exceedsBuyingPower ? color.red : color.rgb(33, 150, 243)
+                table.cell(infoTable, 1, row, rc_formatCurrency(initialMargin) + " (" + str.tostring(marginPctOfBalance, "#.##") + "%)", text_color=marginColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+                table.cell(infoTable, 0, row, "", bgcolor=color.gray)
+                table.cell(infoTable, 1, row, "", bgcolor=color.gray)
+                row += 1
+
+            // ---- Targets & Loss Section ----
+            if showSectionTargets
+                table.cell(infoTable, 0, row, "T1 Profit:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                table.cell(infoTable, 1, row, rc_formatCurrency(potentialProfit) + " (+" + str.tostring(profitROI, "#.##") + "%)", text_color=targetColorInput, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+                if isT2Active
+                    table.cell(infoTable, 0, row, "T2 Profit:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                    table.cell(infoTable, 1, row, rc_formatCurrency(potentialProfit2) + " (+" + str.tostring(profit2ROI, "#.##") + "%)", text_color=target2ColorInput, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+
+                if isT3Active
+                    table.cell(infoTable, 0, row, "T3 Profit:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                    table.cell(infoTable, 1, row, rc_formatCurrency(potentialProfit3) + " (+" + str.tostring(profit3ROI, "#.##") + "%)", text_color=target3ColorInput, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+
+                if isT4Active
+                    table.cell(infoTable, 0, row, "T4 Profit:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                    table.cell(infoTable, 1, row, rc_formatCurrency(potentialProfit4) + " (+" + str.tostring(profit4ROI, "#.##") + "%)", text_color=target4ColorInput, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+
+                if isT5Active
+                    table.cell(infoTable, 0, row, "T5 Profit:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                    table.cell(infoTable, 1, row, rc_formatCurrency(potentialProfit5) + " (+" + str.tostring(profit5ROI, "#.##") + "%)", text_color=target5ColorInput, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+
+                if isT6Active
+                    table.cell(infoTable, 0, row, "T6 Profit:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                    table.cell(infoTable, 1, row, rc_formatCurrency(potentialProfit6) + " (+" + str.tostring(profit6ROI, "#.##") + "%)", text_color=target6ColorInput, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+
+                table.cell(infoTable, 0, row, "Potential Loss:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                table.cell(infoTable, 1, row, rc_formatCurrency(potentialLoss) + " (-" + str.tostring(lossROI, "#.##") + "%)", text_color=color.red, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+                table.cell(infoTable, 0, row, "", bgcolor=color.gray)
+                table.cell(infoTable, 1, row, "", bgcolor=color.gray)
+                row += 1
+
+            // ---- R:R Section ----
+            if showSectionRR
+                table.cell(infoTable, 0, row, "R:R (T1):", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                rrColor = rrRatio >= 2 ? color.green : rrRatio >= 1.5 ? color.yellow : color.orange
+                table.cell(infoTable, 1, row, "1:" + str.tostring(rrRatio, "#.##"), text_color=rrColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+                if isT2Active
+                    table.cell(infoTable, 0, row, "R:R (T2):", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                    rr2Color = rr2Ratio >= 3 ? color.green : rr2Ratio >= 2 ? color.yellow : color.orange
+                    table.cell(infoTable, 1, row, "1:" + str.tostring(rr2Ratio, "#.##"), text_color=rr2Color, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+
+                if isT3Active
+                    table.cell(infoTable, 0, row, "R:R (T3):", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                    rr3Color = rr3Ratio >= 4 ? color.green : rr3Ratio >= 3 ? color.yellow : color.orange
+                    table.cell(infoTable, 1, row, "1:" + str.tostring(rr3Ratio, "#.##"), text_color=rr3Color, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+
+                if isT4Active
+                    table.cell(infoTable, 0, row, "R:R (T4):", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                    rr4Color = rr4Ratio >= 5 ? color.green : rr4Ratio >= 4 ? color.yellow : color.orange
+                    table.cell(infoTable, 1, row, "1:" + str.tostring(rr4Ratio, "#.##"), text_color=rr4Color, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+
+                if isT5Active
+                    table.cell(infoTable, 0, row, "R:R (T5):", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                    rr5Color = rr5Ratio >= 6 ? color.green : rr5Ratio >= 5 ? color.yellow : color.orange
+                    table.cell(infoTable, 1, row, "1:" + str.tostring(rr5Ratio, "#.##"), text_color=rr5Color, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+
+                if isT6Active
+                    table.cell(infoTable, 0, row, "R:R (T6):", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                    rr6Color = rr6Ratio >= 7 ? color.green : rr6Ratio >= 6 ? color.yellow : color.orange
+                    table.cell(infoTable, 1, row, "1:" + str.tostring(rr6Ratio, "#.##"), text_color=rr6Color, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+
+                table.cell(infoTable, 0, row, "Req. Win Rate:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                table.cell(infoTable, 1, row, str.tostring(reqWinRate, "#.#") + "%", text_color=color.white, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+            // ---- Charges Section ----
+            if showCharges
+                table.cell(infoTable, 0, row, "", bgcolor=color.gray)
+                table.cell(infoTable, 1, row, "", bgcolor=color.gray)
+                row += 1
+
+                table.cell(infoTable, 0, row, "Brokerage:", text_color=color.gray, text_size=size.small, bgcolor=headerBgColor, text_halign=text.align_left)
+                table.cell(infoTable, 1, row, rc_formatCurrency(totalBrokerage), text_color=color.gray, text_size=size.small, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+                table.cell(infoTable, 0, row, "STT:", text_color=color.gray, text_size=size.small, bgcolor=headerBgColor, text_halign=text.align_left)
+                table.cell(infoTable, 1, row, rc_formatCurrency(totalSTT), text_color=color.gray, text_size=size.small, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+                table.cell(infoTable, 0, row, "Other Charges:", text_color=color.gray, text_size=size.small, bgcolor=headerBgColor, text_halign=text.align_left)
+                table.cell(infoTable, 1, row, rc_formatCurrency(totalTxnCharges + totalSEBI + stampDuty + totalGST), text_color=color.gray, text_size=size.small, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+                table.cell(infoTable, 0, row, "Total Charges:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                table.cell(infoTable, 1, row, rc_formatCurrency(totalCharges), text_color=color.orange, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+                table.cell(infoTable, 0, row, "Break-even Pts:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                table.cell(infoTable, 1, row, str.tostring(breakEvenPoints, "#.##") + " pts", text_color=color.orange, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+                table.cell(infoTable, 0, row, "Net T1:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                netProfitColor = netProfit > 0 ? color.green : color.red
+                table.cell(infoTable, 1, row, rc_formatCurrency(netProfit), text_color=netProfitColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+                if isT2Active
+                    table.cell(infoTable, 0, row, "Net T2:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                    net2Color = netProfit2 > 0 ? color.green : color.red
+                    table.cell(infoTable, 1, row, rc_formatCurrency(netProfit2), text_color=net2Color, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+
+                if isT3Active
+                    table.cell(infoTable, 0, row, "Net T3:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                    net3Color = netProfit3 > 0 ? color.green : color.red
+                    table.cell(infoTable, 1, row, rc_formatCurrency(netProfit3), text_color=net3Color, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+
+                if isT4Active
+                    table.cell(infoTable, 0, row, "Net T4:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                    net4Color = netProfit4 > 0 ? color.green : color.red
+                    table.cell(infoTable, 1, row, rc_formatCurrency(netProfit4), text_color=net4Color, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+
+                if isT5Active
+                    table.cell(infoTable, 0, row, "Net T5:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                    net5Color = netProfit5 > 0 ? color.green : color.red
+                    table.cell(infoTable, 1, row, rc_formatCurrency(netProfit5), text_color=net5Color, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+
+                if isT6Active
+                    table.cell(infoTable, 0, row, "Net T6:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                    net6Color = netProfit6 > 0 ? color.green : color.red
+                    table.cell(infoTable, 1, row, rc_formatCurrency(netProfit6), text_color=net6Color, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+
+                if tradeSegment == "F&O Futures" or tradeSegment == "F&O Options"
+                    table.cell(infoTable, 0, row, "★ Budget 2026 STT applied", text_color=color.yellow, text_size=size.small, bgcolor=color.rgb(30,30,10), text_halign=text.align_center)
+                    table.merge_cells(infoTable, 0, row, 1, row)
+                    row += 1
+
+            // ---- Partial Booking Section ----
+            if enablePartial
+                table.cell(infoTable, 0, row, "", bgcolor=color.gray)
+                table.cell(infoTable, 1, row, "", bgcolor=color.gray)
+                row += 1
+
+                pctSumColor = isPartialValid ? color.lime : color.red
+                pctSumLabel = isPartialValid ? "✔ 100% allocated" : "⚠ " + str.tostring(totalBookPct, "#") + "% (fix to 100)"
+                table.cell(infoTable, 0, row, "📊 PARTIAL BOOKING", text_color=color.yellow, text_size=tblSize, bgcolor=color.rgb(20, 50, 20), text_halign=text.align_left)
+                table.cell(infoTable, 1, row, pctSumLabel, text_color=pctSumColor, text_size=tblSize, bgcolor=color.rgb(20, 50, 20), text_halign=text.align_right)
+                row += 1
+
+                table.cell(infoTable, 0, row, "Split Qty:", text_color=color.gray, text_size=size.small, bgcolor=headerBgColor, text_halign=text.align_left)
+                table.cell(infoTable, 1, row, "T1:" + rc_formatQty(qtyT1Partial) + "  T2:" + rc_formatQty(qtyT2Partial) + "  T3:" + rc_formatQty(qtyT3Partial), text_color=color.gray, text_size=size.small, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+                table.cell(infoTable, 0, row, "T1 (" + str.tostring(t1BookPct, "#") + "% | " + rc_formatQty(qtyT1Partial) + " qty):", text_color=targetColorInput, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                p1Color = netPartialT1 > 0 ? color.green : color.red
+                table.cell(infoTable, 1, row, rc_formatCurrency(netPartialT1), text_color=p1Color, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+                if isT2Active
+                    table.cell(infoTable, 0, row, "T2 (" + str.tostring(t2BookPct, "#") + "% | " + rc_formatQty(qtyT2Partial) + " qty):", text_color=target2ColorInput, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                    p2Color = netPartialT2 > 0 ? color.green : color.red
+                    table.cell(infoTable, 1, row, rc_formatCurrency(netPartialT2), text_color=p2Color, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+                else
+                    table.cell(infoTable, 0, row, "T2 (enable T2 above)", text_color=color.gray, text_size=size.small, bgcolor=headerBgColor, text_halign=text.align_left)
+                    table.cell(infoTable, 1, row, "--", text_color=color.gray, text_size=size.small, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+
+                if isT3Active
+                    table.cell(infoTable, 0, row, "T3 (" + str.tostring(t3BookPct, "#") + "% | " + rc_formatQty(qtyT3Partial) + " qty):", text_color=target3ColorInput, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                    p3Color = netPartialT3 > 0 ? color.green : color.red
+                    table.cell(infoTable, 1, row, rc_formatCurrency(netPartialT3), text_color=p3Color, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+                else
+                    table.cell(infoTable, 0, row, "T3 (enable T3 above)", text_color=color.gray, text_size=size.small, bgcolor=headerBgColor, text_halign=text.align_left)
+                    table.cell(infoTable, 1, row, "--", text_color=color.gray, text_size=size.small, bgcolor=headerBgColor, text_halign=text.align_right)
+                    row += 1
+
+                table.cell(infoTable, 0, row, "", bgcolor=color.gray)
+                table.cell(infoTable, 1, row, "", bgcolor=color.gray)
+                row += 1
+
+                table.cell(infoTable, 0, row, "Gross Combined:", text_color=color.gray, text_size=size.small, bgcolor=headerBgColor, text_halign=text.align_left)
+                table.cell(infoTable, 1, row, rc_formatCurrency(totalPartialGross), text_color=color.gray, text_size=size.small, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+                table.cell(infoTable, 0, row, "Charges (all legs):", text_color=color.gray, text_size=size.small, bgcolor=headerBgColor, text_halign=text.align_left)
+                table.cell(infoTable, 1, row, rc_formatCurrency(totalPartialCharges), text_color=color.orange, text_size=size.small, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+                table.cell(infoTable, 0, row, "Combined Net P&L:", text_color=color.white, text_size=tblSize, bgcolor=color.rgb(15, 40, 15), text_halign=text.align_left)
+                totalNetColor = totalNetPartial > 0 ? color.lime : color.red
+                table.cell(infoTable, 1, row, rc_formatCurrency(totalNetPartial) + " (+" + str.tostring(totalPartialROI, "#.##") + "%)", text_color=totalNetColor, text_size=tblSize, bgcolor=color.rgb(15, 40, 15), text_halign=text.align_right)
+                row += 1
+
+                if not isPartialValid
+                    table.cell(infoTable, 0, row, "⚠️  T1 + T2 + T3 must equal 100%", text_color=color.white, text_size=size.small, bgcolor=color.red, text_halign=text.align_center)
+                    table.merge_cells(infoTable, 0, row, 1, row)
+                    row += 1
+
+            // ---- Live Status Section ----
+            if showLiveStatus
+                table.cell(infoTable, 0, row, "", bgcolor=color.gray)
+                table.cell(infoTable, 1, row, "", bgcolor=color.gray)
+                row += 1
+
+                table.cell(infoTable, 0, row, "Live P&L:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                table.cell(infoTable, 1, row, rc_formatCurrency(currentPnL) + " (" + str.tostring(currentPnLPct, "#.##") + "%)", text_color=statusColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+                table.cell(infoTable, 0, row, "Status:", text_color=headerTextColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_left)
+                table.cell(infoTable, 1, row, tradeStatus, text_color=statusColor, text_size=tblSize, bgcolor=headerBgColor, text_halign=text.align_right)
+                row += 1
+
+            // ---- Warnings ----
+            if exceedsBuyingPower
+                table.cell(infoTable, 0, row, "⚠️ Exceeds buying power!", text_color=color.yellow, text_size=size.small, bgcolor=color.red, text_halign=text.align_center)
+                table.merge_cells(infoTable, 0, row, 1, row)
+                row += 1
+
+            if isT2Active and not isT2Valid
+                string t2Warn = isLong ? "⚠️ T2 should be above T1" : "⚠️ T2 should be below T1"
+                table.cell(infoTable, 0, row, t2Warn, text_color=color.yellow, text_size=size.small, bgcolor=color.orange, text_halign=text.align_center)
+                table.merge_cells(infoTable, 0, row, 1, row)
+                row += 1
+
+            if isT3Active and not isT3Valid
+                string t3Warn = isLong ? "⚠️ T3 should be above T2" : "⚠️ T3 should be below T2"
+                table.cell(infoTable, 0, row, t3Warn, text_color=color.yellow, text_size=size.small, bgcolor=color.orange, text_halign=text.align_center)
+                table.merge_cells(infoTable, 0, row, 1, row)
+                row += 1
+
+            if isT4Active and not isT4Valid
+                string t4Warn = isLong ? "⚠️ T4 should be above T3" : "⚠️ T4 should be below T3"
+                table.cell(infoTable, 0, row, t4Warn, text_color=color.yellow, text_size=size.small, bgcolor=color.orange, text_halign=text.align_center)
+                table.merge_cells(infoTable, 0, row, 1, row)
+                row += 1
+
+            if isT5Active and not isT5Valid
+                string t5Warn = isLong ? "⚠️ T5 should be above T4" : "⚠️ T5 should be below T4"
+                table.cell(infoTable, 0, row, t5Warn, text_color=color.yellow, text_size=size.small, bgcolor=color.orange, text_halign=text.align_center)
+                table.merge_cells(infoTable, 0, row, 1, row)
+                row += 1
+
+            if isT6Active and not isT6Valid
+                string t6Warn = isLong ? "⚠️ T6 should be above T5" : "⚠️ T6 should be below T5"
+                table.cell(infoTable, 0, row, t6Warn, text_color=color.yellow, text_size=size.small, bgcolor=color.orange, text_halign=text.align_center)
+                table.merge_cells(infoTable, 0, row, 1, row)
+                row += 1
+        else
+            table.cell(infoTable, 0, row, "SETUP ERROR", text_color=color.yellow, text_size=tblSize, bgcolor=color.red, text_halign=text.align_center)
+            table.merge_cells(infoTable, 0, row, 1, row)
+            row += 1
+
+            string errMsg = isLong ? "Stop should be BELOW Entry" : "Stop should be ABOVE Entry"
+            table.cell(infoTable, 0, row, errMsg, text_color=color.white, text_size=tblSize, bgcolor=color.new(color.red, 50), text_halign=text.align_center)
+            table.merge_cells(infoTable, 0, row, 1, row)
+
+// ==================== ALERTS ====================
+alertcondition(isLong ? close >= target : close <= target, title="Target 1 Hit", message="Target 1 reached!")
+alertcondition(isT2Active and (isLong ? close >= target2 : close <= target2), title="Target 2 Hit", message="Target 2 reached!")
+alertcondition(isT3Active and (isLong ? close >= target3 : close <= target3), title="Target 3 Hit", message="Target 3 reached!")
+alertcondition(isT4Active and (isLong ? close >= target4 : close <= target4), title="Target 4 Hit", message="Target 4 reached!")
+alertcondition(isT5Active and (isLong ? close >= target5 : close <= target5), title="Target 5 Hit", message="Target 5 reached!")
+alertcondition(isT6Active and (isLong ? close >= target6 : close <= target6), title="Target 6 Hit", message="Target 6 reached!")
+alertcondition(isLong ? close <= stopLoss : close >= stopLoss, title="Stop Loss Hit", message="Stop loss triggered!")
+alertcondition(ta.cross(close, entry), title="Entry Level", message="Price at entry level!")
+
+// ==================== PLOTS ====================
+plot(rc_isValidSetup ? entry    : na, "Entry",    color=color.new(entryColorInput,   100), display=display.price_scale)
+plot(rc_isValidSetup ? target   : na, "Target 1", color=color.new(targetColorInput,  100), display=display.price_scale)
+plot(rc_isValidSetup and isT2Active ? target2 : na, "Target 2", color=color.new(target2ColorInput, 100), display=display.price_scale)
+plot(rc_isValidSetup and isT3Active ? target3 : na, "Target 3", color=color.new(target3ColorInput, 100), display=display.price_scale)
+plot(rc_isValidSetup and isT4Active ? target4 : na, "Target 4", color=color.new(target4ColorInput, 100), display=display.price_scale)
+plot(rc_isValidSetup and isT5Active ? target5 : na, "Target 5", color=color.new(target5ColorInput, 100), display=display.price_scale)
+plot(rc_isValidSetup and isT6Active ? target6 : na, "Target 6", color=color.new(target6ColorInput, 100), display=display.price_scale)
+plot(rc_isValidSetup ? stopLoss : na, "Stop Loss", color=color.new(stopColorInput,   100), display=display.price_scale)

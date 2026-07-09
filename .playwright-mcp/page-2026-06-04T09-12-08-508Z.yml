@@ -1,0 +1,118 @@
+- generic [active] [ref=e1]:
+  - generic [ref=e2]:
+    - generic [ref=e3]:
+      - img [ref=e5]
+      - heading "Breakout Scanner" [level=1] [ref=e7]
+      - generic [ref=e10]: STOPPED
+    - generic [ref=e11]:
+      - generic [ref=e12]: ● connected
+      - button "↻ Refresh" [ref=e13] [cursor=pointer]
+  - generic [ref=e14]:
+    - generic [ref=e15]:
+      - generic [ref=e16]: 👀
+      - generic [ref=e17]:
+        - generic [ref=e18]: Watching
+        - generic [ref=e19]: "0"
+        - generic [ref=e20]: Not loaded
+    - generic [ref=e21]:
+      - generic [ref=e22]: 🔔
+      - generic [ref=e23]:
+        - generic [ref=e24]: Signals Today
+        - generic [ref=e25]: "0"
+        - generic [ref=e26]: 0 BUY · 0 SELL
+    - generic [ref=e27]:
+      - generic [ref=e28]: 🕐
+      - generic [ref=e29]:
+        - generic [ref=e30]: Last Scan
+        - generic [ref=e31]: —
+    - generic [ref=e32]:
+      - generic [ref=e33]: ⏱
+      - generic [ref=e34]:
+        - generic [ref=e35]: Next Scan
+        - generic [ref=e36]: —
+  - generic [ref=e37]:
+    - generic [ref=e38]:
+      - heading "🔗 Connection" [level=2] [ref=e39]:
+        - generic [ref=e40]: 🔗
+        - text: Connection
+      - generic [ref=e41]:
+        - generic [ref=e42]:
+          - generic [ref=e43]: TradeFinder JWT (lt token from Local Storage)
+          - generic [ref=e44]:
+            - textbox "eyJ…" [ref=e45]
+            - button "👁" [ref=e46] [cursor=pointer]
+          - paragraph [ref=e47]:
+            - text: tradefinder.in → F12 → Application → Local Storage →
+            - code [ref=e48]: lt
+        - generic [ref=e49]:
+          - generic [ref=e50]: Upstox Access Token (expires daily)
+          - generic [ref=e51]:
+            - textbox "Bearer token from Upstox developer portal" [ref=e52]
+            - button "👁" [ref=e53] [cursor=pointer]
+          - paragraph [ref=e54]: upstox.com → Developer → My Apps → Access Token
+        - button "▶ Start Scanner" [ref=e56] [cursor=pointer]
+    - generic [ref=e57]:
+      - heading "⚙️ Scanner Config" [level=2] [ref=e58]:
+        - generic [ref=e59]: ⚙️
+        - text: Scanner Config
+      - generic [ref=e60]:
+        - generic [ref=e61]:
+          - generic [ref=e62]: Bar Interval
+          - generic [ref=e63]:
+            - button "1m" [ref=e64] [cursor=pointer]
+            - button "3m" [ref=e65] [cursor=pointer]
+            - button "5m" [ref=e66] [cursor=pointer]
+            - button "15m" [ref=e67] [cursor=pointer]
+        - generic [ref=e68]:
+          - generic [ref=e69]: ADX Filter
+          - spinbutton [ref=e72]: "25"
+        - generic [ref=e73]:
+          - generic [ref=e74]: VWAP Filter
+          - generic [ref=e77]: Enabled
+        - generic [ref=e78]:
+          - generic [ref=e79]: Signal Type
+          - generic [ref=e80]:
+            - generic [ref=e81] [cursor=pointer]:
+              - checkbox "Double" [checked] [ref=e82]
+              - text: Double
+            - generic [ref=e83] [cursor=pointer]:
+              - checkbox "Single" [ref=e84]
+              - text: Single
+        - generic [ref=e85]:
+          - generic [ref=e86]: Scan Every (sec)
+          - spinbutton [ref=e87]: "60"
+        - generic [ref=e88]:
+          - generic [ref=e89]: Top-N Stocks
+          - generic [ref=e90]:
+            - spinbutton [ref=e91]: "0"
+            - generic [ref=e92]: (0=all)
+  - generic [ref=e93]:
+    - generic [ref=e94]:
+      - generic [ref=e95]:
+        - heading "Signals Today" [level=2] [ref=e96]
+        - generic [ref=e97]: (0 shown)
+      - generic [ref=e98]:
+        - textbox "Search symbol…" [ref=e99]
+        - generic [ref=e100]:
+          - button "ALL" [ref=e101] [cursor=pointer]
+          - button "BUY 0" [ref=e102] [cursor=pointer]
+          - button "SELL 0" [ref=e103] [cursor=pointer]
+        - button "🗑" [ref=e104] [cursor=pointer]
+    - generic [ref=e105]:
+      - table [ref=e106]:
+        - rowgroup [ref=e107]:
+          - row "Scan Time ↕ Symbol ↕ Direction ↕ Entry SL SL % ↕ ADX ↕ VWAP Type Bar Time" [ref=e108]:
+            - columnheader "Scan Time ↕" [ref=e109] [cursor=pointer]
+            - columnheader "Symbol ↕" [ref=e110] [cursor=pointer]
+            - columnheader "Direction ↕" [ref=e111] [cursor=pointer]
+            - columnheader "Entry" [ref=e112]
+            - columnheader "SL" [ref=e113]
+            - columnheader "SL % ↕" [ref=e114] [cursor=pointer]
+            - columnheader "ADX ↕" [ref=e115] [cursor=pointer]
+            - columnheader "VWAP" [ref=e116]
+            - columnheader "Type" [ref=e117]
+            - columnheader "Bar Time" [ref=e118]
+        - rowgroup
+      - generic [ref=e119]:
+        - generic [ref=e120]: 📡
+        - generic [ref=e121]: Start the scanner to detect signals

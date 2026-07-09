@@ -1,0 +1,433 @@
+- generic [ref=e34]:
+  - link "Skip to chart" [ref=e35] [cursor=pointer]:
+    - /url: "#main-chart"
+  - generic [ref=e45]:
+    - button "Menu" [ref=e47] [cursor=pointer]:
+      - img [ref=e49]
+    - generic [ref=e53]:
+      - button "Symbol Search" [ref=e54] [cursor=pointer]:
+        - img [ref=e56]
+        - generic [ref=e58]: TRENT
+      - button "Compare or Add Symbol" [ref=e59] [cursor=pointer]:
+        - img [ref=e61]
+      - button "Option Strategy Chart" [ref=e65] [cursor=pointer]:
+        - img [ref=e67]
+      - button "Auto Spread Builder" [ref=e73] [cursor=pointer]:
+        - img [ref=e75]
+    - button "5m" [ref=e80] [cursor=pointer]:
+      - generic [ref=e82]: 5m
+    - button [ref=e87] [cursor=pointer]:
+      - img [ref=e89]
+    - generic [ref=e96]:
+      - button "Indicators" [ref=e98] [cursor=pointer]:
+        - img [ref=e100]
+        - generic [ref=e103]: Indicators
+      - button "Pine Script Editor" [ref=e105] [cursor=pointer]:
+        - img [ref=e107]
+        - generic [ref=e110]: Pine
+    - generic [ref=e113]:
+      - button "Create Alert" [ref=e114] [cursor=pointer]:
+        - img [ref=e116]
+        - generic [ref=e119]: Alert
+      - button "Create Indicator Alert" [ref=e121] [cursor=pointer]:
+        - img [ref=e123]
+        - generic [ref=e125]: Indicator Alert
+      - button "Bar Replay" [ref=e126] [cursor=pointer]:
+        - img [ref=e128]
+        - generic [ref=e130]: Replay
+      - button "Option Chain" [ref=e131] [cursor=pointer]:
+        - img [ref=e133]
+        - generic [ref=e135]: Options
+      - button "Sector Heatmap" [ref=e137] [cursor=pointer]:
+        - img [ref=e139]
+        - generic [ref=e141]: Heatmap
+    - generic [ref=e144]:
+      - button "Undo" [ref=e146] [cursor=pointer]:
+        - img [ref=e148]
+      - button "Redo" [ref=e151] [cursor=pointer]:
+        - img [ref=e153]
+    - generic [ref=e155]:
+      - button "Layout setup" [ref=e157] [cursor=pointer]:
+        - img [ref=e159]
+      - button "Save" [ref=e161] [cursor=pointer]:
+        - generic [ref=e162]: Save
+      - button "Templates" [ref=e164] [cursor=pointer]:
+        - img [ref=e166]
+      - button "Indicator Templates" [ref=e169] [cursor=pointer]:
+        - img [ref=e171]
+      - button "Switch to Light Mode" [ref=e175] [cursor=pointer]:
+        - img [ref=e177]
+      - button "Settings" [ref=e182] [cursor=pointer]:
+        - img [ref=e184]
+      - button "Fullscreen" [ref=e188] [cursor=pointer]:
+        - img [ref=e190]
+      - button "Snapshot" [ref=e194] [cursor=pointer]:
+        - img [ref=e196]
+  - generic [ref=e199]:
+    - generic [ref=e201]:
+      - generic [ref=e203]:
+        - generic "Cross" [ref=e204] [cursor=pointer]:
+          - img [ref=e206]
+        - img [ref=e211] [cursor=pointer]
+      - generic [ref=e215]:
+        - generic "Trend Line" [ref=e216] [cursor=pointer]:
+          - img [ref=e218]
+        - img [ref=e223] [cursor=pointer]
+      - generic [ref=e227]:
+        - generic "Fib Retracement" [ref=e228] [cursor=pointer]:
+          - img [ref=e230]
+        - img [ref=e238] [cursor=pointer]
+      - generic [ref=e242]:
+        - generic "Brush" [ref=e243] [cursor=pointer]:
+          - img [ref=e245]
+        - img [ref=e250] [cursor=pointer]
+      - generic [ref=e254]:
+        - generic "Text" [ref=e255] [cursor=pointer]:
+          - img [ref=e257]
+        - img [ref=e260] [cursor=pointer]
+      - generic [ref=e264]:
+        - generic "Elliott Impulse Wave (12345)" [ref=e265] [cursor=pointer]:
+          - img [ref=e267]
+        - img [ref=e274] [cursor=pointer]
+      - generic [ref=e278]:
+        - generic "Long Position" [ref=e279] [cursor=pointer]:
+          - img [ref=e281]
+        - img [ref=e285] [cursor=pointer]
+      - generic "Measure" [ref=e290] [cursor=pointer]:
+        - img [ref=e292]
+      - generic "Zoom In" [ref=e296] [cursor=pointer]:
+        - img [ref=e298]
+      - generic "Show Timer" [ref=e306] [cursor=pointer]:
+        - img [ref=e308]
+      - generic "Lock All Drawing Tools" [ref=e314] [cursor=pointer]:
+        - img [ref=e316]
+      - generic "Sequential Drawing Mode" [ref=e320] [cursor=pointer]:
+        - img [ref=e322]
+      - generic "Hide All Drawings" [ref=e330] [cursor=pointer]:
+        - img [ref=e332]
+      - generic "Remove Objects" [ref=e336] [cursor=pointer]:
+        - img [ref=e338]
+    - generic [ref=e340]:
+      - generic [ref=e344]:
+        - generic [ref=e346]:
+          - table [ref=e347]:
+            - row [ref=e348]:
+              - cell
+              - cell [ref=e349]
+              - cell [ref=e353]
+            - row [ref=e357]:
+              - cell [ref=e358]
+            - row [ref=e360]:
+              - cell
+              - cell [ref=e361]
+              - cell [ref=e365]
+            - row [ref=e369]:
+              - cell
+              - cell [ref=e370]
+              - cell [ref=e374]
+          - generic:
+            - button "Zoom Out" [ref=e377] [cursor=pointer]:
+              - img [ref=e378]
+            - button "Zoom In" [ref=e379] [cursor=pointer]:
+              - img [ref=e380]
+            - button "Scroll Left" [ref=e382] [cursor=pointer]:
+              - img [ref=e383]
+            - button "Scroll Right" [ref=e385] [cursor=pointer]:
+              - img [ref=e386]
+            - button "Reset View" [ref=e388] [cursor=pointer]:
+              - img [ref=e389]
+        - generic:
+          - generic: TRENT:NSE
+          - generic: · 5M
+          - generic:
+            - generic:
+              - generic: O
+              - generic: "2724.10"
+            - generic:
+              - generic: H
+              - generic: "2724.10"
+            - generic:
+              - generic: L
+              - generic: "2724.10"
+            - generic:
+              - generic: C
+              - generic: "2724.10"
+            - generic:
+              - generic: +9.10 (+0.34%)
+        - generic [ref=e391]:
+          - generic [ref=e392]:
+            - generic [ref=e393]:
+              - generic [ref=e394]: Volume
+              - generic [ref=e395]: "954677.00"
+            - generic [ref=e396]:
+              - generic [ref=e397]: EMA 8
+              - generic [ref=e398]: "2725.47"
+            - generic [ref=e399]:
+              - generic [ref=e400]: EMA 21
+              - generic [ref=e401]: "2736.70"
+            - generic [ref=e402]:
+              - generic [ref=e403]: VWAP hlc3
+              - generic [ref=e404]: "2738.93"
+          - generic "Hide indicator legend" [ref=e405] [cursor=pointer]:
+            - img [ref=e406]
+        - generic [ref=e410]:
+          - generic [ref=e411]: ANN Strategy
+          - button "Pane options" [ref=e412] [cursor=pointer]:
+            - img [ref=e413]
+          - generic [ref=e417]: "-0.35 / 1000.00"
+      - generic [ref=e418]:
+        - generic "Drag to resize" [ref=e419]
+        - generic [ref=e420]:
+          - generic [ref=e421]:
+            - generic [ref=e422]:
+              - img [ref=e423]
+              - generic [ref=e426]: Account Manager
+            - generic [ref=e427]:
+              - generic [ref=e428]:
+                - generic [ref=e429]: Unrealized P&L
+                - generic [ref=e430]: +₹0.00
+              - generic [ref=e431]:
+                - generic [ref=e432]: Realized P&L
+                - generic [ref=e433]: ₹-2,518.33
+              - generic [ref=e434]:
+                - generic [ref=e435]: Available
+                - generic [ref=e436]: ₹1,06,88,680.90
+              - generic [ref=e437]:
+                - generic [ref=e438]: Used
+                - generic [ref=e439]: ₹0.00
+              - generic [ref=e440]:
+                - generic [ref=e441]: Margin Used
+                - generic [ref=e442]: 0.0%
+            - generic [ref=e443]:
+              - button "Refresh data" [ref=e444] [cursor=pointer]:
+                - img [ref=e445]
+              - button "Table Settings" [ref=e450] [cursor=pointer]:
+                - img [ref=e451]
+              - button "Minimize panel" [ref=e454] [cursor=pointer]:
+                - img [ref=e455]
+              - button "Maximize panel" [ref=e456] [cursor=pointer]:
+                - img [ref=e457]
+              - button "Close panel" [ref=e462] [cursor=pointer]:
+                - img [ref=e463]
+          - generic [ref=e466]:
+            - button "Positions" [ref=e467] [cursor=pointer]
+            - button "Orders" [ref=e468] [cursor=pointer]
+            - button "Holdings" [ref=e469] [cursor=pointer]
+            - button "Trades" [ref=e470] [cursor=pointer]
+          - generic [ref=e472]:
+            - generic [ref=e473]:
+              - generic [ref=e474]:
+                - img
+                - textbox "Search symbol..." [ref=e475]
+              - button "Filters" [ref=e476] [cursor=pointer]:
+                - img [ref=e477]
+                - generic [ref=e479]: Filters
+            - generic [ref=e481]:
+              - generic [ref=e482]: 📊
+              - paragraph [ref=e483]: No open positions
+      - generic [ref=e486]:
+        - generic [ref=e487]:
+          - generic [ref=e488] [cursor=pointer]: 1D
+          - generic [ref=e489] [cursor=pointer]: 5D
+          - generic [ref=e490] [cursor=pointer]: 1M
+          - generic [ref=e491] [cursor=pointer]: 3M
+          - generic [ref=e492] [cursor=pointer]: 6M
+          - generic [ref=e493] [cursor=pointer]: YTD
+          - generic [ref=e494] [cursor=pointer]: 1Y
+          - generic [ref=e495] [cursor=pointer]: 5Y
+          - generic [ref=e496] [cursor=pointer]: All
+        - generic [ref=e497]:
+          - generic "WebSocket connected - receiving live data" [ref=e498]:
+            - img [ref=e1528]
+          - generic [ref=e503]:
+            - generic [ref=e504]: "Local:"
+            - generic [ref=e505]: 17:15:53
+          - generic [ref=e507]:
+            - generic "Time synced with WorldTimeAPI" [ref=e508]
+            - generic [ref=e509]: "IST:"
+            - generic [ref=e510]: 17:15:52
+          - generic [ref=e513] [cursor=pointer]: UTC+5:30
+          - generic "Toggle Account Manager Panel" [ref=e515] [cursor=pointer]: Account
+          - generic [ref=e517] [cursor=pointer]: log
+          - generic [ref=e518] [cursor=pointer]: auto
+          - generic "Reset Chart View" [ref=e519] [cursor=pointer]: reset
+    - generic [ref=e520]:
+      - generic "Drag to resize" [ref=e521]
+      - generic [ref=e1531]:
+        - generic [ref=e1532]:
+          - generic [ref=e1533]:
+            - img [ref=e1534]
+            - generic [ref=e1535]: Sector Scope
+            - generic [ref=e1536]: "15"
+          - generic [ref=e1537]:
+            - button "Sector" [ref=e1538] [cursor=pointer]
+            - button "Backtest 14 stocks (NIFTY PHARMA)" [ref=e1539] [cursor=pointer]:
+              - img [ref=e1540]
+            - button "Refresh (auto in 58s)" [ref=e1542] [cursor=pointer]:
+              - img
+              - img [ref=e1543]
+        - generic [ref=e1548]:
+          - button "PHARMA +2.3" [ref=e1549] [cursor=pointer]:
+            - generic [ref=e1550]: PHARMA
+            - generic [ref=e1553]: "+2.3"
+          - button "ENERGY +0.6" [ref=e1554] [cursor=pointer]:
+            - generic [ref=e1555]: ENERGY
+            - generic [ref=e1558]: "+0.6"
+          - button "FMCG +0.4" [ref=e1559] [cursor=pointer]:
+            - generic [ref=e1560]: FMCG
+            - generic [ref=e1563]: "+0.4"
+          - button "MID SELECT +0.0" [ref=e1564] [cursor=pointer]:
+            - generic [ref=e1565]: MID SELECT
+            - generic [ref=e1568]: "+0.0"
+          - button "BANK -0.0" [ref=e1569] [cursor=pointer]:
+            - generic [ref=e1570]: BANK
+            - generic [ref=e1573]: "-0.0"
+          - button "PVT BANK -0.1" [ref=e1574] [cursor=pointer]:
+            - generic [ref=e1575]: PVT BANK
+            - generic [ref=e1578]: "-0.1"
+          - button "FIN SERVICE -0.2" [ref=e1579] [cursor=pointer]:
+            - generic [ref=e1580]: FIN SERVICE
+            - generic [ref=e1583]: "-0.2"
+          - button "PSU BANK -0.3" [ref=e1584] [cursor=pointer]:
+            - generic [ref=e1585]: PSU BANK
+            - generic [ref=e1588]: "-0.3"
+          - button "AUTO -0.4" [ref=e1589] [cursor=pointer]:
+            - generic [ref=e1590]: AUTO
+            - generic [ref=e1593]: "-0.4"
+          - button "REALTY -0.5" [ref=e1594] [cursor=pointer]:
+            - generic [ref=e1595]: REALTY
+            - generic [ref=e1598]: "-0.5"
+          - button "CEMENT -0.6" [ref=e1599] [cursor=pointer]:
+            - generic [ref=e1600]: CEMENT
+            - generic [ref=e1603]: "-0.6"
+          - button "SENSEX -1.0" [ref=e1604] [cursor=pointer]:
+            - generic [ref=e1605]: SENSEX
+            - generic [ref=e1608]: "-1.0"
+          - button "METAL -2.7" [ref=e1609] [cursor=pointer]:
+            - generic [ref=e1610]: METAL
+            - generic [ref=e1613]: "-2.7"
+          - button "IT -2.9" [ref=e1614] [cursor=pointer]:
+            - generic [ref=e1615]: IT
+            - generic [ref=e1618]: "-2.9"
+          - button "50 -3.3" [ref=e1619] [cursor=pointer]:
+            - generic [ref=e1620]: "50"
+            - generic [ref=e1623]: "-3.3"
+        - generic [ref=e1625]:
+          - generic [ref=e1626]:
+            - generic [ref=e1627]: Symbol
+            - generic [ref=e1628]: Pre C
+            - generic [ref=e1629]: "%"
+            - button "R Fact ↓" [ref=e1630] [cursor=pointer]
+            - generic [ref=e1631]: Sig
+          - generic "ALKEM · click to open chart" [ref=e1632] [cursor=pointer]:
+            - generic [ref=e1633]: ALKEM
+            - generic [ref=e1634]: 5,251.5
+            - generic [ref=e1635]: "+1.47"
+            - generic [ref=e1636]: "4.16"
+            - img [ref=e1638]
+          - generic "FORTIS · click to open chart" [ref=e1641] [cursor=pointer]:
+            - generic [ref=e1642]: FORTIS
+            - generic [ref=e1643]: "968.65"
+            - generic [ref=e1644]: "+1.71"
+            - generic [ref=e1645]: "3.48"
+            - img [ref=e1647]
+          - generic "LAURUSLABS · click to open chart" [ref=e1650] [cursor=pointer]:
+            - generic [ref=e1651]: LAURUSLABS
+            - generic [ref=e1652]: 1,446.8
+            - generic [ref=e1653]: "-3.30"
+            - generic [ref=e1654]: "3.06"
+            - img [ref=e1656]
+          - generic "TORNTPHARM · click to open chart" [ref=e1659] [cursor=pointer]:
+            - generic [ref=e1660]: TORNTPHARM
+            - generic [ref=e1661]: 4,420.9
+            - generic [ref=e1662]: "-0.38"
+            - generic [ref=e1663]: "1.75"
+            - img [ref=e1665]
+          - generic "BIOCON · click to open chart" [ref=e1668] [cursor=pointer]:
+            - generic [ref=e1669]: BIOCON
+            - generic [ref=e1670]: "412.3"
+            - generic [ref=e1671]: "-1.27"
+            - generic [ref=e1672]: "1.73"
+            - img [ref=e1674]
+          - generic "AUROPHARMA · click to open chart" [ref=e1677] [cursor=pointer]:
+            - generic [ref=e1678]: AUROPHARMA
+            - generic [ref=e1679]: 1,462.3
+            - generic [ref=e1680]: "-1.09"
+            - generic [ref=e1681]: "1.36"
+            - img [ref=e1683]
+          - generic "CIPLA · click to open chart" [ref=e1686] [cursor=pointer]:
+            - generic [ref=e1687]: CIPLA
+            - generic [ref=e1688]: 1,401.3
+            - generic [ref=e1689]: "-0.81"
+            - generic [ref=e1690]: "1.04"
+            - img [ref=e1692]
+          - generic "LUPIN · click to open chart" [ref=e1695] [cursor=pointer]:
+            - generic [ref=e1696]: LUPIN
+            - generic [ref=e1697]: 2,267.7
+            - generic [ref=e1698]: "-0.87"
+            - generic [ref=e1699]: "0.87"
+            - img [ref=e1701]
+          - generic "ZYDUSLIFE · click to open chart" [ref=e1704] [cursor=pointer]:
+            - generic [ref=e1705]: ZYDUSLIFE
+            - generic [ref=e1706]: 1,089
+            - generic [ref=e1707]: "-0.32"
+            - generic [ref=e1708]: "0.86"
+            - img [ref=e1710]
+          - generic "GLENMARK · click to open chart" [ref=e1713] [cursor=pointer]:
+            - generic [ref=e1714]: GLENMARK
+            - generic [ref=e1715]: 2,166.2
+            - generic [ref=e1716]: "-0.06"
+            - generic [ref=e1717]: "0.85"
+            - img [ref=e1719]
+          - generic "MANKIND · click to open chart" [ref=e1722] [cursor=pointer]:
+            - generic [ref=e1723]: MANKIND
+            - generic [ref=e1724]: 2,336.1
+            - generic [ref=e1725]: "+0.81"
+            - generic [ref=e1726]: "0.79"
+            - img [ref=e1728]
+          - generic "SUNPHARMA · click to open chart" [ref=e1731] [cursor=pointer]:
+            - generic [ref=e1732]: SUNPHARMA
+            - generic [ref=e1733]: 1,782.2
+            - generic [ref=e1734]: "+0.51"
+            - generic [ref=e1735]: "0.76"
+            - img [ref=e1737]
+          - generic "DRREDDY · click to open chart" [ref=e1740] [cursor=pointer]:
+            - generic [ref=e1741]: DRREDDY
+            - generic [ref=e1742]: 1,278.2
+            - generic [ref=e1743]: "-0.24"
+            - generic [ref=e1744]: "0.74"
+            - img [ref=e1746]
+          - generic "DIVISLAB · click to open chart" [ref=e1749] [cursor=pointer]:
+            - generic [ref=e1750]: DIVISLAB
+            - generic [ref=e1751]: 6,623
+            - generic [ref=e1752]: "-1.47"
+            - generic [ref=e1753]: "0.00"
+            - img [ref=e1755]
+        - generic [ref=e1758]:
+          - generic [ref=e1759]: 17:15:51
+          - generic [ref=e1760]: ↻ 58s
+    - generic [ref=e1474]:
+      - generic "Watchlist" [ref=e1475] [cursor=pointer]:
+        - img [ref=e1476]
+      - generic "Object Tree" [ref=e1477] [cursor=pointer]:
+        - img [ref=e1478]
+      - generic "Market Screener" [ref=e1482] [cursor=pointer]:
+        - img [ref=e1483]
+      - generic "Position Flow" [ref=e1485] [cursor=pointer]:
+        - img [ref=e1486]
+      - generic "Breakout Scanner (5m)" [ref=e1489] [cursor=pointer]:
+        - img [ref=e1490]
+      - generic "ANN Scanner" [ref=e1492] [cursor=pointer]:
+        - img [ref=e1493]
+      - generic "CPR Scanner" [ref=e1501] [cursor=pointer]:
+        - img [ref=e1502]
+      - generic "Intraday Boost" [ref=e1506] [cursor=pointer]:
+        - img [ref=e1507]
+      - generic "Sector Scope" [ref=e1509] [cursor=pointer]:
+        - img [ref=e1510]
+      - generic "Alerts" [ref=e1511] [cursor=pointer]:
+        - img [ref=e1512]
+      - generic "Depth of Market" [ref=e1515] [cursor=pointer]:
+        - img [ref=e1516]
+      - generic "Trade Panel" [ref=e1520] [cursor=pointer]:
+        - img [ref=e1521]

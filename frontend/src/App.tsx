@@ -98,9 +98,6 @@ const FlowIndex = lazy(() => import('@/pages/flow/FlowIndex'))
 const FlowEditor = lazy(() => import('@/pages/flow/FlowEditor'))
 const FlowKeyboardShortcuts = lazy(() => import('@/pages/flow/FlowKeyboardShortcuts'))
 
-// Breakout Scanner
-const Scanner = lazy(() => import('@/pages/Scanner'))
-
 // Leverage page (crypto brokers only)
 const Leverage = lazy(() => import('@/pages/Leverage'))
 
@@ -195,7 +192,6 @@ function App() {
                 <Route path="/gocharting" element={<GoCharting />} />
                 <Route path="/pnl-tracker" element={<PnLTracker />} />
                 {/* Phase 4: Sandbox & Analyzer */}
-                <Route path="/scanner" element={<Scanner />} />
                 <Route path="/sandbox" element={<Sandbox />} />
                 <Route path="/sandbox/mypnl" element={<SandboxPnL />} />
                 <Route path="/analyzer" element={<Analyzer />} />

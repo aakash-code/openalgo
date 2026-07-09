@@ -1,0 +1,337 @@
+08:37:30 | INFO  | Loaded 222 F&O stocks from fno_stocks.csv
+08:37:30 | INFO  | ============================================================
+08:37:30 | INFO  | CPR SCANNER — Scanning 222 F&O stocks
+08:37:30 | INFO  | Previous trading day: 2026-03-31
+08:37:30 | INFO  | ============================================================
+08:37:30 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:30 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:31 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:31 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:31 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:32 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:32 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:32 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:33 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:33 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:34 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:34 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:34 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:35 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:35 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:36 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:36 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:36 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:37 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:37 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:38 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:38 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:38 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:39 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:39 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:39 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:40 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:40 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:40 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:41 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:41 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:42 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:42 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:43 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:43 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:43 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:44 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:44 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:44 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:45 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:45 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:46 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:46 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:46 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:47 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:47 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:47 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:48 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:48 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:48 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:49 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:49 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:50 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:50 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:50 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:51 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:51 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:52 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:52 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:52 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:53 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:53 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:54 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:54 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:54 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:55 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:55 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:55 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:56 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:56 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:56 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:57 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:57 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:58 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:58 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:58 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 400 BAD REQUEST"
+08:37:59 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:59 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:37:59 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:00 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:00 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:01 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:01 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:01 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:02 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:02 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 400 BAD REQUEST"
+08:38:03 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:03 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:03 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:04 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:04 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:04 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:05 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:05 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:06 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:06 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 400 BAD REQUEST"
+08:38:06 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:07 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:07 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:07 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:08 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 400 BAD REQUEST"
+08:38:08 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:08 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:09 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:09 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:10 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:10 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:11 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:11 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:11 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:12 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:12 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:12 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:13 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:13 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:14 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:14 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:14 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:15 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:15 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:15 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:16 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:16 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:16 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:17 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:17 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:18 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:18 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:18 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:19 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:19 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:19 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:20 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 400 BAD REQUEST"
+08:38:20 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:21 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:21 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:22 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:22 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:22 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:23 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:23 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 400 BAD REQUEST"
+08:38:23 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 400 BAD REQUEST"
+08:38:24 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:24 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:24 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:25 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:25 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:25 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:26 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:26 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:27 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:27 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:28 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:28 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:28 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:29 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:29 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:29 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:30 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:30 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:31 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:31 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:31 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:32 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 400 BAD REQUEST"
+08:38:32 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:32 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:33 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:33 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:33 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:34 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:34 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:35 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:35 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:35 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:36 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:36 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:37 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:37 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:37 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:38 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:38 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:39 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:39 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:39 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:40 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:40 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:40 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:41 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:41 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:42 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:42 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:42 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:43 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:43 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:43 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:44 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:44 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:45 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:45 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:45 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 400 BAD REQUEST"
+08:38:46 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:46 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:47 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:47 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:47 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:48 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:48 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:48 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:49 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:49 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:50 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:50 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:50 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:51 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:51 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:51 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:52 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:52 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:52 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:53 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:53 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:54 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/history "HTTP/1.1 200 OK"
+08:38:54 | INFO  | Scanner results saved to /Users/bond7/Desktop/Project/openalgo/strategies/scripts/../scanner_data/cpr_watchlist_2026-04-01.json
+08:38:54 | INFO  | ------------------------------------------------------------
+08:38:54 | INFO  | Scanner complete: 212 scanned, 10 errors
+08:38:54 | INFO  | Narrow CPR stocks found: 52
+08:38:54 | INFO  | ------------------------------------------------------------
+08:38:54 | INFO  | SYMBOL                  TC         BC         PP   Width%
+08:38:54 | INFO  | -------------------------------------------------------
+08:38:54 | INFO  | PERSISTENT         4877.22    4877.25    4877.23  0.0007%
+08:38:54 | INFO  | ALKEM              5298.92    5298.75    5298.83  0.0031%
+08:38:54 | INFO  | LUPIN              2313.98    2314.15    2314.07  0.0072%
+08:38:54 | INFO  | DIVISLAB           5946.58    5945.75    5946.17  0.0140%
+08:38:54 | INFO  | PAGEIND           31778.33   31785.00   31781.67  0.0210%
+08:38:54 | INFO  | SONACOMS            481.57     481.70     481.63  0.0277%
+08:38:54 | INFO  | IGL                 145.64     145.69     145.66  0.0297%
+08:38:54 | INFO  | MARUTI            12308.17   12312.50   12310.33  0.0352%
+08:38:54 | INFO  | GAIL                137.68     137.62     137.65  0.0412%
+08:38:54 | INFO  | CIPLA              1224.47    1225.00    1224.73  0.0435%
+08:38:54 | INFO  | BERGEPAINT          409.91     409.73     409.82  0.0447%
+08:38:54 | INFO  | WHIRLPOOL           789.89     790.28     790.08  0.0485%
+08:38:54 | INFO  | M&MFIN             2285.74    2287.22    2286.48  0.0649%
+08:38:54 | INFO  | TORNTPHARM         4221.77    4224.90    4223.33  0.0742%
+08:38:54 | INFO  | PFC                 379.35     379.05     379.20  0.0791%
+08:38:54 | INFO  | GRANULES            620.68     621.25     620.97  0.0913%
+08:38:54 | INFO  | CAMS                626.09     626.67     626.38  0.0931%
+08:38:54 | INFO  | MANAPPURAM          251.23     251.50     251.37  0.1061%
+08:38:54 | INFO  | LAURUSLABS          993.23     994.30     993.77  0.1073%
+08:38:54 | INFO  | MPHASIS            2054.15    2056.45    2055.30  0.1119%
+08:38:54 | INFO  | ABBOTINDIA        25930.00   25960.00   25945.00  0.1156%
+08:38:54 | INFO  | ONGC                284.82     285.15     284.98  0.1170%
+08:38:54 | INFO  | NATIONALUM          385.84     385.33     385.58  0.1340%
+08:38:54 | INFO  | DELHIVERY           416.99     417.57     417.28  0.1398%
+08:38:54 | INFO  | APOLLOHOSP         7424.33    7435.00    7429.67  0.1436%
+08:38:54 | INFO  | COALINDIA           450.80     451.50     451.15  0.1552%
+08:38:54 | INFO  | SUPREMEIND         3742.18    3736.35    3739.27  0.1560%
+08:38:54 | INFO  | TITAN              3954.52    3960.75    3957.63  0.1575%
+08:38:54 | INFO  | JSWSTEEL           1123.42    1125.25    1124.33  0.1631%
+08:38:54 | INFO  | LALPATHLAB         1311.02    1308.85    1309.93  0.1654%
+08:38:54 | INFO  | BALKRISIND         2084.80    2088.40    2086.60  0.1725%
+08:38:54 | INFO  | TATASTEEL           191.69     191.36     191.53  0.1740%
+08:38:54 | INFO  | KEI                4041.58    4048.75    4045.17  0.1772%
+08:38:54 | INFO  | BALRAMCHIN          497.55     498.45     498.00  0.1807%
+08:38:54 | INFO  | MGL                 928.58     930.35     929.47  0.1901%
+08:38:54 | INFO  | INFY               1251.82    1254.25    1253.03  0.1942%
+08:38:54 | INFO  | ASTRAL             1600.65    1603.95    1602.30  0.2060%
+08:38:54 | INFO  | ICICIGI            1708.83    1705.30    1707.07  0.2070%
+08:38:54 | INFO  | UBL                1541.63    1544.90    1543.27  0.2117%
+08:38:54 | INFO  | PVRINOX             919.63     921.70     920.67  0.2245%
+08:38:54 | INFO  | RAMCOCEM            921.17     923.30     922.23  0.2313%
+08:38:54 | INFO  | AUROPHARMA         1305.95    1309.05    1307.50  0.2371%
+08:38:54 | INFO  | BHARATFORG         1676.65    1680.75    1678.70  0.2442%
+08:38:54 | INFO  | MCX                2386.43    2380.50    2383.47  0.2489%
+08:38:54 | INFO  | GLENMARK           2134.38    2139.75    2137.07  0.2511%
+08:38:54 | INFO  | LT                 3508.52    3517.35    3512.93  0.2515%
+08:38:54 | INFO  | POWERGRID           295.72     294.95     295.33  0.2596%
+08:38:54 | INFO  | BAJAJ-AUTO         8793.33    8817.00    8805.17  0.2688%
+08:38:54 | INFO  | SAIL                151.21     150.81     151.01  0.2715%
+08:38:54 | INFO  | RELIANCE           1345.78    1349.55    1347.67  0.2795%
+08:38:54 | INFO  | HINDUNILVR         2058.23    2064.30    2061.27  0.2943%
+08:38:54 | INFO  | LTTS               3126.37    3135.70    3131.03  0.2981%
+08:38:54 | INFO  | ============================================================
+09:08:53 | ERROR | Set OPENALGO_APIKEY environment variable or edit API_KEY in this file
+09:11:00 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/funds "HTTP/1.1 200 OK"
+09:11:00 | INFO  | Funds API: Available cash = ₹0.32
+09:11:00 | INFO  | ============================================================
+09:11:00 | INFO  |   CPR + VWAP F&O Strategy — CPR_VWAP_FNO
+09:11:00 | INFO  |   Date: 2026-04-01
+09:11:00 | INFO  |   Exchange: NSE | Product: MIS
+09:11:00 | INFO  |   Capital: ₹0.32 (full allocation per stock, Streak-style)
+09:11:00 | INFO  |   Max Positions: 10 (risk limit)
+09:11:00 | INFO  |   CPR threshold: 0.1% | SL: 2.0%
+09:11:00 | INFO  |   Trade start: 9:00 | Confirm candles: 2
+09:11:00 | INFO  | ============================================================
+09:11:00 | INFO  | Loaded 52 stocks from /Users/bond7/Desktop/Project/openalgo/strategies/scripts/../scanner_data/cpr_watchlist_2026-04-01.json
+09:11:00 | INFO  | Resumed with 52 stocks from today's scanner cache
+09:15:42 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/funds "HTTP/1.1 200 OK"
+09:15:42 | INFO  | Funds API: Available cash = ₹10,000,000.00
+09:15:42 | INFO  | ============================================================
+09:15:42 | INFO  |   CPR + VWAP F&O Strategy — CPR_VWAP_FNO
+09:15:42 | INFO  |   Date: 2026-04-01
+09:15:42 | INFO  |   Exchange: NSE | Product: MIS
+09:15:42 | INFO  |   Capital: ₹10,000,000.00 (full allocation per stock, Streak-style)
+09:15:42 | INFO  |   Max Positions: 10 (risk limit)
+09:15:42 | INFO  |   CPR threshold: 0.1% | SL: 2.0%
+09:15:42 | INFO  |   Trade start: 9:00 | Confirm candles: 2
+09:15:42 | INFO  | ============================================================
+09:15:42 | INFO  | Loaded 52 stocks from /Users/bond7/Desktop/Project/openalgo/strategies/scripts/../scanner_data/cpr_watchlist_2026-04-01.json
+09:15:42 | INFO  | Resumed with 52 stocks from today's scanner cache
+09:36:58 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/funds "HTTP/1.1 200 OK"
+09:36:58 | INFO  | Funds API: Available cash = ₹10,000,000.00
+09:36:58 | INFO  | ============================================================
+09:36:58 | INFO  |   CPR + VWAP F&O Strategy — CPR_VWAP_FNO
+09:36:58 | INFO  |   Date: 2026-04-01
+09:36:58 | INFO  |   Exchange: NSE | Product: MIS
+09:36:58 | INFO  |   Capital: ₹10,000,000.00 (full allocation per stock, Streak-style)
+09:36:58 | INFO  |   Max Positions: 10 (risk limit)
+09:36:58 | INFO  |   CPR threshold: 0.1% | SL: 2.0%
+09:36:58 | INFO  |   Trade start: 9:00 | Confirm candles: 2
+09:36:58 | INFO  | ============================================================
+09:36:58 | INFO  | Loaded 52 stocks from /Users/bond7/Desktop/Project/openalgo/strategies/scripts/../scanner_data/cpr_watchlist_2026-04-01.json
+09:36:58 | INFO  | Resumed with 52 stocks from today's scanner cache
+15:15:07 | INFO  | ============================================================
+15:15:07 | INFO  | 3:15 PM — SQUARING OFF ALL POSITIONS
+15:15:07 | INFO  | ============================================================
+15:15:07 | INFO  | HTTP Request: POST http://127.0.0.1:5000/api/v1/closeposition "HTTP/1.1 200 OK"
+15:15:07 | INFO  | Close all response: {'message': 'No open positions to close', 'mode': 'analyze', 'status': 'success'}
+15:15:07 | INFO  | ------------------------------------------------------------
+15:15:07 | INFO  | Trades today: 0
+15:15:07 | INFO  | Stocks traded: None
+15:15:07 | INFO  | ============================================================
+15:15:07 | INFO  | Strategy complete for today. Exiting.

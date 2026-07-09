@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<!--
+  Auto-start the 15-day paper-test capture at 9:10 AM IST on weekdays.
+  This is a TEMPLATE. Do not edit it directly — run:
+      ./strategies/launchd/install.sh YOUR_OPENALGO_API_KEY
+  which fills __API_KEY__ / __REPO__ / __UV__ and installs the real plist into
+  ~/Library/LaunchAgents (outside the repo, so your key is never committed).
+-->
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>in.openalgo.sector-capture</string>
+
+    <key>ProgramArguments</key>
+    <array>
+        <string>/bin/bash</string>
+        <string>__REPO__/strategies/run_capture.sh</string>
+    </array>
+
+    <key>WorkingDirectory</key>
+    <string>__REPO__</string>
+
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>OPENALGO_API_KEY</key>
+        <string>__API_KEY__</string>
+        <key>PATH</key>
+        <string>__UVDIR__:/usr/local/bin:/usr/bin:/bin:/opt/homebrew/bin</string>
+    </dict>
+
+    <!-- Mon(1) .. Fri(5) at 09:10 local time (Mac is IST) -->
+    <key>StartCalendarInterval</key>
+    <array>
+        <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>9</integer><key>Minute</key><integer>10</integer></dict>
+        <dict><key>Weekday</key><integer>2</integer><key>Hour</key><integer>9</integer><key>Minute</key><integer>10</integer></dict>
+        <dict><key>Weekday</key><integer>3</integer><key>Hour</key><integer>9</integer><key>Minute</key><integer>10</integer></dict>
+        <dict><key>Weekday</key><integer>4</integer><key>Hour</key><integer>9</integer><key>Minute</key><integer>10</integer></dict>
+        <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>9</integer><key>Minute</key><integer>10</integer></dict>
+    </array>
+
+    <!-- run_capture.sh backgrounds two processes then exits; keep them alive afterwards -->
+    <key>AbandonProcessGroup</key>
+    <true/>
+
+    <key>RunAtLoad</key>
+    <false/>
+
+    <key>StandardOutPath</key>
+    <string>__REPO__/logs/breakout/launchd_out.log</string>
+    <key>StandardErrorPath</key>
+    <string>__REPO__/logs/breakout/launchd_err.log</string>
+</dict>
+</plist>

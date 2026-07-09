@@ -1,0 +1,49 @@
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e59] [cursor=pointer]:
+    - generic [ref=e62]:
+      - text: Compiling
+      - generic [ref=e63]:
+        - generic [ref=e64]: .
+        - generic [ref=e65]: .
+        - generic [ref=e66]: .
+  - alert [ref=e34]
+  - generic [ref=e67]:
+    - banner [ref=e68]:
+      - generic [ref=e69]:
+        - heading "Sector Scope — Live" [level=1] [ref=e70]
+        - generic [ref=e71]:
+          - img [ref=e72]
+          - text: Reconnecting…
+      - generic [ref=e79]:
+        - generic [ref=e80]: tester@example.com
+        - link "Alert settings" [ref=e81] [cursor=pointer]:
+          - /url: /dashboard/settings
+          - img [ref=e82]
+        - button "Sign out" [ref=e86]:
+          - img [ref=e87]
+    - generic [ref=e90]:
+      - complementary [ref=e91]:
+        - heading "Sectors" [level=2] [ref=e92]
+        - list [ref=e93]:
+          - listitem [ref=e94]: Waiting for data…
+      - main [ref=e95]:
+        - generic [ref=e96]:
+          - heading "Select a sector" [level=2] [ref=e97]
+          - button "R-factor desc" [ref=e98]:
+            - img [ref=e99]
+            - text: R-factor desc
+        - table [ref=e102]:
+          - rowgroup [ref=e103]:
+            - row "Symbol LTP %Chg R-factor Signal" [ref=e104]:
+              - columnheader "Symbol" [ref=e105]
+              - columnheader "LTP" [ref=e106]
+              - columnheader "%Chg" [ref=e107]
+              - columnheader "R-factor" [ref=e108]
+              - columnheader "Signal" [ref=e109]
+          - rowgroup [ref=e110]:
+            - row "No stocks to show." [ref=e111]:
+              - cell "No stocks to show." [ref=e112]
+      - complementary [ref=e113]:
+        - heading "Today's signals (0)" [level=2] [ref=e114]
+        - list [ref=e115]:
+          - listitem [ref=e116]: No signals yet today.

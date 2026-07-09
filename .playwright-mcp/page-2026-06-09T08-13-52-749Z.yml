@@ -1,0 +1,108 @@
+- generic [active] [ref=e1]:
+  - button "Open Next.js Dev Tools" [ref=e18] [cursor=pointer]:
+    - img [ref=e19]
+  - alert [ref=e22]
+  - generic [ref=e24]:
+    - generic [ref=e25]:
+      - heading "Admin Dashboard" [level=1] [ref=e26]
+      - generic [ref=e27]:
+        - link "Add" [ref=e28] [cursor=pointer]:
+          - /url: /admin/new
+          - img [ref=e29]
+          - text: Add
+        - link "Content" [ref=e30] [cursor=pointer]:
+          - /url: /admin/content
+          - img [ref=e31]
+          - text: Content
+        - link "Export CSV" [ref=e34] [cursor=pointer]:
+          - /url: /admin/export
+          - img [ref=e35]
+          - text: Export CSV
+        - link "Settings" [ref=e38] [cursor=pointer]:
+          - /url: /admin/settings
+          - img [ref=e39]
+          - text: Settings
+        - link "Scanner" [ref=e42] [cursor=pointer]:
+          - /url: /admin/scanner
+          - img [ref=e43]
+          - text: Scanner
+        - button "Run maintenance" [ref=e49]:
+          - img [ref=e50]
+          - text: Run maintenance
+        - button "Logout" [ref=e56]:
+          - img [ref=e57]
+          - text: Logout
+    - generic [ref=e60]:
+      - generic [ref=e61]:
+        - generic [ref=e62]:
+          - img [ref=e63]
+          - text: Total
+        - generic [ref=e68]: "1"
+      - generic [ref=e69]:
+        - generic [ref=e70]:
+          - img [ref=e71]
+          - text: Pending
+        - generic [ref=e74]: "0"
+      - generic [ref=e75]:
+        - generic [ref=e76]:
+          - img [ref=e77]
+          - text: Active
+        - generic [ref=e80]: "1"
+      - generic [ref=e81]:
+        - generic [ref=e82]:
+          - img [ref=e83]
+          - text: Expiring ≤7d
+        - generic [ref=e85]: "0"
+      - generic [ref=e86]:
+        - generic [ref=e87]:
+          - img [ref=e88]
+          - text: Active Revenue
+        - generic [ref=e91]: ₹0
+    - generic [ref=e92]:
+      - generic [ref=e93]:
+        - link "All 1" [ref=e94] [cursor=pointer]:
+          - /url: /admin?status=ALL
+        - link "Pending 0" [ref=e95] [cursor=pointer]:
+          - /url: /admin?status=PENDING
+        - link "Active 1" [ref=e96] [cursor=pointer]:
+          - /url: /admin?status=ACTIVE
+        - link "Expired 0" [ref=e97] [cursor=pointer]:
+          - /url: /admin?status=EXPIRED
+        - link "Rejected 0" [ref=e98] [cursor=pointer]:
+          - /url: /admin?status=REJECTED
+      - generic [ref=e99]:
+        - textbox "Search name, email, TV ID…" [ref=e100]
+        - button "Search" [ref=e101]
+    - table [ref=e103]:
+      - rowgroup [ref=e104]:
+        - row "Date User TradingView ID Plan Status Actions" [ref=e105]:
+          - columnheader "Date" [ref=e106]
+          - columnheader "User" [ref=e107]
+          - columnheader "TradingView ID" [ref=e108]
+          - columnheader "Plan" [ref=e109]
+          - columnheader "Status" [ref=e110]
+          - columnheader "Actions" [ref=e111]
+      - rowgroup [ref=e112]:
+        - 'row "6/9/2026 Tester tester@example.com 0 tester monthly ₹0 ACTIVE Exp: 7/9/2026 · 30d left" [ref=e113]':
+          - cell "6/9/2026" [ref=e114]
+          - cell "Tester tester@example.com 0" [ref=e115]:
+            - generic [ref=e116]: Tester
+            - generic [ref=e117]: tester@example.com
+            - generic [ref=e118]: "0"
+          - cell "tester" [ref=e119]
+          - cell "monthly ₹0" [ref=e120]:
+            - text: monthly
+            - generic [ref=e121]: ₹0
+          - 'cell "ACTIVE Exp: 7/9/2026 · 30d left" [ref=e122]':
+            - text: ACTIVE
+            - generic [ref=e123]: "Exp: 7/9/2026 · 30d left"
+          - cell [ref=e124]:
+            - generic [ref=e125]:
+              - button "Copy TradingView ID" [ref=e126]:
+                - img [ref=e127]
+              - button "Extend by one plan period" [ref=e130]:
+                - img [ref=e131]
+              - button "Revoke access (mark expired)" [ref=e133]:
+                - img [ref=e134]
+              - button "Delete" [ref=e137]:
+                - img [ref=e138]

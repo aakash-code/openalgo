@@ -1,0 +1,132 @@
+{
+  "50": {
+    "faithful": {
+      "trades": 70,
+      "wins": 55,
+      "win_pct": 78.6,
+      "net": -9028.0,
+      "pf": 0.73,
+      "max_dd": -12159.0,
+      "avg": -129.0
+    },
+    "realistic": {
+      "trades": 70,
+      "wins": 35,
+      "win_pct": 50.0,
+      "net": -73360.0,
+      "pf": 0.11,
+      "max_dd": -73453.0,
+      "avg": -1048.0
+    },
+    "skips": {
+      "no_prev_week": 0,
+      "no_entry_day": 6,
+      "no_premium": 42,
+      "low_credit": 13
+    }
+  },
+  "100": {
+    "faithful": {
+      "trades": 77,
+      "wins": 62,
+      "win_pct": 80.5,
+      "net": -12718.0,
+      "pf": 0.78,
+      "max_dd": -23180.0,
+      "avg": -165.0
+    },
+    "realistic": {
+      "trades": 77,
+      "wins": 46,
+      "win_pct": 59.7,
+      "net": -56880.0,
+      "pf": 0.31,
+      "max_dd": -58868.0,
+      "avg": -739.0
+    },
+    "skips": {
+      "no_prev_week": 0,
+      "no_entry_day": 6,
+      "no_premium": 42,
+      "low_credit": 6
+    }
+  },
+  "200": {
+    "faithful": {
+      "trades": 78,
+      "wins": 64,
+      "win_pct": 82.1,
+      "net": -29024.0,
+      "pf": 0.72,
+      "max_dd": -42925.0,
+      "avg": -372.0
+    },
+    "realistic": {
+      "trades": 78,
+      "wins": 53,
+      "win_pct": 67.9,
+      "net": -89906.0,
+      "pf": 0.35,
+      "max_dd": -94637.0,
+      "avg": -1153.0
+    },
+    "skips": {
+      "no_prev_week": 0,
+      "no_entry_day": 6,
+      "no_premium": 42,
+      "low_credit": 5
+    }
+  },
+  "300": {
+    "faithful": {
+      "trades": 80,
+      "wins": 66,
+      "win_pct": 82.5,
+      "net": -55250.0,
+      "pf": 0.63,
+      "max_dd": -64675.0,
+      "avg": -691.0
+    },
+    "realistic": {
+      "trades": 80,
+      "wins": 57,
+      "win_pct": 71.2,
+      "net": -131702.0,
+      "pf": 0.33,
+      "max_dd": -137367.0,
+      "avg": -1646.0
+    },
+    "skips": {
+      "no_prev_week": 0,
+      "no_entry_day": 6,
+      "no_premium": 42,
+      "low_credit": 3
+    }
+  },
+  "naked": {
+    "faithful": {
+      "trades": 83,
+      "wins": 71,
+      "win_pct": 85.5,
+      "net": -55534.0,
+      "pf": 0.72,
+      "max_dd": -77031.0,
+      "avg": -669.0
+    },
+    "realistic": {
+      "trades": 83,
+      "wins": 65,
+      "win_pct": 78.3,
+      "net": -144376.0,
+      "pf": 0.44,
+      "max_dd": -153866.0,
+      "avg": -1739.0
+    },
+    "skips": {
+      "no_prev_week": 0,
+      "no_entry_day": 6,
+      "no_premium": 42,
+      "low_credit": 0
+    }
+  }
+}

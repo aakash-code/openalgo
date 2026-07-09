@@ -1,0 +1,159 @@
+- generic [ref=e2]:
+  - generic [ref=e5]:
+    - navigation [ref=e6]:
+      - generic [ref=e7]:
+        - link "OpenAlgo OpenAlgo" [ref=e8] [cursor=pointer]:
+          - /url: /dashboard
+          - img "OpenAlgo" [ref=e9]
+          - generic [ref=e10]: OpenAlgo
+        - navigation [ref=e11]:
+          - link "Dashboard" [ref=e12] [cursor=pointer]:
+            - /url: /dashboard
+          - link "Orderbook" [ref=e13] [cursor=pointer]:
+            - /url: /orderbook
+          - link "Tradebook" [ref=e14] [cursor=pointer]:
+            - /url: /tradebook
+          - link "Positions" [ref=e15] [cursor=pointer]:
+            - /url: /positions
+          - link "Action Center" [ref=e16] [cursor=pointer]:
+            - /url: /action-center
+          - link "Platforms" [ref=e17] [cursor=pointer]:
+            - /url: /platforms
+          - link "Strategy" [ref=e18] [cursor=pointer]:
+            - /url: /strategy
+          - link "Logs" [ref=e19] [cursor=pointer]:
+            - /url: /logs
+          - link "Tools" [ref=e20] [cursor=pointer]:
+            - /url: /tools
+        - generic [ref=e21]:
+          - generic [ref=e22]: upstox
+          - generic [ref=e24]: Analyze Mode
+          - button "Switch to Live mode" [ref=e25]:
+            - img
+          - button "Switch to dark mode" [disabled]:
+            - img
+          - button "Open user menu" [ref=e26]:
+            - generic [ref=e27]: A
+    - main [ref=e28]:
+      - generic [ref=e29]:
+        - link "Back to Python Strategies" [ref=e30] [cursor=pointer]:
+          - /url: /python
+          - img
+          - text: Back to Python Strategies
+        - generic [ref=e31]:
+          - heading "Add Python Strategy" [level=1] [ref=e32]
+          - paragraph [ref=e33]: Upload a Python script to run as an automated trading strategy
+        - alert [ref=e34]:
+          - img [ref=e35]
+          - generic [ref=e37]:
+            - text: Your Python script should use the
+            - code [ref=e38]: openalgo
+            - text: "SDK. Install it with:"
+            - code [ref=e39]: pip install openalgo
+        - generic [ref=e40]:
+          - generic [ref=e41]:
+            - generic [ref=e42]:
+              - img [ref=e43]
+              - text: Upload Strategy
+            - generic [ref=e46]: Select your Python script file and give it a name
+          - generic [ref=e48]:
+            - generic [ref=e49]:
+              - generic [ref=e50]: Strategy Name
+              - textbox "Strategy Name" [ref=e51]:
+                - /placeholder: My Trading Strategy
+                - text: Breakout Intraday
+              - paragraph [ref=e52]: A descriptive name for your strategy
+            - generic [ref=e53]:
+              - generic [ref=e54]: Python Script
+              - generic [ref=e56] [cursor=pointer]:
+                - img [ref=e145]
+                - generic [ref=e150]:
+                  - paragraph [ref=e151]: breakout_intraday_strategy.py
+                  - paragraph [ref=e152]: 52.76 KB
+            - generic [ref=e62]:
+              - generic [ref=e63]: Exchange
+              - combobox "Exchange" [ref=e64]:
+                - option "NSE — Equity (09:15-15:30)" [selected]
+                - option "BSE — Equity (09:15-15:30)"
+                - option "NFO — NSE F&O (09:15-15:30)"
+                - option "BFO — BSE F&O (09:15-15:30)"
+                - option "CDS — NSE Currency (09:00-17:00)"
+                - option "BCD — BSE Currency (09:00-17:00)"
+                - option "MCX — Commodity (09:00-23:55)"
+                - option "CRYPTO — 24/7"
+              - paragraph [ref=e65]: Drives the holiday calendar and effective trading window for this strategy. Each exchange has its own holiday list and per-date session timings (e.g. MCX may run a partial 17:00-23:55 session on a date when NSE/BSE are fully closed — the host follows whatever the calendar DB says, not a hardcoded "evening" rule). CRYPTO ignores holidays entirely.
+            - generic [ref=e66]:
+              - generic [ref=e67]:
+                - img [ref=e68]
+                - heading "Schedule" [level=3] [ref=e71]
+              - paragraph [ref=e72]: Configure when this strategy should run. All times are in IST.
+              - generic [ref=e73]:
+                - generic [ref=e74]:
+                  - generic [ref=e75]: Start Time (IST)
+                  - textbox "Start Time (IST)" [ref=e76]: 09:00
+                - generic [ref=e77]:
+                  - generic [ref=e78]: Stop Time (IST)
+                  - textbox "Stop Time (IST)" [ref=e79]: 16:00
+              - generic [ref=e80]:
+                - generic [ref=e81]: Schedule Days
+                - generic [ref=e82]:
+                  - button "Monday" [ref=e83] [cursor=pointer]:
+                    - img [ref=e85]
+                    - generic [ref=e87]: Monday
+                  - button "Tuesday" [ref=e88] [cursor=pointer]:
+                    - img [ref=e90]
+                    - generic [ref=e92]: Tuesday
+                  - button "Wednesday" [ref=e93] [cursor=pointer]:
+                    - img [ref=e95]
+                    - generic [ref=e97]: Wednesday
+                  - button "Thursday" [ref=e98] [cursor=pointer]:
+                    - img [ref=e100]
+                    - generic [ref=e102]: Thursday
+                  - button "Friday" [ref=e103] [cursor=pointer]:
+                    - img [ref=e105]
+                    - generic [ref=e107]: Friday
+                  - button "Saturday" [ref=e108] [cursor=pointer]:
+                    - generic [ref=e110]: Saturday
+                  - button "Sunday" [ref=e111] [cursor=pointer]:
+                    - generic [ref=e113]: Sunday
+                - paragraph [ref=e114]: Select the days when this strategy should run. Weekends can be enabled for special trading sessions.
+            - generic [ref=e115]:
+              - button "Cancel" [ref=e116]
+              - button "Upload Strategy" [ref=e117]
+        - button "Example Strategy Template Show" [ref=e121]:
+          - generic [ref=e122]:
+            - img
+            - text: Example Strategy Template
+          - generic [ref=e123]: Show
+    - contentinfo [ref=e124]:
+      - generic [ref=e125]:
+        - generic [ref=e126]:
+          - generic [ref=e127]:
+            - generic [ref=e128]: Copyright 2026
+            - generic [ref=e129]: "|"
+            - link "www.openalgo.in" [ref=e130] [cursor=pointer]:
+              - /url: https://www.openalgo.in
+          - generic [ref=e131]: "|"
+          - generic [ref=e132]: Open Source Algo Platform for Everyone
+          - generic [ref=e133]: "|"
+          - generic [ref=e134]:
+            - generic [ref=e135]: v
+            - generic [ref=e136]: 2.0.1.2
+          - generic [ref=e137]: "|"
+          - generic [ref=e138]:
+            - img
+            - generic [ref=e139]: 1 session
+        - generic [ref=e140]:
+          - link "GitHub" [ref=e141] [cursor=pointer]:
+            - /url: https://github.com/marketcalls/openalgo
+            - img
+          - link "Discord" [ref=e142] [cursor=pointer]:
+            - /url: https://openalgo.in/discord
+            - img
+          - link "X (Twitter)" [ref=e143] [cursor=pointer]:
+            - /url: https://x.com/openalgoHQ
+            - img
+          - link "YouTube" [ref=e144] [cursor=pointer]:
+            - /url: https://www.youtube.com/@openalgo
+            - img
+  - region "Notifications alt+T"

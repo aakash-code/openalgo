@@ -63,6 +63,14 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
         # carry forward a non-zero LTP into validation downstream.
         self._last_ltpc: dict[str, dict[str, Any]] = {}
 
+        # O(1) tick routing: instrument_key → [(correlation_id, sub_info), ...].
+        # _process_feed runs for EVERY incoming tick; a linear scan over all
+        # subscriptions (240+ symbols × 2-3 ticks/sec) burned ~100k dict
+        # comparisons/sec under the lock. Also indexed by bare token to keep
+        # the legacy fallback match ("NSE_EQ|2885" vs "2885") O(1) too.
+        self._subs_by_instrument: dict[str, list[tuple[str, dict[str, Any]]]] = {}
+        self._subs_by_token: dict[str, list[tuple[str, dict[str, Any]]]] = {}
+
     def initialize(
         self, broker_name: str, user_id: str, auth_data: dict[str, Any] | None = None
     ) -> dict[str, Any]:
@@ -161,6 +169,7 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
 
         with self.lock:
             self.subscriptions[correlation_id] = subscription_info
+            self._index_subscription(correlation_id, subscription_info)
             self.subscription_queue.append(subscription_info)
             self.logger.debug(f"Queued subscription: {correlation_id} -> {subscription_info}")
 
@@ -260,7 +269,9 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
 
             if success:
                 with self.lock:
-                    self.subscriptions.pop(correlation_id, None)
+                    removed = self.subscriptions.pop(correlation_id, None)
+                    if removed:
+                        self._unindex_subscription(correlation_id, removed)
                 self.logger.info(f"Unsubscribed from {symbol} on {exchange}")
                 return self._create_success_response(f"Unsubscribed from {symbol} on {exchange}")
             else:
@@ -295,6 +306,8 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
                 self.subscriptions.clear()
                 self.subscription_queue.clear()
                 self._last_ltpc.clear()
+                self._subs_by_instrument.clear()
+                self._subs_by_token.clear()
 
             self.cleanup_zmq()
             self.logger.info("Disconnected from Upstox WebSocket")
@@ -322,6 +335,8 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
                 self.subscriptions.clear()
                 self.subscription_queue.clear()
                 self._last_ltpc.clear()
+                self._subs_by_instrument.clear()
+                self._subs_by_token.clear()
                 if self.batch_timer is not None:
                     self.batch_timer.cancel()
                     self.batch_timer = None
@@ -361,6 +376,31 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
         """Convert internal mode to Upstox mode string"""
         mode_map = {1: "ltpc", 2: "full", 3: "full"}
         return mode_map.get(mode, "ltpc")
+
+    def _index_subscription(self, correlation_id: str, sub_info: dict[str, Any]) -> None:
+        """Add a subscription to the O(1) routing indexes. Caller holds self.lock."""
+        entry = (correlation_id, sub_info)
+        key = sub_info.get("instrument_key")
+        if key:
+            self._subs_by_instrument.setdefault(key, []).append(entry)
+        token = sub_info.get("token")
+        if token:
+            self._subs_by_token.setdefault(str(token), []).append(entry)
+
+    def _unindex_subscription(self, correlation_id: str, sub_info: dict[str, Any]) -> None:
+        """Remove a subscription from the routing indexes. Caller holds self.lock."""
+        for index, key in (
+            (self._subs_by_instrument, sub_info.get("instrument_key")),
+            (self._subs_by_token, str(sub_info.get("token") or "")),
+        ):
+            if not key:
+                continue
+            entries = index.get(key)
+            if not entries:
+                continue
+            index[key] = [e for e in entries if e[0] != correlation_id]
+            if not index[key]:
+                del index[key]
 
     def _create_topic(self, exchange: str, symbol: str, mode: int) -> str:
         """Create ZMQ topic for publishing"""
@@ -450,15 +490,23 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
     def _process_feed(self, feed_key: str, feed_data: dict[str, Any], current_ts: int):
         """Process individual feed data"""
         try:
-            matching_subscriptions = []
+            # O(1) index lookup (was a linear scan over every subscription per
+            # tick). Primary: exact instrument_key. Fallback: bare token or
+            # full feed_key, preserving the legacy "NSE_EQ|2885" vs "2885"
+            # matching — minus any subscription already matched primarily.
             with self.lock:
-                for correlation_id, sub_info in self.subscriptions.items():
-                    if sub_info.get("instrument_key") == feed_key:
-                        matching_subscriptions.append((correlation_id, sub_info))
-                    elif "|" in feed_key:
-                        token = feed_key.split("|")[-1]
-                        if sub_info.get("token") == token or sub_info.get("token") == feed_key:
-                            matching_subscriptions.append((correlation_id, sub_info))
+                primary = self._subs_by_instrument.get(feed_key, [])
+                matching_subscriptions = list(primary)
+                if "|" in feed_key:
+                    token = feed_key.split("|")[-1]
+                    primary_ids = {cid for cid, _ in primary}
+                    for entry in (
+                        self._subs_by_token.get(token, [])
+                        + self._subs_by_token.get(feed_key, [])
+                    ):
+                        if entry[0] not in primary_ids:
+                            matching_subscriptions.append(entry)
+                            primary_ids.add(entry[0])
 
             if not matching_subscriptions:
                 self.logger.warning(f"No subscription found for feed key: {feed_key}")

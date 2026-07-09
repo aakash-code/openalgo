@@ -1,0 +1,21 @@
+- generic [ref=e3]:
+  - link "← Back to home" [ref=e4] [cursor=pointer]:
+    - /url: /
+  - heading "Sign in" [level=1] [ref=e5]
+  - paragraph [ref=e6]: Use the email and password you set when you subscribed. Sessions reset daily at 3:00 AM IST, and you can be signed in on one device at a time.
+  - generic [ref=e7]:
+    - generic [ref=e8]:
+      - generic [ref=e9]: Email
+      - generic [ref=e10]:
+        - img [ref=e11]
+        - textbox "you@example.com" [ref=e14]
+    - generic [ref=e15]:
+      - generic [ref=e16]: Password
+      - generic [ref=e17]:
+        - img [ref=e18]
+        - textbox "Your password" [ref=e21]
+    - button "Sign in" [ref=e22]
+    - paragraph [ref=e23]:
+      - text: Don't have an account yet?
+      - link "View plans" [ref=e24] [cursor=pointer]:
+        - /url: /
