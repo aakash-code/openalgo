@@ -22,6 +22,18 @@ All surfaces share the Sandbox engine (₹1 Crore sandbox capital, exchange-alig
 
 `/Users/Shared/Project/trading/openalgo-chart` is a separate React + `lightweight-charts` trading UI that depends entirely on this backend — it has no DB or broker integration of its own. It consumes the `/api/v1/*` REST surface (`apikey` in body/query, no custom headers) and the WebSocket proxy on port 8765 (one connection per API key, `{action: 'authenticate'|'subscribe'|'unsubscribe', ...}` frames). When investigating feed stalls, stale ticks, or signal mismatches, the root cause may be upstream here (`broker/*/streaming/`, `websocket_proxy/`, `services/history_service.py`, `services/quotes_service.py`) even if the symptom surfaces in the chart app. This repo's `.claude/settings.local.json` has `permissions.additionalDirectories` set to that path for cross-repo investigation from a session started here.
 
+## Documentation Map
+
+All project documentation lives under `docs/` as markdown (the single source of
+truth). **Start from [`docs/INDEX.md`](docs/INDEX.md)** — it maps every area
+(REST API, Python SDK, indicators, user guide, BDD specs, PRDs, design, scalping,
+installation, audits) to its entry file.
+
+When answering a question, read `docs/INDEX.md` first, then open only the
+specific doc you need (progressive disclosure) instead of scanning the whole
+tree. Do **not** copy or restate docs into a second location — edit the source
+file in `docs/` and every reader sees the change.
+
 ## Security and Deployment Model
 
 - **Single user per deployment** — no multi-user, no privilege escalation. One user, one broker session per instance.
