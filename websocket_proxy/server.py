@@ -83,16 +83,27 @@ class WebSocketProxy:
 
         # OBSERVABILITY: last time any tick was delivered to each user. Used to
         # surface "adapter is connected but silent while subscribed" — the
-        # stale-feed symptom behind issues #1226/#1419/#1421. This is a
-        # diagnostic signal only: it is logged and exposed via get_adapter_health(),
-        # never used to auto-evict (a quiet market or illiquid symbol legitimately
-        # produces no ticks, so auto-eviction would churn healthy feeds). Actual
-        # eviction stays with the connected-state check in authenticate_client.
+        # stale-feed symptom behind issues #1226/#1419/#1421. Warnings are
+        # logged and exposed via get_adapter_health(); past the (larger)
+        # recovery threshold the feed is additionally SELF-HEALED by
+        # _recover_stale_adapter(): the zombie adapter is torn down and rebuilt
+        # with fresh tokens and every live subscription replayed. Exponential
+        # backoff (threshold × 2^attempts, capped at 1h) keeps a quiet market /
+        # closed session / genuinely broken broker from causing reconnect
+        # churn; the backoff resets the moment a real tick arrives.
         self.last_tick_time: dict[str, float] = {}  # user_id -> epoch seconds
         self._last_stale_warn: dict[str, float] = {}  # user_id -> epoch of last warning
         self._stale_tick_warn_seconds = int(os.getenv("WS_STALE_TICK_WARN_SECONDS", "120"))
         self._last_stale_check = time.time()
         self._stale_check_interval = 30  # evaluate stale-feed warnings at most every 30s
+        # Auto-recovery threshold (0 disables): rebuild the adapter after this
+        # many seconds of connected-but-silent while subscribed. Seen live on
+        # 2026-07-16: the upstox WS died silently at the ~03:00 IST broker
+        # token rollover but kept reporting connected=True, so every
+        # subscription "succeeded" while zero ticks flowed for 9 hours.
+        self._stale_recover_seconds = int(os.getenv("WS_STALE_TICK_RECOVER_SECONDS", "300"))
+        # user_id -> {"attempts": int, "next_allowed": epoch} (cleared on first live tick)
+        self._recover_state: dict[str, dict] = {}
 
         # MODE_MAP retained for any external consumers that imported it from
         # this class. New code should call normalize_mode() / normalize_mode_or_none()
@@ -488,12 +499,15 @@ class WebSocketProxy:
         return active_users
 
     def _log_stale_adapters(self):
-        """Observability only: warn when a broker adapter reports connected but
-        has delivered no ticks for longer than the threshold while the user still
-        has active subscriptions. This surfaces the stale-feed symptom of issues
-        #1226/#1419/#1421 without auto-evicting (a quiet market legitimately has
-        no ticks). Actual recovery is handled by the connected-state eviction in
-        authenticate_client.
+        """Warn on — and past the recovery threshold, SELF-HEAL — broker
+        adapters that report connected but have delivered no ticks while the
+        user still has active subscriptions (the stale-feed symptom of issues
+        #1226/#1419/#1421). Recovery is deliberately a much larger threshold
+        than the warning (default 300s vs 120s) and exponentially backed off,
+        so a quiet market gets warnings only, while a silently-dead broker
+        WebSocket (e.g. killed by the ~03:00 IST daily token rollover but
+        still claiming connected=True) gets torn down and rebuilt instead of
+        starving every subscriber until someone restarts the app.
         """
         current_time = time.time()
         if current_time - self._last_stale_check < self._stale_check_interval:
@@ -516,6 +530,14 @@ class WebSocketProxy:
             silent_for = current_time - last_tick
             if silent_for < threshold:
                 continue
+            # Self-heal once silence crosses the recovery threshold (with
+            # per-user exponential backoff between attempts).
+            if self._stale_recover_seconds > 0 and silent_for >= self._stale_recover_seconds:
+                state = self._recover_state.get(user_id, {"attempts": 0, "next_allowed": 0.0})
+                if current_time >= state["next_allowed"]:
+                    broker = self.user_broker_mapping.get(user_id, "unknown")
+                    self._recover_stale_adapter(user_id, broker, silent_for, state, current_time)
+                    continue  # recovery logs its own outcome; skip the plain warning
             # Throttle repeat warnings per user to once per threshold window
             if current_time - self._last_stale_warn.get(user_id, 0) < threshold:
                 continue
@@ -524,8 +546,158 @@ class WebSocketProxy:
             logger.warning(
                 f"Stale feed: {broker} adapter for user {user_id} reports connected "
                 f"but no ticks for {silent_for:.0f}s while subscribed. If this persists, "
+                f"the broker WebSocket may be silently dead (auto-recovery engages at "
+                f"{self._stale_recover_seconds}s)."
+                if self._stale_recover_seconds > 0
+                else
+                f"Stale feed: {broker} adapter for user {user_id} reports connected "
+                f"but no ticks for {silent_for:.0f}s while subscribed. If this persists, "
                 f"the broker WebSocket may be silently dead (reconnect/restart may be needed)."
             )
+
+        # Rebuilds that failed outright leave no entry in broker_adapters, so
+        # the loop above would never revisit them — retry those here once
+        # their backoff window has passed (as long as someone still wants data).
+        for user_id, state in list(self._recover_state.items()):
+            if user_id in self.broker_adapters:
+                continue
+            if user_id not in active_users:
+                self._recover_state.pop(user_id, None)  # nobody subscribed anymore
+                continue
+            if current_time >= state["next_allowed"]:
+                broker = self.user_broker_mapping.get(user_id, "unknown")
+                self._recover_stale_adapter(user_id, broker, -1.0, state, current_time)
+
+    def _recover_stale_adapter(
+        self, user_id: str, broker_name: str, silent_for: float, state: dict, current_time: float
+    ):
+        """Tear down a connected-but-silent broker adapter and rebuild it with
+        fresh credentials, replaying every live subscription onto the new
+        connection. Root cause this heals (observed live 2026-07-16): the
+        broker kills the WebSocket server-side at the daily ~03:00 IST token
+        rollover, the adapter never notices (connected stays True), and from
+        then on every subscribe "succeeds" while zero ticks flow — previously
+        unrecoverable without an app restart.
+
+        Failure-safe by construction: each attempt schedules the next allowed
+        attempt with exponential backoff BEFORE doing any work, the moment a
+        real tick is delivered the backoff state is cleared (zmq_listener), and
+        a rebuild that fails outright is retried by _log_stale_adapters even
+        though no adapter is registered for the user anymore.
+        """
+        attempts = state["attempts"] + 1
+        backoff = min(self._stale_recover_seconds * (2 ** attempts), 3600)
+        self._recover_state[user_id] = {"attempts": attempts, "next_allowed": current_time + backoff}
+        silent_msg = f"after {silent_for:.0f}s of silence" if silent_for >= 0 else "(previous rebuild failed)"
+        logger.warning(
+            f"Stale-feed auto-recovery #{attempts} for user {user_id} ({broker_name}): "
+            f"rebuilding broker adapter {silent_msg} — next attempt in {backoff}s if still silent"
+        )
+
+        # 1. Snapshot the user's live subscriptions BEFORE teardown so they can
+        #    be replayed. Deduped across this user's clients.
+        subs = []
+        seen = set()
+        for client_id, sub_jsons in list(self.subscriptions.items()):
+            if self.user_mapping.get(client_id) != user_id:
+                continue
+            for sub_json in sub_jsons:
+                try:
+                    info = json.loads(sub_json)
+                except (TypeError, ValueError):
+                    continue
+                key = (
+                    info.get("symbol"),
+                    info.get("exchange"),
+                    info.get("mode"),
+                    info.get("depth_level", 5),
+                )
+                if not key[0] or not key[1] or key in seen:
+                    continue
+                seen.add(key)
+                subs.append(key)
+
+        # 2. Tear down the zombie adapter and its pooled broker connection.
+        adapter = self.broker_adapters.pop(user_id, None)
+        if adapter is not None:
+            try:
+                adapter.disconnect()
+            except Exception as e:
+                logger.warning(f"Auto-recovery: error disconnecting zombie adapter for {user_id}: {e}")
+        try:
+            from .broker_factory import cleanup_pools_for_user
+
+            cleanup_pools_for_user(user_id, broker_name=broker_name)
+        except Exception as e:
+            logger.warning(f"Auto-recovery: error cleaning connection pools for {user_id}: {e}")
+
+        # 3. Clear proxy-process auth caches so initialize() re-reads the DB —
+        #    the silent death often IS a token rollover, so the cached token is
+        #    exactly what must not be reused (same rationale as issue #765).
+        try:
+            self._clear_auth_cache_for_user(user_id)
+        except Exception as e:
+            logger.warning(f"Auto-recovery: error clearing auth caches for {user_id}: {e}")
+
+        # 4. Rebuild via the same create/initialize/connect path authenticate_client uses.
+        try:
+            new_adapter = create_broker_adapter(broker_name)
+            if not new_adapter:
+                logger.error(
+                    f"Auto-recovery failed for user {user_id}: could not create {broker_name} "
+                    f"adapter — will retry in {backoff}s"
+                )
+                return
+            if hasattr(new_adapter, "clear_auth_cache_for_user"):
+                try:
+                    new_adapter.clear_auth_cache_for_user(user_id)
+                except Exception:
+                    pass
+            init_result = new_adapter.initialize(broker_name, user_id)
+            if init_result and (
+                init_result.get("status") == "error" or init_result.get("success") is False
+            ):
+                logger.error(
+                    f"Auto-recovery failed for user {user_id}: initialize error: "
+                    f"{init_result.get('message') or init_result.get('error')} — will retry in {backoff}s"
+                )
+                return
+            connect_result = new_adapter.connect()
+            if connect_result and (
+                connect_result.get("status") == "error" or connect_result.get("success") is False
+            ):
+                logger.error(
+                    f"Auto-recovery failed for user {user_id}: connect error: "
+                    f"{connect_result.get('message') or connect_result.get('error')} — will retry in {backoff}s"
+                )
+                return
+            self.broker_adapters[user_id] = new_adapter
+        except Exception as e:
+            logger.exception(f"Auto-recovery failed for user {user_id}: {e} — will retry in {backoff}s")
+            return
+
+        # 5. Replay every live subscription onto the fresh connection.
+        replayed = 0
+        failed = 0
+        for symbol, exchange, mode, depth in subs:
+            try:
+                resp = new_adapter.subscribe(symbol, exchange, mode, depth)
+                if resp and resp.get("status") == "success":
+                    replayed += 1
+                else:
+                    failed += 1
+            except Exception:
+                failed += 1
+
+        # 6. Restart the stale clock: if the rebuilt feed is ALSO silent the
+        #    next backoff window fires another recovery, instead of the timer
+        #    never re-arming (or instantly re-firing off the old timestamp).
+        self.last_tick_time[user_id] = time.time()
+        logger.info(
+            f"Auto-recovery complete for user {user_id} ({broker_name}): adapter rebuilt, "
+            f"{replayed}/{len(subs)} subscriptions replayed"
+            + (f" ({failed} failed)" if failed else "")
+        )
 
     def get_adapter_health(self) -> dict:
         """Per-user adapter health snapshot for diagnostics (#1432).
@@ -983,6 +1155,12 @@ class WebSocketProxy:
 
                 # Store the adapter
                 self.broker_adapters[user_id] = adapter
+                # Start the stale-feed clock at birth: an adapter whose broker
+                # WS is dead from the very first connect would otherwise never
+                # write last_tick_time, and the stale detector deliberately
+                # skips users with no timestamp — making boot-time zombies
+                # undetectable/unrecoverable.
+                self.last_tick_time.setdefault(user_id, time.time())
 
                 logger.info(
                     f"Successfully created and connected {broker_name} adapter for user {user_id}"
@@ -1021,6 +1199,8 @@ class WebSocketProxy:
                                 )
                                 if not connect_is_error:
                                     self.broker_adapters[user_id] = adapter
+                                    # Same birth-clock as the primary path above.
+                                    self.last_tick_time.setdefault(user_id, time.time())
                                     logger.info(f"Successfully connected {broker_name} adapter for user {user_id} after retry")
                                     # Fall through to success response
                                 else:
@@ -1850,6 +2030,15 @@ class WebSocketProxy:
                     # was delivered). Cheap dict write; lets _log_stale_adapters()
                     # detect connected-but-silent adapters.
                     self.last_tick_time[user_id] = current_time
+                    # A real tick proves the feed is healthy again — reset the
+                    # stale-recovery backoff so a future silent death starts
+                    # from a fresh (fast) recovery schedule.
+                    if user_id in self._recover_state:
+                        self._recover_state.pop(user_id, None)
+                        logger.info(
+                            f"Feed for user {user_id} is delivering ticks again — "
+                            f"stale-recovery backoff reset"
+                        )
 
                     # Check broker match (important for multi-broker setups)
                     client_broker = self.user_broker_mapping.get(user_id)
