@@ -105,3 +105,10 @@ target/
 *.key
 credentials.json
 logs/
+
+# Proprietary trading strategy source — must never be committed to this
+# public repo (origin=aakash-code/openalgo is public on GitHub). Kept
+# version-controlled separately in a private location.
+strategies/isi_v56_live_strategy.py
+strategies/isi_v56_commodity_strategy.py
+test/test_isi_v56_order_update_push.py
