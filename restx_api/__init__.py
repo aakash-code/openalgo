@@ -53,6 +53,7 @@ from .split_order import api as split_order_ns
 from .symbol import api as symbol_ns
 from .synthetic_future import api as synthetic_future_ns
 from .telegram_bot import api as telegram_ns
+from .tick_replay import api as tick_replay_ns
 from .ticker import api as ticker_ns
 from .tradebook import api as tradebook_ns
 from .whatsapp_bot import api as whatsapp_ns
@@ -103,3 +104,4 @@ api.add_namespace(place_gtt_order_ns, path="/placegttorder")
 api.add_namespace(modify_gtt_order_ns, path="/modifygttorder")
 api.add_namespace(cancel_gtt_order_ns, path="/cancelgttorder")
 api.add_namespace(gtt_orderbook_ns, path="/gttorderbook")
+api.add_namespace(tick_replay_ns, path="/tickreplay")
