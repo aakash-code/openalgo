@@ -9,8 +9,6 @@ import threading
 
 from utils.logging import get_logger, highlight_url
 
-from .server import main as websocket_main
-
 # Import the original threading module to run the asyncio event loop in a real
 # OS thread, bypassing eventlet's monkey-patching which turns threading.Thread
 # into green threads where asyncio.new_event_loop() cannot work.
