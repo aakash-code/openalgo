@@ -13,6 +13,7 @@ api = Api(
 # Import namespaces
 from .analyzer import api as analyzer_ns
 from .basket_order import api as basket_order_ns
+from .boost_snapshots import api as boost_snapshots_ns
 from .cancel_all_order import api as cancel_all_order_ns
 from .cancel_gtt_order import api as cancel_gtt_order_ns
 from .cancel_order import api as cancel_order_ns
@@ -105,3 +106,4 @@ api.add_namespace(modify_gtt_order_ns, path="/modifygttorder")
 api.add_namespace(cancel_gtt_order_ns, path="/cancelgttorder")
 api.add_namespace(gtt_orderbook_ns, path="/gttorderbook")
 api.add_namespace(tick_replay_ns, path="/tickreplay")
+api.add_namespace(boost_snapshots_ns, path="/boostsnapshots")

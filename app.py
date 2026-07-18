@@ -728,6 +728,15 @@ def setup_environment(app):
             except Exception as e:
                 logger.error(f"Failed to initialize Historify scheduler: {e}")
 
+            if os.getenv("TF_BOOST_SNAPSHOT_ENABLED", "false").lower() == "true":
+                try:
+                    from services.tf_boost_snapshot_service import init_tf_boost_snapshot
+
+                    init_tf_boost_snapshot()
+                    logger.debug("TF Boost snapshot scheduler initialized")
+                except Exception as e:
+                    logger.error(f"Failed to initialize TF Boost snapshot scheduler: {e}")
+
             try:
                 # Server-side scalping SL / target / trailing-stop engine. Runs
                 # browser-independently so stops keep working after the user

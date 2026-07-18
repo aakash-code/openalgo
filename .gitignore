@@ -112,3 +112,6 @@ logs/
 strategies/isi_v56_live_strategy.py
 strategies/isi_v56_commodity_strategy.py
 test/test_isi_v56_order_update_push.py
+
+# Playwright MCP scratch output (screenshots, session dumps)
+.playwright-mcp/

@@ -57,6 +57,17 @@ class TickReplaySchema(Schema):
     limit = fields.Int(required=False, load_default=5000, validate=validate.Range(min=1, max=20000))
 
 
+class BoostSnapshotsSchema(Schema):
+    apikey = fields.Str(required=True, validate=validate.Length(min=1, max=256))
+    date = fields.Str(required=True)  # YYYY-MM-DD (window end / the backtest day)
+    lookbackDays = fields.Int(required=False, load_default=1, validate=validate.Range(min=1, max=365))
+    list_type = fields.Str(
+        required=False,
+        load_default="intraday_boost",
+        validate=validate.OneOf(["intraday_boost", "breakout_beacon", "high_powered_stocks"]),
+    )
+
+
 class MultiQuotesSchema(Schema):
     apikey = fields.Str(required=True, validate=validate.Length(min=1, max=256))
     symbols = fields.List(
