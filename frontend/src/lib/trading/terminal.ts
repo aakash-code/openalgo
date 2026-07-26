@@ -189,9 +189,25 @@ export class TradingTerminal {
     this.getTheme = opts.getTheme
     this.cb = opts.callbacks
     this.sk = opts.storageKey || 'oa-trading'
-    this.interval = localStorage.getItem(`${this.sk}-interval`) || '5m'
-    this.ctype = localStorage.getItem(`${this.sk}-ctype`) || 'candlestick'
+    this.interval = this.lsGet('interval') || '5m'
+    this.ctype = this.lsGet('ctype') || 'candlestick'
     if (!CHART_TYPES[this.ctype]) this.ctype = 'candlestick'
+  }
+
+  /**
+   * Per-pane persisted state. Each grid pane namespaces its localStorage by its
+   * `storageKey`, so panes restore their own symbol/interval/chart-type/product
+   * independently across layouts and reloads. The primary pane (`…-p0`) also
+   * inherits the pre-namespacing global key once, so a single-chart user keeps
+   * their last symbol after upgrading. Writes always go to the namespaced key.
+   */
+  private lsGet(key: string): string | null {
+    const v = localStorage.getItem(`${this.sk}-${key}`)
+    if (v !== null) return v
+    return this.sk.endsWith('-p0') ? localStorage.getItem(`-${key}`) : null
+  }
+  private lsSet(key: string, val: string): void {
+    localStorage.setItem(`${this.sk}-${key}`, val)
   }
 
   /* ── tick-size / formatting bound to the loaded instrument ────────────── */
@@ -227,13 +243,13 @@ export class TradingTerminal {
     return j
   }
 
-  async search(query: string, exchange?: string): Promise<SearchRow[]> {
+  async search(query: string, exchange?: string, limit = 30): Promise<SearchRow[]> {
     try {
       const j = await this.api<{ data?: SearchRow[] }>('search', {
         query,
         ...(exchange ? { exchange } : {}),
       })
-      return (j.data || []).slice(0, 30)
+      return (j.data || []).slice(0, limit)
     } catch {
       return []
     }
@@ -741,9 +757,25 @@ export class TradingTerminal {
         this.depthActive = true
         if (this.tradeBtns) this.tradeBtns.setPrices(bid, ask)
       }
+      // Depth is the terminal's ONLY subscription for tradeable instruments,
+      // so the chart ticks off depth.ltp -- a first-class field in every mode-3
+      // payload per the WebSocket protocol (docs/prompt/websockets-format.md).
+      // This replaced the old dual LTP+Depth subscribe, which broke on brokers
+      // whose adapters track one mode per symbol (Depth overwrote LTP and the
+      // chart froze while depth kept flowing -- issue #1664).
+      if (typeof depth.ltp === 'number' && depth.ltp > 0) {
+        this.cb.onWsState('live')
+        this.stopLtpFallback()
+        this.onTick({ ltp: depth.ltp })
+      }
     })
-    this.ws.subscribe('LTP', this.sym.symbol, this.sym.exchange)
-    if (!this.sym.quoteOnly) this.ws.subscribe('Depth', this.sym.symbol, this.sym.exchange, 5)
+    // One subscription per symbol, mode picked by instrument type: indices
+    // have no order book (LTP), tradeables get Depth which embeds ltp.
+    if (this.sym.quoteOnly) {
+      this.ws.subscribe('LTP', this.sym.symbol, this.sym.exchange)
+    } else {
+      this.ws.subscribe('Depth', this.sym.symbol, this.sym.exchange, 5)
+    }
   }
 
   /* periodic history reconcile: snap completed bars to broker OHLC/volume */
@@ -790,13 +822,14 @@ export class TradingTerminal {
       this.sym &&
       (this.sym.symbol !== pick.symbol || this.sym.exchange !== pick.exchange)
     ) {
+      // Mirror connectLive's single-subscription model: the outgoing symbol
+      // holds exactly one mode -- LTP when quote-only, Depth otherwise.
       try {
-        this.ws.unsubscribe('LTP', this.sym.symbol, this.sym.exchange)
-      } catch {
-        /* not subscribed */
-      }
-      try {
-        this.ws.unsubscribe('Depth', this.sym.symbol, this.sym.exchange)
+        if (this.sym.quoteOnly) {
+          this.ws.unsubscribe('LTP', this.sym.symbol, this.sym.exchange)
+        } else {
+          this.ws.unsubscribe('Depth', this.sym.symbol, this.sym.exchange)
+        }
       } catch {
         /* not subscribed */
       }
@@ -815,7 +848,7 @@ export class TradingTerminal {
     const exchange = String(info.exchange)
     const lotsize = Number(info.lotsize) || 1
     const lots = DERIVATIVE_EXCHANGES.has(exchange) && lotsize > 1
-    const savedProduct = localStorage.getItem(`-product`)
+    const savedProduct = this.lsGet('product')
     const productOptions = lots ? ['MIS', 'NRML'] : ['MIS', 'CNC']
     this.product = productOptions.includes(savedProduct || '')
       ? (savedProduct as string)
@@ -833,10 +866,7 @@ export class TradingTerminal {
       product: this.product,
     }
     this.qty = 1
-    localStorage.setItem(
-      `-symbol`,
-      JSON.stringify({ symbol: this.sym.symbol, exchange: this.sym.exchange })
-    )
+    this.lsSet('symbol', JSON.stringify({ symbol: this.sym.symbol, exchange: this.sym.exchange }))
 
     // history
     const to = nowSec()
@@ -880,18 +910,18 @@ export class TradingTerminal {
   /* ── toolbar setters (called by the React page) ───────────────────────── */
   setInterval(iv: string) {
     this.interval = iv
-    localStorage.setItem(`-interval`, iv)
+    this.lsSet('interval', iv)
     if (this.sym) this.reloadCurrent()
   }
   setChartType(v: string) {
     if (!CHART_TYPES[v]) return
     this.ctype = v
-    localStorage.setItem(`-ctype`, v)
+    this.lsSet('ctype', v)
     if (this.rawBars.length) this.buildChart()
   }
   setProduct(p: string) {
     this.product = p
-    localStorage.setItem(`-product`, p)
+    this.lsSet('product', p)
   }
   setQty(n: number) {
     this.qty = Math.max(1, Math.floor(n || 1))
@@ -969,7 +999,7 @@ export class TradingTerminal {
     } catch {
       groups = intervalGroups({ minutes: ['1m', '5m', '15m'], hours: ['1h'], days: ['D'] })
     }
-    this.interval = pickInterval(groups, localStorage.getItem(`-interval`))
+    this.interval = pickInterval(groups, this.lsGet('interval'))
     this.cb.onReady({ intervalGroups: groups, interval: this.interval, chartType: this.ctype })
 
     // one WebSocket for ticks + the account-level order stream.
@@ -1022,7 +1052,7 @@ export class TradingTerminal {
     // restore the last symbol; fall back to BHEL/NSE if it's gone or has no data.
     let loaded = false
     try {
-      const saved = JSON.parse(localStorage.getItem(`-symbol`) || 'null') as {
+      const saved = JSON.parse(this.lsGet('symbol') || 'null') as {
         symbol?: string
         exchange?: string
       } | null

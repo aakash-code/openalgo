@@ -53,6 +53,10 @@ _BROKER_FACTORIES: dict[str, tuple[str, str]] = {
     "zerodha": ("broker.zerodha.streaming.zerodha_order_adapter", "create_zerodha_order_adapter"),
     "nubra": ("broker.nubra.streaming.nubra_order_adapter", "create_nubra_order_adapter"),
     "arrow": ("broker.arrow.streaming.arrow_order_adapter", "create_arrow_order_adapter"),
+    "iiflcapital": (
+        "broker.iiflcapital.streaming.iiflcapital_order_adapter",
+        "create_iiflcapital_order_adapter",
+    ),
 }
 
 # Brokers with no push mechanism fall back to REST-orderbook polling.
@@ -147,12 +151,19 @@ def stop_all_order_update_adapters() -> None:
             _stop_locked(user_id)
 
 
-def start_order_update_adapters_on_boot() -> None:
+def start_order_update_adapters_on_boot(db_ready=None) -> None:
     """Start adapters for existing non-revoked broker sessions at app startup.
 
-    Runs in a background thread (DB may still be initializing at call time);
-    failures are logged, never raised — order updates are an enhancement, not
-    a startup dependency.
+    Runs in a background thread; failures are logged, never raised — order
+    updates are an enhancement, not a startup dependency.
+
+    Args:
+        db_ready: ``threading.Event`` set by the app once background table
+            creation has finished. The boot scan waits on it before querying
+            ``auth``. Without it, a fresh install races table creation and
+            logs a "no such table: auth" traceback that looks fatal but is
+            not (issue #1660). None skips the wait, for callers that already
+            know the schema exists.
     """
     if not _order_updates_enabled():
         logger.info("Order-update adapters disabled via ORDER_UPDATES_ENABLED")
@@ -175,6 +186,18 @@ def start_order_update_adapters_on_boot() -> None:
         except Exception:
             logger.exception("Failed to warm up shared ZMQ publisher")
 
+        # Wait for background table creation before touching `auth`. On a
+        # fresh install the tables are created by a *different* background
+        # thread, so querying immediately raised "no such table: auth". The
+        # timeout mirrors the request-path guard in app.py's wait_for_db_ready;
+        # on expiry we fall through and let the try/except below log it.
+        if db_ready is not None and not db_ready.wait(timeout=60):
+            logger.warning(
+                "Order-update boot scan: database not ready after 60s; skipping. "
+                "Adapters will start on the next broker login."
+            )
+            return
+
         try:
             from database.auth_db import Auth
 
@@ -186,6 +209,17 @@ def start_order_update_adapters_on_boot() -> None:
                 logger.debug("No active broker sessions found; no order-update adapters started")
         except Exception:
             logger.exception("Order-update adapter boot scan failed")
+        finally:
+            # This runs on a plain daemon thread, so app.py's
+            # teardown_appcontext never fires for it. Drop the scoped session
+            # bound to this thread explicitly rather than orphaning it when
+            # the thread exits.
+            try:
+                from database.auth_db import db_session as _auth_db_session
+
+                _auth_db_session.remove()
+            except Exception:
+                logger.debug("Order-update boot scan: auth session cleanup skipped", exc_info=True)
 
     threading.Thread(
         target=_boot, daemon=True, name="order-update-adapter-boot"
