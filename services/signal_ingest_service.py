@@ -11,6 +11,7 @@ from __future__ import annotations
 from database.auth_db import get_auth_token_broker
 from database.signal_db import insert_signal_event
 from services.signal_broadcast_service import broadcast_signal
+from services.signal_webhook_service import dispatch_signal
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -38,4 +39,14 @@ def ingest_signal_service(api_key: str, payload: dict) -> tuple[bool, dict, int]
         return True, {"status": "success", "duplicate": True}, 200
 
     delivery = broadcast_signal(payload)
+
+    # Webhook push is off-thread and best-effort: a slow subscriber must not
+    # delay this response, and one that misses a push recovers through the
+    # /signals/v1/events backfill cursor.
+    try:
+        delivery["webhooks"] = dispatch_signal(payload)
+    except Exception as e:
+        logger.exception(f"Webhook dispatch failed for {payload.get('eventId')}: {e}")
+        delivery["webhooks"] = "error"
+
     return True, {"status": "success", "id": row.id, "delivery": delivery}, 200

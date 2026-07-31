@@ -65,4 +65,72 @@ class SignalIngest(Resource):
             )
 
 
+events_api = Namespace("events", description="Subscriber signal feed")
+
+
+def _bearer_subscriber():
+    """Resolve the Authorization: Bearer key to an active subscriber, or None.
+
+    Deliberately a header bearer token rather than the body `apikey` used across
+    /api/v1: subscribers are third parties and must never hold the owner's key.
+    """
+    from database.signal_db import verify_subscriber
+
+    header = request.headers.get("Authorization", "")
+    if not header.startswith("Bearer "):
+        return None
+    return verify_subscriber(header[7:].strip())
+
+
+@events_api.route("/", strict_slashes=False)
+class SignalEvents(Resource):
+    @limiter.limit(SIGNAL_RATE_LIMIT)
+    def get(self):
+        """Signals after `since_id`, oldest first.
+
+        The cursor is the row id: monotonic and immune to clock skew, so a
+        subscriber that was offline resumes exactly where it stopped without
+        needing timestamps to agree between machines.
+        """
+        try:
+            subscriber = _bearer_subscriber()
+            if subscriber is None:
+                return make_response(
+                    jsonify({"status": "error", "message": "Invalid or missing bearer token"}),
+                    401,
+                )
+
+            from database.signal_db import get_events_since
+
+            try:
+                since_id = int(request.args.get("since_id", 0))
+                limit = int(request.args.get("limit", 200))
+            except (TypeError, ValueError):
+                return make_response(
+                    jsonify({"status": "error", "message": "since_id and limit must be integers"}),
+                    400,
+                )
+
+            rows = get_events_since(since_id, limit)
+            events = [r.to_dict() for r in rows]
+            return make_response(
+                jsonify(
+                    {
+                        "status": "success",
+                        "events": events,
+                        # Echo the cursor back when empty so a caller can keep
+                        # polling with the same value rather than restarting.
+                        "last_id": events[-1]["id"] if events else since_id,
+                    }
+                ),
+                200,
+            )
+        except Exception as e:
+            logger.exception(f"Unexpected error in signal events endpoint: {e}")
+            return make_response(
+                jsonify({"status": "error", "message": "An unexpected error occurred"}), 500
+            )
+
+
 signals_api.add_namespace(api, path="/ingest")
+signals_api.add_namespace(events_api, path="/events")
