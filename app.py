@@ -81,8 +81,8 @@ from blueprints.oitracker import oitracker_bp  # Import the OI tracker blueprint
 from blueprints.orders import orders_bp
 from blueprints.platforms import platforms_bp
 from blueprints.playground import playground_bp  # Import the API playground blueprint
-from blueprints.postback import postback_bp  # Import broker postback (order updates) blueprint
 from blueprints.pnltracker import pnltracker_bp  # Import the pnl tracker blueprint
+from blueprints.postback import postback_bp  # Import broker postback (order updates) blueprint
 from blueprints.python_strategy import initialize_with_app_context as init_python_strategy
 from blueprints.python_strategy import python_strategy_bp  # Import the python strategy blueprint
 from blueprints.react_app import (  # Import React frontend blueprint
@@ -133,6 +133,7 @@ from database.whatsapp_db import (
 from extensions import socketio  # Import SocketIO
 from limiter import limiter  # Import the Limiter instance
 from restx_api import api, api_v1_bp
+from restx_api.signals import signals_bp
 from services.broker_keepalive_service import start_broker_keepalive
 from services.telegram_bot_service import telegram_bot_service
 from utils.health_monitor import init_health_monitoring  # Import health monitoring
@@ -272,6 +273,11 @@ def create_app():
 
     # Exempt API endpoints from CSRF protection (they use API key authentication)
     csrf.exempt(api_v1_bp)
+
+    # Signal distribution surface — separate blueprint so subscriber auth never
+    # shares a convention with the owner-only /api/v1 body-apikey surface.
+    app.register_blueprint(signals_bp)
+    csrf.exempt(signals_bp)
 
     # Initialize security middleware before traffic logging
     init_security_middleware(app)
@@ -676,6 +682,7 @@ def setup_environment(app):
             from database.chart_prefs_db import ensure_chart_prefs_tables_exists
             from database.market_calendar_db import ensure_market_calendar_tables_exists
             from database.qty_freeze_db import ensure_qty_freeze_tables_exists
+            from database.signal_db import init_db as ensure_signal_tables_exists
             from database.strategy_portfolio_db import (
                 ensure_strategy_portfolio_tables_exists,
             )
@@ -694,6 +701,7 @@ def setup_environment(app):
                 ("Sandbox DB", ensure_sandbox_tables_exists),
                 ("Action Center DB", ensure_action_center_tables_exists),
                 ("Chart Prefs DB", ensure_chart_prefs_tables_exists),
+                ("Signal DB", ensure_signal_tables_exists),
                 ("Market Calendar DB", ensure_market_calendar_tables_exists),
                 ("Qty Freeze DB", ensure_qty_freeze_tables_exists),
                 ("Historify DB", ensure_historify_tables_exists),
@@ -742,6 +750,17 @@ def setup_environment(app):
             except Exception as e:
                 logger.error(f"Failed to initialize Historify scheduler: {e}")
 
+            if os.getenv("ORDERFLOW_UNIVERSE_ENABLED", "false").lower() == "true":
+                try:
+                    from services.orderflow_universe_subscriber import (
+                        init_orderflow_universe_subscriber,
+                    )
+
+                    init_orderflow_universe_subscriber()
+                    logger.debug("Order Flow universe subscriber initialized")
+                except Exception as e:
+                    logger.error(f"Failed to initialize Order Flow universe subscriber: {e}")
+
             if os.getenv("TF_BOOST_SNAPSHOT_ENABLED", "false").lower() == "true":
                 try:
                     from services.tf_boost_snapshot_service import init_tf_boost_snapshot
@@ -750,6 +769,14 @@ def setup_environment(app):
                     logger.debug("TF Boost snapshot scheduler initialized")
                 except Exception as e:
                     logger.error(f"Failed to initialize TF Boost snapshot scheduler: {e}")
+
+                try:
+                    from services.tf_jwt_keepalive_service import init_tf_jwt_keepalive_scheduler
+
+                    init_tf_jwt_keepalive_scheduler()
+                    logger.debug("TF JWT keep-alive scheduler initialized")
+                except Exception as e:
+                    logger.error(f"Failed to initialize TF JWT keep-alive scheduler: {e}")
 
             try:
                 # Server-side scalping SL / target / trailing-stop engine. Runs
