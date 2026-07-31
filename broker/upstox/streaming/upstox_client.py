@@ -19,6 +19,7 @@ import websocket
 from google.protobuf.json_format import MessageToDict
 
 from database.auth_db import get_auth_token
+from websocket_proxy import ws_liveness
 
 from . import MarketDataFeedV3_pb2
 
@@ -38,9 +39,11 @@ class UpstoxWebSocketClient:
     # HTTP request timeout
     HTTP_TIMEOUT = 10
 
-    # Health check settings - detect silent stalls
-    HEALTH_CHECK_INTERVAL = 30
-    DATA_TIMEOUT = 90
+    # Health check settings - detect silent stalls. Shared across brokers and
+    # env-tunable; see websocket_proxy/ws_liveness.py for why these are much
+    # tighter than the old 30s/90s (and how they compare to Zerodha's ticker).
+    HEALTH_CHECK_INTERVAL = ws_liveness.HEALTH_CHECK_INTERVAL
+    DATA_TIMEOUT = ws_liveness.DATA_TIMEOUT
 
     def __init__(self, auth_token: str, user_id: str | None = None):
         self.auth_token = auth_token
@@ -130,8 +133,8 @@ class UpstoxWebSocketClient:
                 # unlike the async websockets library which has internal keepalive.
                 self.ws.run_forever(
                     sslopt={"cert_reqs": ssl.CERT_NONE},
-                    ping_interval=30,
-                    ping_timeout=10,
+                    ping_interval=ws_liveness.PING_INTERVAL,
+                    ping_timeout=ws_liveness.PING_TIMEOUT,
                 )
             except Exception as e:
                 self.logger.error(f"WebSocket run_forever error: {e}")

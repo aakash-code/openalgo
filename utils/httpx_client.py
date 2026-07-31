@@ -30,9 +30,32 @@ def get_httpx_client() -> httpx.Client:
     if _httpx_client is None:
         _httpx_client = _create_http_client()
         logger.info(
-            "Created HTTP client with automatic protocol negotiation (HTTP/2 preferred, HTTP/1.1 fallback)"
+            "Created shared HTTP client (protocol negotiated per _create_http_client)"
         )
     return _httpx_client
+
+
+# Methods safe to replay: no server-side state change, so a retry cannot place a
+# duplicate order or cancel something twice. POST/PUT/DELETE are NEVER retried.
+_IDEMPOTENT_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
+# A pooled keepalive connection the peer closed while idle fails on first read.
+# The pool discards the dead connection as part of raising, so one immediate
+# replay lands on a fresh connection. Without this, a single dropped connection
+# turned into a failed chart backfill — precisely when a feed stall had just
+# made that backfill necessary.
+_RETRYABLE_ERRORS = (httpx.ReadError, httpx.RemoteProtocolError, httpx.ConnectError)
+
+
+def _request_with_retry(client: httpx.Client, method: str, url: str, **kwargs) -> httpx.Response:
+    """Send a request, replaying idempotent ones once on a transport-level failure."""
+    try:
+        return client.request(method, url, **kwargs)
+    except _RETRYABLE_ERRORS as e:
+        if method.upper() not in _IDEMPOTENT_METHODS:
+            raise
+        logger.warning(f"{type(e).__name__} on {method} {url[:80]} — retrying once: {e}")
+        return client.request(method, url, **kwargs)
 
 
 def request(method: str, url: str, **kwargs) -> httpx.Response:
@@ -58,7 +81,7 @@ def request(method: str, url: str, **kwargs) -> httpx.Response:
 
     # Track actual broker API call time for latency monitoring
     broker_api_start = time.time()
-    response = client.request(method, url, **kwargs)
+    response = _request_with_retry(client, method, url, **kwargs)
     broker_api_end = time.time()
 
     # Store broker API time in Flask's g object for latency tracking
@@ -178,8 +201,23 @@ def _create_http_client() -> httpx.Client:
         app_mode = os.environ.get("APP_MODE", "integrated").strip().strip("'\"")
         is_standalone = app_mode == "standalone"
 
-        # Disable HTTP/2 in standalone/Docker environments to avoid protocol negotiation issues
-        http2_enabled = not is_standalone
+        # HTTP/2 is OFF by default in every mode (standalone already disabled it
+        # for "protocol negotiation issues" — the same root cause).
+        #
+        # httpcore's *sync* HTTP/2 connection multiplexes every concurrent
+        # request onto ONE TCP connection and drives a shared h2 state machine.
+        # Under eventlet-patched (non-blocking) sockets with many greenlets in
+        # flight — e.g. a chart backfilling 100 symbols at once — reads race and
+        # surface as `httpx.ReadError: [Errno 35] Resource temporarily
+        # unavailable` from httpcore/_sync/http2.py::_receive_event. Observed
+        # 249 times in one session on 2026-07-31, all on /historical-candle,
+        # which is exactly the call that repairs a chart after a feed stall.
+        #
+        # HTTP/1.1 over the existing 40-connection keepalive pool gives real
+        # parallelism instead of head-of-line blocking on a single stream, and
+        # removes the single connection whose GOAWAY previously took out both
+        # /history and the tick feed at once.
+        http2_enabled = os.environ.get("HTTPX_HTTP2", "0").strip() == "1"
 
         client = httpx.Client(
             http2=http2_enabled,  # Disable HTTP/2 in standalone mode, enable in integrated mode
@@ -196,10 +234,10 @@ def _create_http_client() -> httpx.Client:
             event_hooks={"request": [log_request], "response": [log_response]},
         )
 
-        if is_standalone:
-            logger.info("Running in standalone mode - HTTP/2 disabled for compatibility")
-        else:
-            logger.info("Running in integrated mode - HTTP/2 enabled for optimal performance")
+        logger.info(
+            f"HTTP client ready (mode={'standalone' if is_standalone else 'integrated'}, "
+            f"http2={'enabled' if http2_enabled else 'disabled'})"
+        )
 
         return client
 
