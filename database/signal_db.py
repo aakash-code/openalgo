@@ -24,6 +24,8 @@ from sqlalchemy import (
     Integer,
     String,
     create_engine,
+    func,
+    select,
 )
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.declarative import declarative_base
@@ -131,6 +133,31 @@ def insert_signal_event(payload: dict) -> SignalEvent | None:
     except Exception:
         db_session.rollback()
         raise
+
+
+def get_active_signals(ist_date: str) -> list[SignalEvent]:
+    """Signals still open right now, for the grouped channel summary.
+
+    Derived from the event log rather than tracked separately: the newest event
+    per symbol on `ist_date` wins, and the symbol is active only if that event
+    is an `open`. So an open followed by an invalidation drops out, and a
+    re-entry after an invalidation comes back — with no extra state to keep in
+    sync, and correct immediately after a restart.
+
+    Scoped to one IST day because this strategy time-exits every position by
+    15:10; there is no legitimate cross-day active signal.
+    """
+    latest_per_symbol = (
+        select(func.max(SignalEvent.id))
+        .where(SignalEvent.signal_time_ist.like(f"{ist_date}%"))
+        .group_by(SignalEvent.symbol)
+    )
+    return (
+        db_session.query(SignalEvent)
+        .filter(SignalEvent.id.in_(latest_per_symbol), SignalEvent.event == "open")
+        .order_by(SignalEvent.sector.asc(), SignalEvent.symbol.asc())
+        .all()
+    )
 
 
 def get_events_since(since_id: int = 0, limit: int = 200) -> list[SignalEvent]:

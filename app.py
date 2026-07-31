@@ -770,6 +770,15 @@ def setup_environment(app):
                 except Exception as e:
                     logger.error(f"Failed to initialize TF Boost snapshot scheduler: {e}")
 
+            # Opt-in inside the service itself (SIGNAL_SUMMARY_ENABLED), so the
+            # periodic channel summary never starts by accident.
+            try:
+                from services.signal_summary_service import init_signal_summary_scheduler
+
+                init_signal_summary_scheduler()
+            except Exception as e:
+                logger.error(f"Failed to initialize signal summary scheduler: {e}")
+
                 try:
                     from services.tf_jwt_keepalive_service import init_tf_jwt_keepalive_scheduler
 
