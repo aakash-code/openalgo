@@ -1,7 +1,8 @@
 import { ChevronDown, LayoutGrid } from 'lucide-react'
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Navbar } from '@/components/layout/Navbar'
 import { ChartPane } from '@/components/trading/ChartPane'
+import { DrawingRail } from '@/components/trading/DrawingRail'
 import { Button } from '@/components/ui/button'
 import {
   DropdownMenu,
@@ -9,10 +10,21 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu'
+import type { DrawStats, TradingTerminal } from '@/lib/trading/terminal'
 import { cn } from '@/lib/utils'
 
+const NO_DRAW: DrawStats = {
+  count: 0,
+  canUndo: false,
+  canRedo: false,
+  hasSelection: false,
+  magnet: false,
+  tool: null,
+  shortcuts: {},
+}
+
 /**
- * Grid layout presets (a la Sahi / TradingView multi-chart). Each preset is a
+ * Grid layout presets. Each preset is a
  * CSS grid: `areas` names the cells, `cells` maps each pane (in order) to a named
  * area — so a pane can span (e.g. the big left chart in "1 + 2").
  */
@@ -107,6 +119,40 @@ export default function Trading() {
   const [wsUrl, setWsUrl] = useState<string | null>(null)
   const [noApiKey, setNoApiKey] = useState(false)
 
+  /* ── one drawing rail for every pane ─────────────────────────────────── */
+  const [tool, setTool] = useState<string | null>(null)
+  const [magnet, setMagnet] = useState(false)
+  const [showRail, setShowRail] = useState(true)
+  const [stats, setStats] = useState<DrawStats>(NO_DRAW)
+  // Undo / delete act on the pane you last drew in; arming a tool hits them all,
+  // so whichever pane you click next is the one that gets the shape.
+  const activeRef = useRef<TradingTerminal | null>(null)
+
+  const focusPane = useCallback((t: TradingTerminal | null) => {
+    activeRef.current = t
+    if (t) setStats(t.drawStats())
+  }, [])
+  const railStats: DrawStats = { ...stats, tool, magnet }
+  /**
+   * Hand a key event to the focused pane; it reports whether a tool claimed it.
+   * The chord table ships with the lazily loaded draw tier, so the terminal --
+   * not this page and not the rail -- is what can answer.
+   */
+  const armByShortcut = useCallback((e: KeyboardEvent) => {
+    const t = activeRef.current
+    if (!t || !t.armByShortcut(e)) return false
+    setTool(t.drawStats().tool)
+    setStats(t.drawStats())
+    return true
+  }, [])
+
+  const act = (fn: (t: TradingTerminal) => void) => {
+    const t = activeRef.current
+    if (!t) return
+    fn(t)
+    setStats(t.drawStats())
+  }
+
   useEffect(() => {
     localStorage.setItem(LAYOUT_KEY, layoutId)
   }, [layoutId])
@@ -142,7 +188,7 @@ export default function Trading() {
     <>
       <Navbar />
       <div className="flex flex-1 flex-col overflow-hidden">
-        {/* Layout selector (Sahi-style visual presets) */}
+        {/* Layout selector (visual presets) */}
         <div className="flex items-center gap-2 border-b bg-background/95 px-3 py-1.5">
           <DropdownMenu>
             <DropdownMenuTrigger asChild>
@@ -176,8 +222,20 @@ export default function Trading() {
           <span className="text-xs text-muted-foreground">{layout.label}</span>
         </div>
 
-        {/* Grid */}
-        <main className="min-h-0 flex-1">
+        {/* Rail + grid */}
+        <main className="flex min-h-0 flex-1">
+          {showRail && apiKey && wsUrl && (
+            <DrawingRail
+              stats={railStats}
+              onPick={(id) => setTool(id)}
+              onUndo={() => act((t) => t.undoDraw())}
+              onRedo={() => act((t) => t.redoDraw())}
+              onRemove={(all) => act((t) => t.removeDrawings(all))}
+              onMagnet={(v) => setMagnet(v)}
+              onShortcut={armByShortcut}
+            />
+          )}
+          <div className="min-h-0 flex-1">
           {noApiKey ? (
             <div className="flex h-full flex-col items-center justify-center gap-2 text-center">
               <p className="text-sm text-muted-foreground">No API key found for charting.</p>
@@ -201,6 +259,12 @@ export default function Trading() {
                   apiKey={apiKey}
                   wsUrl={wsUrl}
                   style={{ gridArea: cell }}
+                  sharedTool={tool}
+                  sharedMagnet={magnet}
+                  onFocusPane={focusPane}
+                  onDrawStats={setStats}
+                  onToggleRail={() => setShowRail((v) => !v)}
+                  railVisible={showRail}
                 />
               ))}
             </div>
@@ -209,6 +273,7 @@ export default function Trading() {
               Loading charting terminal…
             </div>
           )}
+          </div>
         </main>
       </div>
     </>

@@ -1,7 +1,7 @@
 [project]
 requires-python = ">=3.12"
 name = "openalgoUI"
-version = "2.0.1.6"
+version = "2.0.1.8"
 description = "Broker-agnostic open-source trading automation"
 dependencies = [
   "aniso8601==9.0.1",
@@ -155,6 +155,7 @@ dependencies = [
   "tqdm>=4.67.3",
   "openpyxl>=3.1.5",
   "playwright>=1.60.0",
+  "openstatz==0.4.1",
 ]
 
 [build-system]
@@ -202,6 +203,9 @@ packages = []
 
 # Pytest configuration
 [tool.pytest.ini_options]
+# The repo root must be importable: tests import `services`, `database`, and
+# `utils` directly, which otherwise only works if PYTHONPATH is set by hand.
+pythonpath = ["."]
 testpaths = ["test"]
 python_files = ["test_*.py"]
 python_functions = ["test_*"]
