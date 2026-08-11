@@ -52,7 +52,7 @@ def _stream_key(exchange: str, symbol: str) -> str:
 class _TickStore:
     def __init__(self) -> None:
         self._client = None
-        self._queue: "queue.Queue[tuple[str, float, str]]" = queue.Queue(maxsize=_QUEUE_MAXSIZE)
+        self._queue: queue.Queue[tuple[str, float, str]] = queue.Queue(maxsize=_QUEUE_MAXSIZE)
         self._writer: threading.Thread | None = None
         self._connect_failed_logged = False
         self._overflow_logged = False
@@ -190,3 +190,15 @@ def record_tick(exchange: str, symbol: str, mode: int, data: dict) -> None:
 
 def replay_ticks(exchange: str, symbol: str, since_ms: float, limit: int = 5000) -> list[dict]:
     return _store.replay(exchange, symbol, since_ms, limit)
+
+
+def check_health() -> bool:
+    """Synchronous, one-shot Redis reachability check for app-startup logging.
+    Reuses the store's own lazy client (so a successful check here also warms
+    the connection the writer thread will use) rather than opening a second
+    connection. Never raises. Intended to be called once at boot so Redis
+    being down is a loud, visible line in the startup banner instead of only
+    surfacing later as a silent degrade the first time a tick is dropped."""
+    if not _enabled():
+        return False
+    return _store._get_client() is not None

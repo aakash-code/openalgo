@@ -1,0 +1,2262 @@
+#!/usr/bin/env python3
+"""
+================================================================================
+  ISI v5.6 LIVE TRADING STRATEGY  —  OpenAlgo
+================================================================================
+  Python port of the openalgo-chart TypeScript ISI engine:
+    src/utils/indicators/intradaySignalsIndia.ts   (signal detection)
+    src/services/backtest/isiBacktestEngine.ts      (sizing, trailing SL, charges wiring)
+    src/services/backtest/backtestCharges.ts        (Indian intraday charges model)
+    src/services/live/isiLiveTrader.ts              (order placement / management / persistence)
+
+  Runs as an OpenAlgo hosted /python strategy (or standalone). Once started it
+  is a server-side process: closing any browser/chart window has no effect on
+  it — only stopping it via the OpenAlgo /python UI (or SIGTERM) does.
+
+  Flow per 5-minute candle close (matches isiLiveTrader.ts tickBody exactly):
+    1. No position -> run the ISI signal engine on closed candles; if a fresh
+       signal is active and passes filters/confirmation/sizing/margin caps,
+       place a MARKET entry + broker-side SL-M order.
+    2. Position active -> confirm SL order state at the broker, check target,
+       compute trailing SL, modify the SL order if it moved.
+    3. At EXIT_TIME -> cancel SL + flatten at market, retried until confirmed flat.
+
+  State survives a restart: positions + day counters are written to a JSON
+  state file after every entry/trail/exit, and on startup are reconciled
+  against the broker's positionbook/orderbook (adopts real broker positions,
+  records offline fills, refuses to start if an unrecognized MIS position
+  exists it cannot account for) — same contract as isiLiveTrader.ts's
+  restoreAndReconcile().
+
+  Usage:
+      python isi_v56_live_strategy.py
+
+  No dry-run mode: OpenAlgo's own analyzer/sandbox mode (toggle it in the
+  OpenAlgo UI before uploading) is the intended way to test this — orders are
+  placed for real through the API either way, and the analyzer decides
+  server-side whether they're paper-filled or sent to the broker. That keeps
+  this script's order-verification logic (fill checks, SL confirmation,
+  retries) identical in test and live runs instead of diverging in a
+  DRY_RUN branch that never gets exercised for real.
+
+  OpenAlgo /python host: upload, set parameters, schedule 09:15-15:30.
+  Env vars OPENALGO_API_KEY / HOST_SERVER / WEBSOCKET_URL / STRATEGY_ID are
+  read automatically when hosted.
+================================================================================
+"""
+
+import base64
+import hashlib
+import hmac
+import json
+import logging
+import os
+import queue
+import signal
+import struct
+import subprocess
+import sys
+import threading
+import time
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import dataclass, field, asdict
+from datetime import date, datetime, timedelta, timezone
+from typing import Optional
+
+import numpy as np
+import pandas as pd
+import requests
+import websocket  # websocket-client — same package OpenAlgo's own backend uses
+
+try:
+    from dotenv import find_dotenv, load_dotenv
+    load_dotenv(find_dotenv(usecwd=True))
+except Exception:
+    pass
+
+from openalgo import api as openalgo_api
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CONFIG — env-overridable, defaults match DEFAULT_ISI_BACKTEST_CONFIG in
+# isiBacktestEngine.ts so a fresh checkout behaves identically to the chart app.
+# ══════════════════════════════════════════════════════════════════════════════
+
+OPENALGO_API_KEY = os.getenv("OPENALGO_API_KEY", "")
+OPENALGO_HOST    = os.getenv("HOST_SERVER") or os.getenv("OPENALGO_HOST", "http://127.0.0.1:5000")
+OPENALGO_WS_URL  = os.getenv("WEBSOCKET_URL") or (
+    f"ws://{os.getenv('WEBSOCKET_HOST', '127.0.0.1')}:{os.getenv('WEBSOCKET_PORT', '8765')}")
+
+STRATEGY_NAME = os.getenv("STRATEGY_NAME", "ISI_AUTO")  # matches isiLiveTrader.ts placeOrder({strategy: 'ISI_AUTO'})
+EXCHANGE      = os.getenv("OPENALGO_STRATEGY_EXCHANGE", os.getenv("EXCHANGE", "NSE"))
+PRODUCT       = "MIS"
+INTERVAL      = "5m"
+
+# ── Symbol universe: TradeFinder Intraday Boost ONLY — matches the chart app
+# exactly. IntradayBoost.tsx passes `boostItems.map(i => i.symbol)` (the raw,
+# TradeFinder-sorted market_pulse `intraday_boost` list, no score/rank cap)
+# straight into ISILiveTrader; this strategy does the same. There is no
+# static-symbol-list fallback: if the TF token is missing/expired, the
+# strategy has no tradable universe and refuses to start, rather than
+# silently trading a different (stale/manual) list. ─────────────────────────
+TF_BASE = "https://tradefinder.in/api_be"   # same host vite.config.ts's /tf-api proxy targets
+TF_SECRET = "5ACHPKZUZNTWYPSJXNP7IULMACAM6P6Q"  # TOTP secret — matches tradefinderService.ts, do not change
+TF_JWT_TOKEN = os.getenv("TF_JWT_TOKEN", "")
+# OpenAlgo's /python host copies uploaded scripts into strategies/scripts/<id>.py,
+# so os.path.dirname(__file__) is "scripts/" when hosted but "strategies/" when run
+# standalone — walk up one level in the hosted case so both paths land on the same
+# strategies/tf_jwt.txt the operator actually pastes a fresh token into.
+_script_dir = os.path.dirname(os.path.abspath(__file__))
+_tf_jwt_default_dir = os.path.dirname(_script_dir) if os.path.basename(_script_dir) == "scripts" else _script_dir
+TF_JWT_FILE = os.getenv("TF_JWT_FILE", os.path.join(_tf_jwt_default_dir, "tf_jwt.txt"))
+TF_REFRESH_SEC = int(os.getenv("TF_REFRESH_SEC", "60"))  # matches useTradeFinderBoost's default refreshRate=60
+
+# ── Alerts: Telegram + local sound ────────────────────────────────────────────
+# Telegram uses the plain Bot API — the SAME mechanism OpenAlgo's own
+# telegram_alert_service.py uses (api.telegram.org/bot<token>/sendMessage);
+# the installed SDK has no telegram method, so the strategy calls it directly.
+# Setup: create a bot via @BotFather → TELEGRAM_BOT_TOKEN; message the bot
+# once, then get your chat id (e.g. via @userinfobot) → TELEGRAM_CHAT_ID.
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID   = os.getenv("TELEGRAM_CHAT_ID", "")
+# Local sound only works when this strategy runs on a machine with audio
+# (afplay = macOS). Harmless no-op elsewhere.
+SOUND_ALERTS = os.getenv("SOUND_ALERTS", "true").lower() == "true"
+SOUND_FILE   = os.getenv("SOUND_FILE", "/System/Library/Sounds/Glass.aiff")
+# TradeFinder tokens live ~3h: start warning this many minutes before expiry,
+# repeating every TF_TOKEN_ALERT_GAP_SEC until a fresh token is pasted.
+TF_TOKEN_WARN_MIN      = int(os.getenv("TF_TOKEN_WARN_MIN", "15"))
+TF_TOKEN_ALERT_GAP_SEC = int(os.getenv("TF_TOKEN_ALERT_GAP_SEC", "300"))
+
+# ── Signal engine (IntradaySignalsIndiaOptions) ──────────────────────────────
+ENHANCED_MODE       = os.getenv("ENHANCED_MODE", "true").lower() == "true"
+SESSION_START_HOUR   = int(os.getenv("SESSION_START_HOUR", "9"))
+SESSION_START_MIN_   = int(os.getenv("SESSION_START_MINUTE", "15"))
+SESSION_END_HOUR     = int(os.getenv("SESSION_END_HOUR", "15"))
+SESSION_END_MIN_     = int(os.getenv("SESSION_END_MINUTE", "25"))
+ENABLE_BUY   = os.getenv("ENABLE_BUY", "true").lower() == "true"
+ENABLE_SELL  = os.getenv("ENABLE_SELL", "true").lower() == "true"
+ENABLE_DOUBLE = os.getenv("ENABLE_DOUBLE", "true").lower() == "true"
+UNIQUE_SIGNAL = os.getenv("UNIQUE_SIGNAL", "false").lower() == "true"
+
+USE_VWAP_FILTER = os.getenv("USE_VWAP_FILTER", "true").lower() == "true"
+USE_ATR_SL      = os.getenv("USE_ATR_SL", "true").lower() == "true"
+ATR_LEN, ATR_MULT = int(os.getenv("ATR_LEN", "14")), float(os.getenv("ATR_MULT", "1.5"))
+USE_VOL_FILTER  = os.getenv("USE_VOL_FILTER", "false").lower() == "true"
+VOL_LOOKBACK, VOL_MULTIPLIER = int(os.getenv("VOL_LOOKBACK", "10")), float(os.getenv("VOL_MULTIPLIER", "1.5"))
+USE_ADX_FILTER  = os.getenv("USE_ADX_FILTER", "false").lower() == "true"
+ADX_LEN, ADX_THRESHOLD = int(os.getenv("ADX_LEN", "14")), float(os.getenv("ADX_THRESHOLD", "20"))
+USE_VWAP_CHOP   = os.getenv("USE_VWAP_CHOP", "false").lower() == "true"
+VWAP_CHOP_LOOKBACK, VWAP_CHOP_MAX_TOUCHES = int(os.getenv("VWAP_CHOP_LOOKBACK", "15")), int(os.getenv("VWAP_CHOP_MAX_TOUCHES", "3"))
+USE_EMA_RIBBON  = os.getenv("USE_EMA_RIBBON", "false").lower() == "true"
+RIB_LEN1 = int(os.getenv("RIB_LEN1", "8"))
+RIB_LEN2 = int(os.getenv("RIB_LEN2", "21"))
+RIB_LEN3 = int(os.getenv("RIB_LEN3", "50"))
+RIB_LEN4 = int(os.getenv("RIB_LEN4", "100"))
+RIBBON_THRESHOLD = int(os.getenv("RIBBON_THRESHOLD", "4"))
+USE_ORB_FILTER  = os.getenv("USE_ORB_FILTER", "false").lower() == "true"
+ORB_MINUTES     = int(os.getenv("ORB_MINUTES", "5"))
+USE_MZ_FILTER   = os.getenv("USE_MZ_FILTER", "true").lower() == "true"
+MZ_PERIODS_BACK_DAILY = int(os.getenv("MZ_PERIODS_BACK_DAILY", "1"))
+MZ_FIB_OUTER    = float(os.getenv("MZ_FIB_OUTER", "0.786"))
+# NOTE: RVOL-at-time filter (useRVOLFilter in the TS engine) is NOT ported —
+# it needs the multi-anchor-timeframe calculateRelativeVolume() helper and is
+# OFF by default in the TS config too. Setting USE_RVOL_FILTER here has no effect;
+# left False intentionally so a config drift from the chart app fails loud, not silent.
+USE_RVOL_FILTER = False
+
+# ── Risk / sizing (matches ISIBacktestConfig) ─────────────────────────────────
+BALANCE            = float(os.getenv("BALANCE", "225000"))
+MAX_LOSS_PCT       = float(os.getenv("MAX_LOSS_PCT", "1.0"))
+CAPITAL_PER_TRADE  = float(os.getenv("CAPITAL_PER_TRADE", "50000"))
+MIN_SL_DIST_PCT    = float(os.getenv("MIN_SL_DIST_PCT", "0.3"))
+TARGET_RR          = float(os.getenv("TARGET_RR", "0"))
+MAX_TRADES_PER_DAY = int(os.getenv("MAX_TRADES_PER_DAY", "0"))
+MAX_CONCURRENT_POSITIONS = int(os.getenv("MAX_CONCURRENT_POSITIONS", "83"))
+EXIT_HOUR, EXIT_MINUTE = int(os.getenv("EXIT_HOUR", "15")), int(os.getenv("EXIT_MINUTE", "10"))
+NO_ENTRY_AFTER_HOUR   = int(os.getenv("NO_ENTRY_AFTER_HOUR", "14"))    # "Entry before" 02:30 PM
+NO_ENTRY_AFTER_MINUTE = int(os.getenv("NO_ENTRY_AFTER_MINUTE", "30"))
+NO_ENTRY_BEFORE_HOUR   = int(os.getenv("NO_ENTRY_BEFORE_HOUR", "9"))   # "Entry after" 09:20 AM
+NO_ENTRY_BEFORE_MINUTE = int(os.getenv("NO_ENTRY_BEFORE_MINUTE", "20"))
+MAX_DAILY_LOSS_RS  = float(os.getenv("MAX_DAILY_LOSS_RS", "0"))
+MAX_DAILY_PROFIT_RS = float(os.getenv("MAX_DAILY_PROFIT_RS", "0"))
+TRAIL_TYPE      = os.getenv("TRAIL_TYPE", "percent")   # none | candle | percent | breakeven
+TRAIL_PERCENT   = float(os.getenv("TRAIL_PERCENT", "2"))
+BREAKEVEN_R     = float(os.getenv("BREAKEVEN_R", "1.5"))
+CONFIRMATION_MODE = os.getenv("CONFIRMATION_MODE", "immediate")  # immediate | one_candle | two_candles
+INTRADAY_MARGIN_PCT = float(os.getenv("INTRADAY_MARGIN_PCT", "20"))
+
+# ── Charges (DEFAULT_CHARGES in backtestCharges.ts, all env-overridable) ─────
+CHARGES = {
+    "brokerage_per_order": float(os.getenv("CHG_BROKERAGE_PER_ORDER", "20")),
+    "brokerage_percent": float(os.getenv("CHG_BROKERAGE_PERCENT", "0.0003")),
+    "stt": float(os.getenv("CHG_STT", "0.00025")),
+    "nse_transaction": float(os.getenv("CHG_NSE_TRANSACTION", "0.0000307")),
+    "sebi": float(os.getenv("CHG_SEBI", "0.000001")),
+    "stamp_duty": float(os.getenv("CHG_STAMP_DUTY", "0.00003")),
+    "gst": float(os.getenv("CHG_GST", "0.18")),
+}
+
+def now_ist() -> datetime:
+    """IST wall-clock time, independent of the host machine's configured
+    timezone. datetime.now() silently returns whatever local tz the OS is set
+    to — UTC by default on most cloud VMs — which would shift every session
+    window, date rollover, and time-exit check by 5.5 hours. utcnow() is not
+    subject to that: it reflects true UTC regardless of the host's tz label,
+    so adding the fixed IST offset here is correct no matter how the server
+    is configured."""
+    return datetime.now(timezone.utc).replace(tzinfo=None) + timedelta(hours=5, minutes=30)
+
+
+POLL_INTERVAL_SEC = int(os.getenv("POLL_INTERVAL_SEC", "15"))
+LOG_DIR = os.getenv("ISI_LOG_DIR", os.path.join(os.path.dirname(__file__), "logs", "isi_v56"))
+os.makedirs(LOG_DIR, exist_ok=True)
+_RUN_DATE = now_ist().strftime("%Y-%m-%d")
+STATE_FILE = os.path.join(LOG_DIR, "isi_live_state.json")          # NOT date-suffixed: survives restart same-day
+EVENT_LOG_FILE = os.path.join(LOG_DIR, f"isi_events_{_RUN_DATE}.jsonl")
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LOGGING
+# ══════════════════════════════════════════════════════════════════════════════
+# Root stays at INFO; only OUR logger honors LOG_LEVEL. Passing DEBUG to
+# basicConfig turns on httpx/httpcore/websocket connection-internals spam
+# (connect_tcp.started, send_request_headers... on every API call), which
+# buries real events and bloats the log file over a full session.
+logging.basicConfig(level="INFO",
+                     format="%(asctime)s  %(levelname)-7s  %(message)s", stream=sys.stdout)
+log = logging.getLogger("ISI_V56")
+log.setLevel(os.getenv("LOG_LEVEL", "INFO"))
+for _noisy in ("httpx", "httpcore", "websocket", "urllib3"):
+    logging.getLogger(_noisy).setLevel(logging.WARNING)
+
+
+def jlog(event: str, **data) -> None:
+    """Append one structured JSON line — the durable audit trail (replaces the
+    TS trader's in-memory logBuf) that survives a process restart."""
+    try:
+        with open(EVENT_LOG_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps({"ts": now_ist().isoformat(), "event": event, **data}) + "\n")
+    except Exception:
+        pass
+
+
+def _tg_post(text: str) -> None:
+    try:
+        requests.post(f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage",
+                      json={"chat_id": TELEGRAM_CHAT_ID, "text": text}, timeout=5)
+    except Exception as e:
+        log.warning(f"telegram send failed: {e}")
+
+
+def send_telegram(text: str) -> bool:
+    """Direct Telegram Bot API push — the same endpoint OpenAlgo's own
+    telegram_alert_service.py posts to. No-op (returns False) when the bot
+    token/chat id env vars aren't configured.
+
+    FIRE-AND-FORGET: the HTTP call runs on a daemon thread. Alerts are sent
+    from inside trading paths — including finalize_close() while holding
+    positions_lock during the 15:10 exit-all — so a slow/unreachable Telegram
+    must never be able to block an order or serialize the time-exit loop
+    (5s timeout × 5 positions = ~25s of delay with the broker's own ~15:15
+    MIS force-squareoff approaching)."""
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
+        return False
+    threading.Thread(target=_tg_post, args=(text,), daemon=True, name="tg-alert").start()
+    return True
+
+
+def play_sound() -> None:
+    """Local audio ping (macOS afplay). Fire-and-forget; silently does nothing
+    on machines without audio/afplay — Telegram is the alert channel that is
+    guaranteed to reach the operator."""
+    if not SOUND_ALERTS:
+        return
+    try:
+        subprocess.Popen(["afplay", SOUND_FILE],
+                         stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except Exception:
+        pass
+
+
+def alert(text: str, sound: bool = False) -> None:
+    """Operator-facing alert: stdout log + persistent JSONL + Telegram, with
+    optional local sound. Used for trade events (entry/exit), TF-token expiry
+    warnings, and strategy lifecycle — errors reach Telegram separately via
+    the throttled mirror in _JsonlErrorHandler."""
+    log.info(f"ALERT: {text}")
+    jlog("ALERT", msg=text)
+    send_telegram(text)
+    if sound:
+        play_sound()
+
+
+_last_tg_err_ts = 0.0  # global throttle so an error loop can't flood Telegram
+
+
+class _JsonlErrorHandler(logging.Handler):
+    """Mirrors every WARNING+ log record into the same persistent JSONL audit
+    trail jlog() writes to — previously only a handful of call sites manually
+    called jlog("ERROR", ...), so most log.error()/log.warning() calls only
+    ever reached stdout. If the OpenAlgo host's stdout capture doesn't retain
+    that log long enough, those failures were gone for good. This makes the
+    JSONL file the complete failure record regardless of what happens to stdout.
+    ERROR-level records are additionally pushed to Telegram (throttled to one
+    per 30s so a tight error loop can't flood the chat)."""
+
+    def emit(self, record: logging.LogRecord) -> None:
+        global _last_tg_err_ts
+        try:
+            with open(EVENT_LOG_FILE, "a", encoding="utf-8") as f:
+                f.write(json.dumps({
+                    "ts": now_ist().isoformat(),
+                    "event": "LOG_ERROR" if record.levelno >= logging.ERROR else "LOG_WARNING",
+                    "logger": record.name,
+                    "msg": self.format(record),
+                }) + "\n")
+            if record.levelno >= logging.ERROR and time.time() - _last_tg_err_ts >= 30:
+                _last_tg_err_ts = time.time()
+                send_telegram(f"❌ ERROR: {self.format(record)}")
+        except Exception:
+            pass
+
+
+log.addHandler(_JsonlErrorHandler(level=logging.WARNING))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# SIGTERM-safe shutdown (required by the OpenAlgo /python host)
+# ══════════════════════════════════════════════════════════════════════════════
+_stop = False
+
+
+def _shutdown(signum, frame):
+    global _stop
+    log.info("Signal %d received — shutting down gracefully", signum)
+    _stop = True
+
+
+signal.signal(signal.SIGTERM, _shutdown)
+signal.signal(signal.SIGINT, _shutdown)
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TRADEFINDER CLIENT — port of tradefinderService.ts (TOTP auth + market_pulse)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def _get_tf_jwt() -> str:
+    """Read JWT dynamically: file first (hot-reloadable without a restart), then env var.
+    Matches the chart app's browser-localStorage token, just file-backed here since a
+    headless strategy has no browser. Get the token: tradefinder.in -> DevTools ->
+    Application -> Local Storage -> 'lt', then: echo '<token>' > strategies/tf_jwt.txt"""
+    if TF_JWT_FILE and os.path.exists(TF_JWT_FILE):
+        try:
+            token = open(TF_JWT_FILE).read().strip()
+            if token:
+                return token
+        except Exception:
+            pass
+    return TF_JWT_TOKEN
+
+
+def _tf_jwt_expiry() -> Optional[datetime]:
+    """Expiry of the current TradeFinder JWT, as IST datetime — decodes the
+    token's `exp` claim exactly the way the chart app's getJWTExpiry() in
+    useTradeFinderBoost.ts does (base64url-decode segment 1, read payload.exp,
+    a unix-UTC timestamp). Returns None when no token or no exp claim."""
+    token = _get_tf_jwt()
+    if not token or token.count(".") < 2:
+        return None
+    try:
+        seg = token.split(".")[1]
+        seg += "=" * (-len(seg) % 4)  # restore base64 padding
+        payload = json.loads(base64.urlsafe_b64decode(seg))
+        exp = payload.get("exp")
+        if not exp:
+            return None
+        return datetime.fromtimestamp(int(exp), tz=timezone.utc).replace(tzinfo=None) + timedelta(hours=5, minutes=30)
+    except Exception:
+        return None
+
+
+def _tf_totp(ts_ms: int, step: int = 30) -> str:
+    """RFC 6238 TOTP — HMAC-SHA1, 30s window, 6 digits. Matches generateTOTP() in tradefinderService.ts."""
+    counter = int(ts_ms / 1000 / step)
+    key = base64.b32decode(TF_SECRET.upper() + "=" * ((8 - len(TF_SECRET) % 8) % 8))
+    h = hmac.new(key, struct.pack(">Q", counter), hashlib.sha1).digest()
+    offset = h[-1] & 0x0F
+    code = struct.unpack(">I", h[offset:offset + 4])[0] & 0x7FFFFFFF
+    return str(code % 1_000_000).zfill(6)
+
+
+def _tf_server_time_ms() -> int:
+    try:
+        r = requests.get(f"{TF_BASE}/servertime", timeout=5)
+        return int(r.json()["payload"]["data"])
+    except Exception:
+        return int(time.time() * 1000)
+
+
+def fetch_intraday_boost() -> Optional[list[str]]:
+    """Fetch TradeFinder's Intraday Boost symbol list — the SAME endpoint and
+    field (`intraday_boost`, sorted by |score| desc) the chart app's
+    fetchMarketPulse()/mapRawItems() use. Returns None (not []) on any failure
+    so the caller can keep the last-known list instead of trading nothing."""
+    jwt = _get_tf_jwt()
+    if not jwt:
+        log.error(f"TF_JWT_TOKEN is empty. Quick fix: echo '<token>' > {TF_JWT_FILE}")
+        return None
+    totp = _tf_totp(_tf_server_time_ms())
+    try:
+        r = requests.get(f"{TF_BASE}/data/market_pulse",
+                          headers={"jwttoken": jwt, "accesstoken": totp}, timeout=10)
+        data = r.json()
+    except Exception as e:
+        log.warning(f"TradeFinder market_pulse request failed: {e}")
+        return None
+    if data.get("status") == "ERROR":
+        log.error(f"TradeFinder error: {data.get('code')} — {data.get('message')} (JWT expired? paste a fresh token)")
+        return None
+    raw = ((data.get("payload") or {}).get("data") or {}).get("intraday_boost") or []
+    items = sorted(raw, key=lambda r: abs(float(r.get("param_3", 0)) or 0), reverse=True)
+    return [it["Symbol"] for it in items if it.get("Symbol")]
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# OPENALGO CLIENT + REST HELPERS
+# ══════════════════════════════════════════════════════════════════════════════
+_client: Optional[openalgo_api] = None
+
+
+def get_client() -> openalgo_api:
+    global _client
+    if _client is None:
+        _client = openalgo_api(api_key=OPENALGO_API_KEY, host=OPENALGO_HOST, ws_url=OPENALGO_WS_URL)
+    return _client
+
+
+def _rest(path: str, extra: Optional[dict] = None) -> dict:
+    """Raw REST fallback — used ONLY where the SDK has no wrapper (there is no
+    SDK equivalent for /ping)."""
+    payload = {"apikey": OPENALGO_API_KEY, **(extra or {})}
+    try:
+        r = requests.post(f"{OPENALGO_HOST}/api/v1/{path}", json=payload, timeout=10)
+        return r.json()
+    except Exception as e:
+        log.warning(f"{path} request failed: {e}")
+        return {}
+
+
+def ping() -> bool:
+    r = _rest("ping")
+    return r.get("status") == "success"
+
+
+def get_funds() -> dict:
+    try:
+        r = get_client().funds()
+    except Exception as e:
+        log.warning(f"funds() failed: {e}")
+        return {}
+    return r.get("data", {}) if r.get("status") == "success" else {}
+
+
+def get_positionbook() -> list[dict]:
+    try:
+        r = get_client().positionbook()
+    except Exception as e:
+        log.warning(f"positionbook() failed: {e}")
+        return []
+    return r.get("data") or [] if r.get("status") == "success" else []
+
+
+def get_orderbook() -> list[dict]:
+    try:
+        r = get_client().orderbook()
+    except Exception as e:
+        log.warning(f"orderbook() failed: {e}")
+        return []
+    return ((r.get("data") or {}).get("orders") or []) if r.get("status") == "success" else []
+
+
+def pos_fields(p: dict) -> dict:
+    """Normalize a positionbook row — broker adapters emit symbol/tradingsymbol
+    and quantity/netqty inconsistently; accept both (matches isiLiveTrader.ts's posFields())."""
+    return {
+        "symbol": str(p.get("symbol") or p.get("tradingsymbol") or ""),
+        "qty": int(float(p.get("quantity") if p.get("quantity") is not None else p.get("netqty") or 0) or 0),
+        "avg_price": float(p.get("average_price") if p.get("average_price") is not None else p.get("averageprice") or 0),
+        "product": str(p.get("product") or ""),
+    }
+
+
+TERMINAL_STATES = {"COMPLETE", "REJECTED", "CANCELLED"}
+WORKING_STATES = {"OPEN", "TRIGGER_PENDING", "PENDING", "MODIFIED"}
+
+
+def order_status(order: Optional[dict]) -> str:
+    """Normalized order_status reader — every OpenAlgo broker adapter actually
+    returns lowercase statuses with a SPACE in multi-word ones (verified
+    against the backend's own broker/*/mapping/order_data.py: "complete",
+    "open", "rejected", "cancelled", "trigger pending", "pending", "modified"),
+    not the uppercase/underscore form used everywhere else in this file. Read
+    order_status through this helper (never raw dict access) so the TERMINAL_STATES
+    /WORKING_STATES comparisons above actually match real responses instead of
+    silently never matching anything."""
+    if not order:
+        return ""
+    return str(order.get("order_status", "")).strip().upper().replace(" ", "_")
+
+
+def find_order(orderid: str) -> Optional[dict]:
+    """Single-order lookup via the SDK's dedicated orderstatus() call, not a
+    scan of the whole orderbook — this is on the hot path (polled every
+    1.5s from await_order_status(), called for every ACTIVE position every
+    tick from sync_with_broker()), so fetching one order instead of the
+    entire day's orderbook every time matters. Also more reliable for
+    average_price specifically: OpenAlgo's orderstatus backend enriches
+    COMPLETE orders with the fill price from the tradebook — the plain
+    orderbook response doesn't document that field at all."""
+    if not orderid or orderid in ("NONE", "UNKNOWN"):
+        return None
+    try:
+        r = get_client().orderstatus(order_id=orderid, strategy=STRATEGY_NAME)
+    except Exception as e:
+        log.warning(f"orderstatus({orderid}) failed: {e}")
+        return None
+    return r.get("data") if r.get("status") == "success" else None
+
+
+def await_order_status(orderid: str, timeout_s: float) -> Optional[dict]:
+    deadline = time.time() + timeout_s
+    while True:
+        ord_ = find_order(orderid)
+        if ord_ and order_status(ord_) in TERMINAL_STATES:
+            return ord_
+        if time.time() >= deadline:
+            return ord_
+        time.sleep(1.5)
+
+
+def broker_position(symbol: str) -> Optional[dict]:
+    for row in get_positionbook():
+        f = pos_fields(row)
+        if f["symbol"] == symbol and f["qty"] != 0:
+            return f
+    return None
+
+
+def find_recent_auto_order(symbol: str, action: str, qty: int) -> Optional[dict]:
+    """Locate an entry order that may have reached the broker despite the API
+    call failing/timing out. NOTE: orderbook rows do NOT carry a `strategy`
+    field — verified against every broker/*/mapping/order_data.py in the
+    OpenAlgo backend (they emit symbol/exchange/action/quantity/price/
+    trigger_price/pricetype/product/orderid/order_status/timestamp only), and
+    neither orderbook_service.py nor orderstatus_service.py injects one. So
+    matching is symbol+action+qty+MARKET plus TIMESTAMP RECENCY (≤3 min old),
+    which is what actually distinguishes our just-placed order from an older
+    manual order of the same shape."""
+    candidates = [
+        o for o in get_orderbook()
+        if o.get("symbol") == symbol and o.get("action") == action
+        and int(float(o.get("quantity", 0))) == qty
+        and o.get("pricetype") == "MARKET"
+        and order_status(o) not in ("REJECTED", "CANCELLED")
+    ]
+    if not candidates:
+        return None
+    now = now_ist()
+    recent = []
+    for o in candidates:
+        ts_raw = str(o.get("timestamp") or "")
+        try:
+            ts = datetime.strptime(ts_raw, "%d-%b-%Y %H:%M:%S")
+            if abs((now - ts).total_seconds()) <= 180:
+                recent.append(o)
+        except ValueError:
+            pass  # unparseable timestamp — don't risk adopting an old order
+    return recent[-1] if recent else None
+
+
+def place_order(symbol: str, action: str, qty: int, price_type: str = "MARKET",
+                 trigger_price: float = 0.0) -> dict:
+    try:
+        r = get_client().placeorder(strategy=STRATEGY_NAME, symbol=symbol, exchange=EXCHANGE,
+                                     action=action, quantity=qty, price_type=price_type,
+                                     product=PRODUCT, price=0, trigger_price=round(trigger_price, 2))
+        return r
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+def modify_order(orderid: str, symbol: str, action: str, qty: int, trigger_price: float) -> dict:
+    try:
+        return get_client().modifyorder(order_id=orderid, strategy=STRATEGY_NAME, symbol=symbol,
+                                         action=action, exchange=EXCHANGE, price_type="SL-M",
+                                         product=PRODUCT, quantity=qty, price="0",
+                                         trigger_price=str(round(trigger_price, 2)),
+                                         disclosed_quantity="0")
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+def cancel_order(orderid: str) -> dict:
+    if not orderid:
+        return {"status": "success"}
+    try:
+        return get_client().cancelorder(order_id=orderid, strategy=STRATEGY_NAME)
+    except Exception as e:
+        return {"status": "error", "message": str(e)}
+
+
+def fetch_candles(symbol: str, lookback_days: int = 20) -> Optional[pd.DataFrame]:
+    """5-minute candles, enough history to warm up EMA(100)/ATR/ADX. Returns a
+    DataFrame with columns open/high/low/close/volume, '_dt','_date','_hm', sorted ascending."""
+    end = date.today()
+    start = end - timedelta(days=lookback_days)
+    try:
+        df = get_client().history(symbol=symbol, exchange=EXCHANGE, interval=INTERVAL,
+                                   start_date=start.strftime("%Y-%m-%d"),
+                                   end_date=end.strftime("%Y-%m-%d"))
+        if df is None or not isinstance(df, pd.DataFrame) or df.empty:
+            return None
+        df = df.reset_index()
+    except Exception as e:
+        log.warning(f"history({symbol}): {e}")
+        return None
+    dt_col = next((c for c in ("timestamp", "datetime", "date") if c in df.columns), None)
+    if dt_col is None:
+        return None
+    df[dt_col] = pd.to_datetime(df[dt_col], utc=False)
+    if getattr(df[dt_col].dt, "tz", None) is not None:
+        df[dt_col] = df[dt_col].dt.tz_localize(None)
+    df = df.sort_values(dt_col).reset_index(drop=True)
+    df["_dt"] = df[dt_col]
+    df["_date"] = df[dt_col].dt.strftime("%Y-%m-%d")
+    df["_hm"] = df[dt_col].dt.hour * 60 + df[dt_col].dt.minute
+    for c in ("open", "high", "low", "close", "volume"):
+        if c not in df.columns:
+            return None
+    return df
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# INDICATORS — ported bar-for-bar from intradaySignalsIndia.ts's precompute*()
+# ══════════════════════════════════════════════════════════════════════════════
+
+def precompute_vwap(df: pd.DataFrame) -> np.ndarray:
+    n = len(df)
+    out = np.full(n, np.nan)
+    cum_tpv = cum_vol = 0.0
+    last_date = ""
+    highs, lows, closes, vols, dates = (df["high"].to_numpy(), df["low"].to_numpy(),
+                                         df["close"].to_numpy(), df["volume"].to_numpy(), df["_date"].to_numpy())
+    for i in range(n):
+        if dates[i] != last_date:
+            cum_tpv = cum_vol = 0.0
+            last_date = dates[i]
+        tp = (highs[i] + lows[i] + closes[i]) / 3.0
+        vol = max(float(vols[i]), 1e-9)
+        cum_tpv += tp * vol
+        cum_vol += vol
+        out[i] = cum_tpv / cum_vol
+    return out
+
+
+def precompute_atr(df: pd.DataFrame, length: int) -> np.ndarray:
+    n = len(df)
+    out = np.full(n, np.nan)
+    if n <= length:
+        return out
+    h, l, c = df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
+    tr = lambda i: max(h[i] - l[i], abs(h[i] - c[i - 1]), abs(l[i] - c[i - 1]))
+    s = sum(tr(i) for i in range(1, length + 1))
+    atr = s / length
+    out[length] = atr
+    for i in range(length + 1, n):
+        atr = (atr * (length - 1) + tr(i)) / length
+        out[i] = atr
+    return out
+
+
+def precompute_vol_sma(df: pd.DataFrame, length: int) -> np.ndarray:
+    n = len(df)
+    out = np.full(n, np.nan)
+    if n < length:
+        return out
+    vol = df["volume"].to_numpy(dtype=float)
+    s = vol[:length].sum()
+    out[length - 1] = s / length
+    for i in range(length, n):
+        s += vol[i] - vol[i - length]
+        out[i] = s / length
+    return out
+
+
+def precompute_adx(df: pd.DataFrame, length: int) -> np.ndarray:
+    n = len(df)
+    out = np.full(n, np.nan)
+    if n < length * 2 + 1:
+        return out
+    h, l, c = df["high"].to_numpy(), df["low"].to_numpy(), df["close"].to_numpy()
+    trs = [0.0]; pdms = [0.0]; mdms = [0.0]
+    for i in range(1, n):
+        tr = max(h[i] - l[i], abs(h[i] - c[i - 1]), abs(l[i] - c[i - 1]))
+        up = h[i] - h[i - 1]
+        dn = l[i - 1] - l[i]
+        trs.append(tr)
+        pdms.append(up if (up > dn and up > 0) else 0.0)
+        mdms.append(dn if (dn > up and dn > 0) else 0.0)
+
+    def dx(str_, spdm, smdm):
+        pdi = (spdm / str_) * 100 if str_ > 0 else 0.0
+        mdi = (smdm / str_) * 100 if str_ > 0 else 0.0
+        s = pdi + mdi
+        return (abs(pdi - mdi) / s) * 100 if s > 0 else 0.0
+
+    s_tr = sum(trs[1:length + 1]); s_pdm = sum(pdms[1:length + 1]); s_mdm = sum(mdms[1:length + 1])
+    dx_arr = np.full(n, np.nan)
+    dx_arr[length] = dx(s_tr, s_pdm, s_mdm)
+    for i in range(length + 1, n):
+        s_tr = s_tr - s_tr / length + trs[i]
+        s_pdm = s_pdm - s_pdm / length + pdms[i]
+        s_mdm = s_mdm - s_mdm / length + mdms[i]
+        dx_arr[i] = dx(s_tr, s_pdm, s_mdm)
+
+    lo, hi = length, min(length * 2, n - 1)
+    vals = [dx_arr[i] for i in range(lo, hi + 1) if not np.isnan(dx_arr[i])]
+    if not vals:
+        return out
+    adx_val = sum(vals) / len(vals)
+    if length * 2 < n:
+        out[length * 2] = adx_val
+        for i in range(length * 2 + 1, n):
+            if not np.isnan(dx_arr[i]):
+                adx_val = (adx_val * (length - 1) + dx_arr[i]) / length
+                out[i] = adx_val
+    return out
+
+
+def precompute_ema(df: pd.DataFrame, length: int) -> np.ndarray:
+    # Matches TS precomputeEMA exactly: out[0]=close[0], k=2/(len+1) recursive.
+    return df["close"].ewm(alpha=2.0 / (length + 1), adjust=False).mean().to_numpy()
+
+
+def precompute_mz_daily(df: pd.DataFrame, periods_back: int, fib_outer: float) -> tuple[np.ndarray, np.ndarray]:
+    """Daily Magnetic Zone R2/S2 gating levels (mzShowDaily gating uses ONLY
+    the Daily period regardless of weekly/monthly config, matching the TS
+    engine's useMZFilter which reads mzR2Arr/mzS2Arr built from daily periods only)."""
+    n = len(df)
+    r2 = np.full(n, np.nan); s2 = np.full(n, np.nan)
+    dates = df["_date"].to_numpy()
+    daily_hi = df.groupby("_date")["high"].max()
+    daily_lo = df.groupby("_date")["low"].min()
+    uniq_dates = list(dict.fromkeys(dates.tolist()))
+    date_idx = {d: i for i, d in enumerate(uniq_dates)}
+    pb = max(1, int(periods_back))
+    for i in range(n):
+        idx = date_idx[dates[i]] - pb
+        if idx < 0:
+            continue
+        d = uniq_dates[idx]
+        h, l = daily_hi[d], daily_lo[d]
+        rng = h - l
+        center = (h + l) / 2.0
+        r2[i] = center + fib_outer * rng
+        s2[i] = center - fib_outer * rng
+    return r2, s2
+
+
+@dataclass
+class OpenLine:
+    kind: int          # 1 = buy line, -1 = sell line
+    level: float
+    born_idx: int
+    entry: Optional[float]
+    favorable: Optional[float]
+
+
+@dataclass
+class LastSignal:
+    direction: int = 0          # 1 = buy, -1 = sell, 0 = none
+    entry: Optional[float] = None
+    sl: Optional[float] = None
+    locked_sl_pct: Optional[float] = None
+    time: Optional[pd.Timestamp] = None
+
+
+def compute_last_signal(df: pd.DataFrame) -> LastSignal:
+    """Faithful port of calculateIntradaySignalsIndia's bar loop, stripped of
+    everything that only feeds chart drawing (markers/slLines/entryLines/
+    orbLines/mzLines/fills) — only the CURRENT SESSION's last-signal export
+    (what isiLiveTrader.ts actually consumes each tick) is computed."""
+    n = len(df)
+    if n == 0:
+        return LastSignal()
+
+    vwap = precompute_vwap(df)
+    atr = precompute_atr(df, ATR_LEN) if USE_ATR_SL else np.full(n, np.nan)
+    vol_sma = precompute_vol_sma(df, VOL_LOOKBACK) if USE_VOL_FILTER else np.full(n, np.nan)
+    adx = precompute_adx(df, ADX_LEN) if USE_ADX_FILTER else np.full(n, np.nan)
+    e1 = precompute_ema(df, RIB_LEN1) if USE_EMA_RIBBON else np.full(n, np.nan)
+    e2 = precompute_ema(df, RIB_LEN2) if USE_EMA_RIBBON else np.full(n, np.nan)
+    e3 = precompute_ema(df, RIB_LEN3) if USE_EMA_RIBBON else np.full(n, np.nan)
+    e4 = precompute_ema(df, RIB_LEN4) if USE_EMA_RIBBON else np.full(n, np.nan)
+    mz_r2, mz_s2 = precompute_mz_daily(df, MZ_PERIODS_BACK_DAILY, MZ_FIB_OUTER) if USE_MZ_FILTER else (
+        np.full(n, np.nan), np.full(n, np.nan))
+
+    o = df["open"].to_numpy(); h = df["high"].to_numpy(); l = df["low"].to_numpy()
+    c = df["close"].to_numpy(); dates = df["_date"].to_numpy(); hm = df["_hm"].to_numpy()
+    times = df["_dt"].to_numpy()
+
+    start_min = SESSION_START_HOUR * 60 + SESSION_START_MIN_
+    end_min = SESSION_END_HOUR * 60 + SESSION_END_MIN_
+
+    def in_session(i: int) -> bool:
+        return start_min <= hm[i] <= end_min
+
+    open_lines: list[OpenLine] = []
+    sl_mode_only = False
+    last_signal = 0
+    last = LastSignal()
+    orb_high = orb_low = None
+    orb_start_hm: Optional[int] = None
+    orb_locked = False
+
+    def is_green(i): return c[i] > o[i]
+    def is_red(i): return c[i] < o[i]
+
+    for i in range(n):
+        inSess = in_session(i)
+        prev1 = i - 1 if i >= 1 else None
+        prev2 = i - 2 if i >= 2 else None
+        prev1_in = prev1 is not None and in_session(prev1) and dates[prev1] == dates[i]
+        prev2_in = prev2 is not None and in_session(prev2) and dates[prev2] == dates[i]
+        new_session = inSess and not prev1_in
+
+        if new_session:
+            # Session boundary — reset all state (matches Pine's newSession block / closeOutDay()).
+            open_lines = []
+            sl_mode_only = False
+            last_signal = 0
+            last = LastSignal()
+            orb_high = orb_low = None
+            orb_start_hm = hm[i]
+            orb_locked = False
+
+        if not inSess:
+            continue
+
+        # ── Opening Range accumulation (first ORB_MINUTES of the session) ────
+        if USE_ORB_FILTER and orb_start_hm is not None:
+            if hm[i] < orb_start_hm + ORB_MINUTES:
+                orb_high = h[i] if orb_high is None else max(orb_high, h[i])
+                orb_low = l[i] if orb_low is None else min(orb_low, l[i])
+            elif not orb_locked and orb_high is not None:
+                orb_locked = True
+
+        vwap_i = vwap[i]
+        vwap_buy = (not USE_VWAP_FILTER) or (not np.isnan(vwap_i) and c[i] > vwap_i)
+        vwap_sell = (not USE_VWAP_FILTER) or (not np.isnan(vwap_i) and c[i] < vwap_i)
+        vol_ok = (not USE_VOL_FILTER) or (not np.isnan(vol_sma[i]) and df["volume"].iat[i] > vol_sma[i] * VOL_MULTIPLIER)
+        adx_ok = (not USE_ADX_FILTER) or (not np.isnan(adx[i]) and adx[i] >= ADX_THRESHOLD)
+
+        rib_ready = USE_EMA_RIBBON and not (np.isnan(e1[i]) or np.isnan(e2[i]) or np.isnan(e3[i]) or np.isnan(e4[i]))
+        above_cnt = (int(c[i] > e1[i]) + int(c[i] > e2[i]) + int(c[i] > e3[i]) + int(c[i] > e4[i])) if rib_ready else 0
+        below_cnt = (int(c[i] < e1[i]) + int(c[i] < e2[i]) + int(c[i] < e3[i]) + int(c[i] < e4[i])) if rib_ready else 0
+        stacked_bull = rib_ready and e1[i] > e2[i] > e3[i] > e4[i]
+        stacked_bear = rib_ready and e1[i] < e2[i] < e3[i] < e4[i]
+        rib_buy = (not USE_EMA_RIBBON) or (above_cnt >= RIBBON_THRESHOLD and stacked_bull)
+        rib_sell = (not USE_EMA_RIBBON) or (below_cnt >= RIBBON_THRESHOLD and stacked_bear)
+
+        mz_buy = (not USE_MZ_FILTER) or (not np.isnan(mz_r2[i]) and c[i] > mz_r2[i])
+        mz_sell = (not USE_MZ_FILTER) or (not np.isnan(mz_s2[i]) and c[i] < mz_s2[i])
+
+        vwap_chop_ok = True
+        if USE_VWAP_CHOP:
+            lb = VWAP_CHOP_LOOKBACK
+            start = max(0, i - lb + 1)
+            touches = sum(1 for j in range(start, i + 1)
+                          if not np.isnan(vwap[j]) and h[j] >= vwap[j] and l[j] <= vwap[j])
+            vwap_chop_ok = touches <= VWAP_CHOP_MAX_TOUCHES
+
+        orb_buy = (not USE_ORB_FILTER) or (orb_locked and orb_high is not None and c[i] > orb_high)
+        orb_sell = (not USE_ORB_FILTER) or (orb_locked and orb_low is not None and c[i] < orb_low)
+
+        c_green, c_red = is_green(i), is_red(i)
+        p_green = prev1_in and is_green(prev1)
+        p_red = prev1_in and is_red(prev1)
+        p2_green = prev2_in and is_green(prev2)
+        p2_red = prev2_in and is_red(prev2)
+
+        buy1 = ENABLE_BUY and c_green and p_red and prev1 is not None and c[i] > h[prev1]
+        sell1 = ENABLE_SELL and c_red and p_green and prev1 is not None and c[i] < l[prev1]
+        buy2 = ENABLE_DOUBLE and ENABLE_BUY and c_green and p_green and p2_red and prev2 is not None and c[i] > h[prev2]
+        sell2 = ENABLE_DOUBLE and ENABLE_SELL and c_red and p_red and p2_green and prev2 is not None and c[i] < l[prev2]
+        buy_cond_base = buy1 or buy2
+        sell_cond_base = sell1 or sell2
+
+        block_buy = block_sell = False
+        forced_opposite_done = False
+        atr_dist = atr[i] * ATR_MULT if not np.isnan(atr[i]) else 0.0
+
+        still_open: list[OpenLine] = []
+        for ln in open_lines:
+            broke = (ln.kind == 1 and c[i] < ln.level and i > ln.born_idx) or \
+                    (ln.kind == -1 and c[i] > ln.level and i > ln.born_idx)
+            if not broke:
+                still_open.append(ln)
+                continue
+            if ENHANCED_MODE and not forced_opposite_done:
+                if ln.kind == 1 and vwap_sell and vol_ok and adx_ok and vwap_chop_ok and rib_sell and mz_sell and orb_sell:
+                    lvl = c[i] + atr_dist if (USE_ATR_SL and atr_dist > 0) else h[i]
+                    still_open.append(OpenLine(-1, lvl, i, c[i], c[i]))
+                    last_signal = -1; block_sell = True; sl_mode_only = True
+                    sl_dist = atr_dist if (USE_ATR_SL and atr_dist > 0) else abs(c[i] - lvl)
+                    last = LastSignal(-1, c[i], lvl,
+                                       (sl_dist / c[i]) * 100 if c[i] > 0 and sl_dist > 0 else None, times[i])
+                elif ln.kind == -1 and vwap_buy and vol_ok and adx_ok and vwap_chop_ok and rib_buy and mz_buy and orb_buy:
+                    lvl = c[i] - atr_dist if (USE_ATR_SL and atr_dist > 0) else l[i]
+                    still_open.append(OpenLine(1, lvl, i, c[i], c[i]))
+                    last_signal = 1; block_buy = True; sl_mode_only = True
+                    sl_dist = atr_dist if (USE_ATR_SL and atr_dist > 0) else abs(c[i] - lvl)
+                    last = LastSignal(1, c[i], lvl,
+                                       (sl_dist / c[i]) * 100 if c[i] > 0 and sl_dist > 0 else None, times[i])
+                forced_opposite_done = True
+        open_lines = still_open
+        if sl_mode_only and not open_lines:
+            sl_mode_only = False
+
+        has_active_buy = any(ln.kind == 1 for ln in open_lines)
+        has_active_sell = any(ln.kind == -1 for ln in open_lines)
+        buy_cond = buy_cond_base and ((last_signal != 1) if UNIQUE_SIGNAL else not has_active_buy) and not new_session
+        sell_cond = sell_cond_base and ((last_signal != -1) if UNIQUE_SIGNAL else not has_active_sell) and not new_session
+
+        active_buy_lvl = active_buy_entry = active_sell_lvl = active_sell_entry = None
+        for ln in open_lines:
+            if ln.kind == 1:
+                active_buy_lvl, active_buy_entry = ln.level, ln.entry
+            else:
+                active_sell_lvl, active_sell_entry = ln.level, ln.entry
+
+        inside_buy_red = (ENHANCED_MODE and active_buy_lvl is not None and active_buy_entry is not None
+                          and min(active_buy_lvl, active_buy_entry) <= c[i] <= max(active_buy_lvl, active_buy_entry))
+        inside_sell_red = (ENHANCED_MODE and active_sell_lvl is not None and active_sell_entry is not None
+                           and min(active_sell_entry, active_sell_lvl) <= c[i] <= max(active_sell_entry, active_sell_lvl))
+
+        buy_fire = ((buy_cond and not inside_sell_red and not sl_mode_only) if ENHANCED_MODE else buy_cond) \
+            and vwap_buy and vol_ok and adx_ok and vwap_chop_ok and rib_buy and mz_buy and orb_buy
+        sell_fire = ((sell_cond and not inside_buy_red and not sl_mode_only) if ENHANCED_MODE else sell_cond) \
+            and vwap_sell and vol_ok and adx_ok and vwap_chop_ok and rib_sell and mz_sell and orb_sell
+
+        if buy_fire and not block_buy:
+            lvl = (c[i] - atr_dist if (USE_ATR_SL and atr_dist > 0)
+                   else min(l[i], l[prev1] if prev1 is not None else l[i]) if buy1
+                   else min(l[i], l[prev1] if prev1 is not None else l[i], l[prev2] if prev2 is not None else l[i]))
+            open_lines.append(OpenLine(1, lvl, i, c[i] if ENHANCED_MODE else None, c[i]))
+            last_signal = 1
+            sl_dist = atr_dist if (USE_ATR_SL and atr_dist > 0) else abs(c[i] - lvl)
+            last = LastSignal(1, c[i], lvl, (sl_dist / c[i]) * 100 if c[i] > 0 and sl_dist > 0 else None, times[i])
+
+        if sell_fire and not block_sell:
+            lvl = (c[i] + atr_dist if (USE_ATR_SL and atr_dist > 0)
+                   else max(h[i], h[prev1] if prev1 is not None else h[i]) if sell1
+                   else max(h[i], h[prev1] if prev1 is not None else h[i], h[prev2] if prev2 is not None else h[i]))
+            open_lines.append(OpenLine(-1, lvl, i, c[i] if ENHANCED_MODE else None, c[i]))
+            last_signal = -1
+            sl_dist = atr_dist if (USE_ATR_SL and atr_dist > 0) else abs(c[i] - lvl)
+            last = LastSignal(-1, c[i], lvl, (sl_dist / c[i]) * 100 if c[i] > 0 and sl_dist > 0 else None, times[i])
+
+        if ENHANCED_MODE:
+            hi_body = c[i] if c_green else o[i]
+            lo_body = o[i] if c_green else c[i]
+            for ln in open_lines:
+                if ln.entry is None:
+                    continue
+                if ln.kind == 1:
+                    ln.favorable = hi_body if ln.favorable is None else max(ln.favorable, hi_body)
+                else:
+                    ln.favorable = lo_body if ln.favorable is None else min(ln.favorable, lo_body)
+
+    return last
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CONFIRMATION GATE (matches shouldEnterOnConfirmation/getConfirmationRequirement)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def confirmation_requirement(mode: str) -> int:
+    return {"immediate": 0, "one_candle": 1}.get(mode, 2)  # default: two_candles
+
+
+def should_enter_on_confirmation(is_long: bool, entry: float, close: float) -> bool:
+    return close > entry if is_long else close < entry
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# POSITION SIZING (computeISIQty — single source of truth, matches TS exactly)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def compute_isi_qty(entry: float, sl_dist: float) -> dict:
+    if entry <= 0 or sl_dist <= 0:
+        return {"qty": 0, "risk_qty_cap": 0, "margin_qty_cap": 0, "margin_used": 0.0, "trade_value": 0.0}
+    risk_budget = BALANCE * (MAX_LOSS_PCT / 100)
+    margin_frac = min(max(INTRADAY_MARGIN_PCT, 1), 100) / 100
+    risk_qty_cap = int(risk_budget // sl_dist)
+    margin_qty_cap = int(CAPITAL_PER_TRADE // (entry * margin_frac))
+    qty = max(0, min(risk_qty_cap, margin_qty_cap))
+    trade_value = qty * entry
+    return {"qty": qty, "risk_qty_cap": risk_qty_cap, "margin_qty_cap": margin_qty_cap,
+            "margin_used": trade_value * margin_frac, "trade_value": trade_value}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# CHARGES (computeCharges port — brokerage/STT/transaction/SEBI/stamp/GST)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def compute_charges(entry_price: float, exit_price: float, qty: int, direction: str) -> dict:
+    cfg = CHARGES
+    buy_turnover = (entry_price if direction == "LONG" else exit_price) * qty
+    sell_turnover = (exit_price if direction == "LONG" else entry_price) * qty
+    total_turnover = buy_turnover + sell_turnover
+    brok_buy = min(cfg["brokerage_per_order"], buy_turnover * cfg["brokerage_percent"])
+    brok_sell = min(cfg["brokerage_per_order"], sell_turnover * cfg["brokerage_percent"])
+    brokerage = brok_buy + brok_sell
+    stt = sell_turnover * cfg["stt"]
+    txn = total_turnover * cfg["nse_transaction"]
+    sebi = total_turnover * cfg["sebi"]
+    stamp = buy_turnover * cfg["stamp_duty"]
+    gst = (brokerage + sebi + txn) * cfg["gst"]
+    total = brokerage + stt + txn + sebi + stamp + gst
+    return {"brokerage": brokerage, "stt": stt, "transaction": txn, "sebi": sebi,
+            "stamp_duty": stamp, "gst": gst, "total": total}
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TRAILING SL (trailSL port — none | candle | percent | breakeven)
+# ══════════════════════════════════════════════════════════════════════════════
+
+def trail_sl(current: float, entry: float, candle: dict, is_long: bool,
+             be_already: bool, sl_dist: float) -> tuple[float, bool]:
+    sl = current
+    be = be_already
+    close_, low_, high_ = candle["close"], candle["low"], candle["high"]
+
+    if TRAIL_TYPE == "candle":
+        if is_long and close_ > entry:
+            proposed = max(sl, low_)
+            if proposed >= entry:
+                sl = proposed
+        if not is_long and close_ < entry:
+            proposed = min(sl, high_)
+            if proposed <= entry:
+                sl = proposed
+
+    elif TRAIL_TYPE == "percent":
+        sl = max(sl, close_ * (1 - TRAIL_PERCENT / 100)) if is_long else min(sl, close_ * (1 + TRAIL_PERCENT / 100))
+
+    elif TRAIL_TYPE == "breakeven":
+        if not be:
+            profit = (high_ - entry) if is_long else (entry - low_)
+            if profit >= BREAKEVEN_R * sl_dist:
+                sl = entry
+                be = True
+        else:
+            if is_long and close_ > entry:
+                proposed = max(sl, low_)
+                if proposed >= entry:
+                    sl = proposed
+            if not is_long and close_ < entry:
+                proposed = min(sl, high_)
+                if proposed <= entry:
+                    sl = proposed
+
+    return sl, be
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LIVE POSITION + STATE PERSISTENCE (mirrors isiLiveTrader.ts's PersistedState)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class LivePosition:
+    symbol: str
+    direction: str          # LONG | SHORT
+    qty: int
+    entry_price: float
+    entry_time: str
+    initial_sl: float
+    current_sl: float
+    sl_dist: float
+    target_price: Optional[float]
+    be_triggered: bool
+    sl_order_id: str
+    status: str = "ACTIVE"  # ACTIVE | CLOSED
+    exit_price: float = 0.0
+    exit_reason: str = ""
+    gross_pnl: float = 0.0
+    net_pnl: float = 0.0
+    charges: float = 0.0
+
+
+def today_ist() -> str:
+    return now_ist().strftime("%Y-%m-%d")
+
+
+def _ist_from_epoch_ms(ts_ms: float) -> datetime:
+    # Same UTC-offset approach as now_ist(), just from a tick's own epoch-ms
+    # timestamp instead of the current instant.
+    return datetime.fromtimestamp(ts_ms / 1000.0, tz=timezone.utc).replace(tzinfo=None) + timedelta(hours=5, minutes=30)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# LOCAL CANDLE AGGREGATION — builds 5-minute OHLCV bars from live WS ticks
+# instead of polling OpenAlgo's REST history() endpoint per symbol per tick.
+# With 80 symbols, a serial REST fetch loop (the old process_symbol() path)
+# means the last symbol in the list gets checked only after ~80 sequential
+# HTTP round-trips — that's the actual cause of multi-minute-late entries,
+# not the signal logic. A bar here finalizes the instant a tick lands in the
+# next 5-minute bucket (or, for a quiet symbol, within ~2s of the wall clock
+# crossing the boundary via sweep_stale()), so signal detection + order
+# placement starts within a couple of seconds of the real candle close.
+# ══════════════════════════════════════════════════════════════════════════════
+
+@dataclass
+class _Bin:
+    bucket_min: int
+    date_str: str
+    o: float
+    h: float
+    l: float
+    c: float
+    vol_base: Optional[float]  # cumulative day volume AT the moment this bucket started;
+                                # None means "pending" — set by the first real tick. Lets a
+                                # mid-session-restart bin be seeded with REST open/high/low
+                                # (better OHLC continuity) without having to fake a volume
+                                # baseline for time before the restart happened.
+
+
+class TickAggregator:
+    def __init__(self, on_bar_closed):
+        self._bins: dict[str, _Bin] = {}
+        self._last_cum_vol: dict[str, float] = {}
+        self._lock = threading.Lock()
+        self.on_bar_closed = on_bar_closed
+
+    def seed(self, symbol: str, o: float, h: float, l: float, c: float,
+             bucket_min: int, date_str: str):
+        """Pre-populate a symbol's currently-forming bin from a REST snapshot
+        taken at startup, instead of letting the first live tick start a
+        fresh bin from scratch. On a mid-session restart the bucket that's
+        actively forming at that moment would otherwise miss whatever
+        happened between the true bucket start and the restart — seeding
+        keeps that partial REST-observed range instead of discarding it.
+        No-ops if a bin already exists (never overwrite live data)."""
+        with self._lock:
+            if symbol not in self._bins:
+                self._bins[symbol] = _Bin(bucket_min, date_str, o, h, l, c, None)
+
+    def ingest(self, symbol: str, ltp: float, cum_vol: float, ts_ms: Optional[float]):
+        if ltp <= 0:
+            return
+        now = _ist_from_epoch_ms(ts_ms) if ts_ms else now_ist()
+        bucket_min = (now.hour * 60 + now.minute) // 5 * 5
+        date_str = now.strftime("%Y-%m-%d")
+        closed = None
+        with self._lock:
+            self._last_cum_vol[symbol] = cum_vol
+            b = self._bins.get(symbol)
+            # Stale/out-of-order tick guard: brokers send a snapshot tick with
+            # the PREVIOUS trade's timestamp (can be minutes or a whole day
+            # old) right after subscribing. Without this, that tick would
+            # roll the bin BACKWARDS and the next real tick would "close" a
+            # garbage one-tick bar. Never move a bin to an older bucket.
+            if b is not None and (date_str, bucket_min) < (b.date_str, b.bucket_min):
+                return
+            if b is None:
+                self._bins[symbol] = _Bin(bucket_min, date_str, ltp, ltp, ltp, ltp, cum_vol)
+            elif b.date_str != date_str or b.bucket_min != bucket_min:
+                vol_base = b.vol_base if b.vol_base is not None else cum_vol
+                closed = {"date": b.date_str, "bucket_min": b.bucket_min, "open": b.o,
+                          "high": b.h, "low": b.l, "close": b.c, "volume": max(cum_vol - vol_base, 0.0)}
+                self._bins[symbol] = _Bin(bucket_min, date_str, ltp, ltp, ltp, ltp, cum_vol)
+            else:
+                if b.vol_base is None:
+                    b.vol_base = cum_vol  # first real tick after a seed establishes the volume baseline
+                b.h = max(b.h, ltp)
+                b.l = min(b.l, ltp)
+                b.c = ltp
+        if closed:
+            self.on_bar_closed(symbol, closed)
+
+    def sweep_stale(self):
+        """Force-close any bin whose bucket has already passed without a fresh
+        tick (illiquid symbol that hasn't traded across the boundary yet) —
+        called every ~2s so a quiet stock's candle still closes on time
+        instead of waiting indefinitely for its next print."""
+        now = now_ist()
+        cur_bucket = (now.hour * 60 + now.minute) // 5 * 5
+        cur_date = now.strftime("%Y-%m-%d")
+        to_close = []
+        with self._lock:
+            for symbol, b in list(self._bins.items()):
+                if b.date_str != cur_date or b.bucket_min != cur_bucket:
+                    vol_now = self._last_cum_vol.get(symbol, 0.0)
+                    vol_base = b.vol_base if b.vol_base is not None else vol_now
+                    to_close.append((symbol, {"date": b.date_str, "bucket_min": b.bucket_min,
+                                               "open": b.o, "high": b.h, "low": b.l, "close": b.c,
+                                               "volume": max(vol_now - vol_base, 0.0)}))
+                    self._bins[symbol] = _Bin(cur_bucket, cur_date, b.c, b.c, b.c, b.c, vol_now)
+        for symbol, closed in to_close:
+            self.on_bar_closed(symbol, closed)
+
+
+class MarketFeed:
+    """Thin WS client for OpenAlgo's market-data proxy (default ws://127.0.0.1:8765) —
+    subscribes once per symbol (mode=2 Quote) and streams ticks into a
+    TickAggregator. Same auth/subscribe protocol and pacing (10 frames / 80ms)
+    as openalgo-chart's SharedWebSocketManager, since bursting subscribe
+    frames at the OpenAlgo<->broker bridge causes silent drops."""
+
+    PACE_BATCH = 10
+    PACE_GAP_S = 0.08
+
+    def __init__(self, on_tick):
+        self.on_tick = on_tick
+        self._ws: Optional[websocket.WebSocketApp] = None
+        self._authenticated = False
+        self._subscribed: set[str] = set()  # "SYMBOL:EXCHANGE"
+        self._send_queue: list[str] = []
+        self._lock = threading.Lock()
+        self._stop = False
+        self._thread: Optional[threading.Thread] = None
+
+    @property
+    def connected(self) -> bool:
+        return self._authenticated
+
+    def start(self):
+        self._stop = False
+        self._thread = threading.Thread(target=self._run_forever, daemon=True, name="isi-ws-feed")
+        self._thread.start()
+
+    def stop(self):
+        self._stop = True
+        if self._ws and self._authenticated:
+            # Unsubscribe before closing — leaving stale subscriptions
+            # registered on the OpenAlgo WS proxy is a known pitfall even
+            # though the connection is about to close anyway.
+            try:
+                for key in list(self._subscribed):
+                    sym, exch = key.split(":", 1)
+                    self._ws.send(json.dumps({"action": "unsubscribe", "symbol": sym, "exchange": exch}))
+            except Exception:
+                pass
+        if self._ws:
+            try:
+                self._ws.close()
+            except Exception:
+                pass
+
+    def _run_forever(self):
+        backoff = 1
+        while not self._stop:
+            try:
+                self._authenticated = False
+                self._ws = websocket.WebSocketApp(
+                    OPENALGO_WS_URL, on_open=self._on_open, on_message=self._on_message,
+                    on_close=self._on_close, on_error=self._on_error,
+                )
+                self._ws.run_forever(ping_interval=20, ping_timeout=10)
+            except Exception as e:
+                log.warning(f"MarketFeed run_forever error: {e}")
+            self._authenticated = False
+            if self._stop:
+                break
+            time.sleep(backoff)
+            backoff = min(backoff * 2, 30)
+
+    def _on_open(self, ws):
+        log.info("MarketFeed connected — authenticating...")
+        ws.send(json.dumps({"action": "authenticate", "api_key": OPENALGO_API_KEY}))
+
+    def _on_message(self, ws, message):
+        try:
+            msg = json.loads(message)
+        except Exception:
+            return
+        # Everything past the JSON parse runs inside its own try/except — an
+        # exception here previously propagated up into the websocket-client
+        # library's dispatch loop, which could just look like an unexplained
+        # "MarketFeed disconnected — reconnecting" with no trace of the real
+        # cause (e.g. a bug in bar-close processing reached via on_tick()).
+        try:
+            mtype = msg.get("type")
+            if mtype == "ping":
+                ws.send(json.dumps({"type": "pong"}))
+                return
+            if (mtype == "auth" and msg.get("status") == "success") or mtype == "authenticated" or msg.get("status") == "authenticated":
+                self._authenticated = True
+                log.info(f"MarketFeed authenticated — subscribing {len(self._subscribed)} symbols")
+                self._resubscribe_all()
+                return
+            if mtype == "error" or (mtype == "auth" and msg.get("status") != "success"):
+                log.error(f"MarketFeed auth error: {msg.get('message') or msg.get('code')}")
+                return
+            if mtype == "market_data" and msg.get("symbol"):
+                data = msg.get("data") or {}
+                ltp = float(data.get("ltp") or data.get("last_price") or 0)
+                vol = float(data.get("volume") or 0)
+                self.on_tick(msg["symbol"], ltp, vol, data.get("timestamp"))
+        except Exception as e:
+            log.exception(f"MarketFeed _on_message processing error: {e}")
+
+    def _on_close(self, ws, code, reason):
+        self._authenticated = False
+        log.warning(f"MarketFeed disconnected (code={code}) — reconnecting...")
+
+    def _on_error(self, ws, error):
+        log.warning(f"MarketFeed error: {error}")
+
+    def set_symbols(self, symbols: list[str]):
+        """Diff against the currently-subscribed set and (un)subscribe only the delta."""
+        wanted = {f"{s}:{EXCHANGE}" for s in symbols}
+        with self._lock:
+            to_add = wanted - self._subscribed
+            to_remove = self._subscribed - wanted
+            self._subscribed = wanted
+            for key in to_add:
+                sym, exch = key.split(":", 1)
+                self._send_queue.append(json.dumps({"action": "subscribe", "symbol": sym, "exchange": exch, "mode": 2}))
+            for key in to_remove:
+                sym, exch = key.split(":", 1)
+                self._send_queue.append(json.dumps({"action": "unsubscribe", "symbol": sym, "exchange": exch}))
+        if self._authenticated:
+            self._drain_queue()
+
+    def _resubscribe_all(self):
+        with self._lock:
+            self._send_queue = [
+                json.dumps({"action": "subscribe", "symbol": key.split(":")[0], "exchange": key.split(":")[1], "mode": 2})
+                for key in self._subscribed
+            ]
+        self._drain_queue()
+
+    def _drain_queue(self):
+        def _pump():
+            while True:
+                with self._lock:
+                    if not self._authenticated or not self._send_queue:
+                        return
+                    batch = self._send_queue[:self.PACE_BATCH]
+                    del self._send_queue[:self.PACE_BATCH]
+                for frame in batch:
+                    try:
+                        self._ws.send(frame)
+                    except Exception as e:
+                        log.warning(f"MarketFeed send failed: {e}")
+                        return
+                time.sleep(self.PACE_GAP_S)
+        threading.Thread(target=_pump, daemon=True, name="isi-ws-pacer").start()
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TRADER
+# ══════════════════════════════════════════════════════════════════════════════
+
+class ISILiveTrader:
+    def __init__(self, symbols: list[str]):
+        self.symbols = symbols
+        self.positions: dict[str, LivePosition] = {}
+        self.day_realized_pnl = 0.0
+        self.trades_today = 0
+        self.halts_logged: set[str] = set()
+        self.logged_skips: dict[str, str] = {}
+        self.last_bar_min = -1
+        self.running = False
+        self.last_tf_refresh = 0.0
+        # TF-token expiry alerting state: cadence timer + the expiry we last
+        # alerted about (a fresh token pasted mid-session changes the expiry,
+        # which resets the cadence so alerts stop immediately).
+        self._last_tf_alert = 0.0
+        self._last_tf_exp: Optional[datetime] = None
+
+        # WS-driven candle path: self.history is the per-symbol cache (one-time
+        # REST warm-up + locally aggregated closed bars appended as the day
+        # progresses). process_symbol() below is kept only as the REST-polling
+        # fallback for when the WS feed is down/reconnecting.
+        self.history: dict[str, pd.DataFrame] = {}
+        self.history_lock = threading.Lock()
+        self.aggregator = TickAggregator(self._on_bar_closed)
+        self.feed = MarketFeed(self.aggregator.ingest)
+        self._bar_queue: "queue.Queue[tuple[str, int]]" = queue.Queue()
+        self._worker_thread: Optional[threading.Thread] = None
+        self._sweep_thread: Optional[threading.Thread] = None
+        # Guards a single position against concurrent action from the two
+        # threads that can both touch it: the main thread's tick() loop
+        # (broker-fill polling, every 15s) and the dedicated bar-worker
+        # thread (signal search / trailing / target, on each bar close).
+        # Without this, both could independently decide to close/modify the
+        # same position at nearly the same moment.
+        self.positions_lock = threading.Lock()
+        self._persist_lock = threading.Lock()
+
+    def _warm_up_all(self, symbols: list[str]):
+        """One-time (per symbol) REST history fetch for indicator warm-up —
+        replaces per-tick REST polling entirely once this has run. Fetched
+        concurrently since it only happens at startup / when a symbol is new
+        to the boost list, not on every tick.
+
+        If the REST fetch's last row is the bucket that's CURRENTLY forming
+        (i.e. this is a mid-session start/restart, not a clean 09:15 start),
+        that row is a partial snapshot the same way the WS aggregator's own
+        from-scratch bin would be. Rather than let both independently miss
+        whatever happened before this moment, seed the aggregator's bin with
+        the REST snapshot's open/high/low/close and drop the partial row from
+        the cached history — the aggregator will emit a complete replacement
+        for that bucket once it actually closes."""
+        if not symbols:
+            return
+        now = now_ist()
+        cur_bucket = (now.hour * 60 + now.minute) // 5 * 5
+        cur_date = now.strftime("%Y-%m-%d")
+        # max_workers=5 caps concurrent history calls upstream. OpenAlgo's own
+        # API limit is 50/s (.env API_RATE_LIMIT) so 10 workers was fine
+        # locally — but the June 2026 feed-freeze incident was the BROKER's
+        # (Upstox) history quota, not OpenAlgo's. 5 concurrent × ~0.5-2s per
+        # call ≈ 3-10 req/s upstream. Warm-up speed is free: entries can't
+        # start before the 09:20 no-entry-before cutoff anyway.
+        with ThreadPoolExecutor(max_workers=5) as ex:
+            futures = {ex.submit(fetch_candles, sym): sym for sym in symbols}
+            for fut in futures:
+                sym = futures[fut]
+                try:
+                    df = fut.result()
+                except Exception as e:
+                    log.warning(f"warm-up fetch failed for {sym}: {e}")
+                    continue
+                if df is None or len(df) < 4:
+                    continue
+                last = df.iloc[-1]
+                if last["_date"] == cur_date and int(last["_hm"]) == cur_bucket:
+                    self.aggregator.seed(sym, float(last["open"]), float(last["high"]),
+                                          float(last["low"]), float(last["close"]), cur_bucket, cur_date)
+                    df = df.iloc[:-1]
+                with self.history_lock:
+                    self.history[sym] = df
+        log.info(f"Warm-up: {len(self.history)}/{len(symbols)} symbols have historical data")
+
+    def check_tf_token(self):
+        """TradeFinder tokens expire ~3h after login. Starting TF_TOKEN_WARN_MIN
+        (15) minutes before expiry, alert every TF_TOKEN_ALERT_GAP_SEC (5 min)
+        on Telegram + local sound until a fresh token is pasted into
+        tf_jwt.txt — pasting one changes the decoded expiry, which resets the
+        cadence and stops the alerts without a restart (the token file is
+        re-read on every TF fetch already)."""
+        exp = _tf_jwt_expiry()
+        if exp is None:
+            return  # no token / no exp claim — startup already fails loudly without a token
+        if self._last_tf_exp != exp:
+            self._last_tf_exp = exp
+            self._last_tf_alert = 0.0
+            log.info(f"TradeFinder token expiry: {exp.strftime('%H:%M:%S')} IST")
+        mins_left = (exp - now_ist()).total_seconds() / 60
+        if mins_left > TF_TOKEN_WARN_MIN:
+            return
+        if time.time() - self._last_tf_alert < TF_TOKEN_ALERT_GAP_SEC:
+            return
+        self._last_tf_alert = time.time()
+        if mins_left <= 0:
+            alert(f"🔴 TradeFinder token EXPIRED at {exp.strftime('%H:%M')} — boost list is FROZEN at "
+                  f"last-known symbols. Paste a fresh token: echo '<token>' > {TF_JWT_FILE}", sound=True)
+        else:
+            alert(f"⚠️ TradeFinder token expires in {int(mins_left)} min ({exp.strftime('%H:%M')} IST) — "
+                  f"paste a fresh token: echo '<token>' > {TF_JWT_FILE}", sound=True)
+
+    def refresh_symbols_if_due(self):
+        """Re-poll TradeFinder's Intraday Boost list every TF_REFRESH_SEC — mirrors
+        useTradeFinderBoost's countdown-refetch + IntradayBoost.tsx's
+        updateLiveTraderSymbols() call whenever the boost list changes. Existing
+        positions keep being managed even after a symbol drops off the list
+        (see the pending-set union in tick()) — only NEW entries are restricted
+        to the current self.symbols, exactly like the TS trader."""
+        now = time.time()
+        if now - self.last_tf_refresh < TF_REFRESH_SEC:
+            return
+        self.last_tf_refresh = now
+        fresh = fetch_intraday_boost()
+        if fresh is None:
+            return  # TF fetch failed — keep the last-known list, don't go symbol-less
+        if set(fresh) != set(self.symbols):
+            log.info(f"TradeFinder Intraday Boost list updated: {len(fresh)} symbols")
+            jlog("TF_BOOST_UPDATE", symbols=fresh)
+        new_syms = [s for s in fresh if s not in self.history]
+        self.symbols = fresh
+        if new_syms:
+            # Warm up (and seed the aggregator) BEFORE subscribing, so a tick
+            # arriving right after subscribe can't race ahead of seed() and
+            # silently skip it (seed() is a no-op once a bin already exists).
+            self._warm_up_all(new_syms)
+        self.feed.set_symbols(self.symbols)
+
+    # ── Persistence ──────────────────────────────────────────────────────────
+    def persist(self):
+        # Both the main thread (broker-fill polling) and the bar-worker thread
+        # (entries/trailing) can call this — serialize the actual write so two
+        # concurrent persist() calls can't interleave on the shared tmp path.
+        with self._persist_lock:
+            state = {
+                "date": today_ist(),
+                "positions": [asdict(p) for p in self.positions.values()],
+                "day_realized_pnl": self.day_realized_pnl,
+                "trades_today": self.trades_today,
+            }
+            tmp = STATE_FILE + ".tmp"
+            with open(tmp, "w") as f:
+                json.dump(state, f, indent=2)
+            os.replace(tmp, STATE_FILE)  # atomic — a crash mid-write can't corrupt the live state file
+
+    def load_persisted(self) -> Optional[dict]:
+        if not os.path.exists(STATE_FILE):
+            return None
+        try:
+            with open(STATE_FILE) as f:
+                st = json.load(f)
+        except Exception:
+            return None
+        if st.get("date") != today_ist():
+            return None
+        return st
+
+    def restore_and_reconcile(self) -> bool:
+        st = self.load_persisted()
+        restored = [LivePosition(**p) for p in st["positions"]] if st else []
+        active_restored = [p for p in restored if p.status == "ACTIVE"]
+
+        rows = [pos_fields(r) for r in get_positionbook()]
+        rows = [r for r in rows if r["symbol"]]
+
+        if active_restored and not rows:
+            log.error(f"Cannot verify {len(active_restored)} restored ACTIVE position(s): "
+                      f"positionbook empty/unavailable. Check OpenAlgo, flatten manually if needed, then restart.")
+            jlog("ERROR", msg="positionbook unavailable during reconcile with active positions")
+            return False
+
+        if st:
+            self.positions = {p.symbol: p for p in restored}
+            self.day_realized_pnl = st["day_realized_pnl"]
+            self.trades_today = st["trades_today"]
+
+        for pos in active_restored:
+            row = next((r for r in rows if r["symbol"] == pos.symbol), None)
+            if row and row["qty"] != 0:
+                ord_ = find_order(pos.sl_order_id) if pos.sl_order_id != "NONE" else None
+                if ord_ and order_status(ord_) == "COMPLETE":
+                    px = float(ord_.get("average_price") or 0) or pos.current_sl
+                    log.info(f"{pos.symbol}: SL order filled while trader was offline — recording exit")
+                    self.close_position(pos.symbol, pos, "SL_HIT", px, already_flat=True)
+                elif not ord_ or order_status(ord_) not in WORKING_STATES:
+                    pos.sl_order_id = "NONE"
+                    log.error(f"{pos.symbol}: adopted position has NO working SL order at broker "
+                              f"— managing SL locally. Consider flattening manually.")
+                else:
+                    log.info(f"{pos.symbol}: adopted ACTIVE {pos.direction} qty {pos.qty}, "
+                             f"SL order {pos.sl_order_id} still working")
+            elif row and row["qty"] == 0:
+                log.info(f"{pos.symbol}: position was closed at broker while trader was offline")
+                self.close_position(pos.symbol, pos, "SL_HIT", pos.current_sl, already_flat=True)
+            else:
+                self.close_position(pos.symbol, pos, "MANUAL", pos.current_sl, already_flat=True)
+
+        tradable_or_tracked = set(self.symbols) | set(self.positions.keys())
+        for row in rows:
+            if row["qty"] == 0 or row["product"] != "MIS":
+                continue
+            if row["symbol"] not in tradable_or_tracked:
+                continue
+            existing = self.positions.get(row["symbol"])
+            if existing and existing.status == "ACTIVE":
+                continue
+            log.error(f"Broker holds an MIS position (qty {row['qty']}) in {row['symbol']} "
+                      f"this trader did not open. Flatten it manually in OpenAlgo, then restart.")
+            return False
+
+        self.persist()
+        return True
+
+    # ── Start / stop ─────────────────────────────────────────────────────────
+    def start(self) -> bool:
+        log.info("Health check: ping -> funds -> positions...")
+        if not ping():
+            log.error("Health check FAILED at /ping — OpenAlgo server unreachable or API key invalid. Not starting.")
+            return False
+        funds = get_funds()
+        cash = float(funds.get("availablecash", 0) or 0)
+        if not funds or cash <= 0:
+            log.error(f"Health check FAILED at /funds — available cash Rs.{cash}. Not starting.")
+            return False
+        log.info(f"Health check OK — available cash Rs.{cash:,.0f}")
+
+        # Surface OpenAlgo's analyzer/sandbox state so a session's log always
+        # says whether orders are being paper-filled or sent to the REAL
+        # broker — the strategy behaves identically either way (that's the
+        # point of testing via analyzer mode), but the operator must never
+        # have to guess which one is happening.
+        mode_note = "analyzer: UNKNOWN"
+        try:
+            az = get_client().analyzerstatus()
+            mode_on = bool((az.get("data") or {}).get("analyze_mode"))
+            mode_note = "🧪 SANDBOX (analyzer ON, paper fills)" if mode_on else "💰 LIVE (analyzer OFF, REAL broker orders)"
+            log.warning(f"OpenAlgo analyzer mode: {'ON — orders are SANDBOX/paper-filled' if mode_on else 'OFF — orders go to the REAL broker'}")
+            jlog("ANALYZER_MODE", analyze_mode=mode_on)
+        except Exception as e:
+            log.warning(f"Could not determine analyzer mode: {e}")
+
+        if not self.restore_and_reconcile():
+            return False
+
+        self.running = True
+
+        log.info(f"Warming up historical candles for {len(self.symbols)} symbols...")
+        self._warm_up_all(self.symbols)
+
+        self._worker_thread = threading.Thread(target=self._bar_worker, daemon=True, name="isi-bar-worker")
+        self._worker_thread.start()
+        self._sweep_thread = threading.Thread(target=self._sweep_loop, daemon=True, name="isi-sweep")
+        self._sweep_thread.start()
+        self.feed.start()
+        self.feed.set_symbols(self.symbols)
+
+        log.info(f"ISI v5.6 Live Trader started — {len(self.symbols)} symbols")
+        jlog("START", symbols=self.symbols)
+        alert(f"🚀 ISI v5.6 trader STARTED — {len(self.symbols)} TradeFinder symbols · {mode_note} · "
+              f"balance cap Rs.{BALANCE:,.0f} · Rs.{CAPITAL_PER_TRADE:,.0f}/trade")
+        return True
+
+    def stop(self):
+        self.running = False
+        self.feed.stop()
+        log.info("Trader stopped.")
+        jlog("STOP")
+
+    # ── WS-driven fast path ──────────────────────────────────────────────────
+    def _on_bar_closed(self, symbol: str, bar: dict):
+        """Called from the WS thread (or the sweep thread) the instant a local
+        5-minute bucket finalizes. Appends the bar to the cached history and
+        hands off to the worker thread — broker API calls never run on the
+        WS reader thread, so a slow order round-trip for one symbol can't
+        delay tick processing for the other 79."""
+        with self.history_lock:
+            if symbol not in self.history:
+                return  # warm-up not done yet for this symbol — dropped; next warm-up cycle covers it
+            dt = datetime.strptime(f"{bar['date']} {bar['bucket_min'] // 60:02d}:{bar['bucket_min'] % 60:02d}",
+                                    "%Y-%m-%d %H:%M")
+            row = {"open": bar["open"], "high": bar["high"], "low": bar["low"], "close": bar["close"],
+                   "volume": bar["volume"], "_date": bar["date"], "_hm": bar["bucket_min"], "_dt": dt}
+            df = self.history[symbol]
+            # Monotonic-append guard: a locally-aggregated bar must be NEWER
+            # than the last history row. A bar at/behind it means it was built
+            # from stale snapshot ticks — appending (or worse, de-dupe
+            # REPLACING a real REST candle with a one-tick fake) would corrupt
+            # ATR/VWAP/Magnetic-Zone inputs.
+            if len(df) > 0:
+                last = df.iloc[-1]
+                if (row["_date"], row["_hm"]) <= (last["_date"], int(last["_hm"])):
+                    log.debug(f"{symbol}: dropping stale aggregated bar {row['_date']} {row['_hm']} "
+                              f"(history already at {last['_date']} {int(last['_hm'])})")
+                    return
+            # De-dupe: a tick-close and a sweep-close could race for the same bucket — keep one row.
+            df = df[~((df["_date"] == row["_date"]) & (df["_hm"] == row["_hm"]))]
+            df = pd.concat([df, pd.DataFrame([row])], ignore_index=True)
+            if len(df) > 5000:
+                df = df.iloc[-5000:].reset_index(drop=True)
+            self.history[symbol] = df
+        self._bar_queue.put((symbol, bar["bucket_min"]))
+
+    def _bar_worker(self):
+        while True:
+            symbol, bucket_min = self._bar_queue.get()
+            try:
+                with self.history_lock:
+                    df = self.history.get(symbol)
+                if df is None or len(df) < 4:
+                    continue
+                # bucket_min is the CLOSED bar's bucket; process_symbol_df's
+                # bar_min parameter means "the bucket that just OPENED" (that's
+                # what the REST path passes — see tick()). Passing the raw
+                # closed bucket would shift the entry-window cutoffs and the
+                # signal-staleness check 5 minutes late on this (primary) path
+                # relative to the configured times.
+                self.process_symbol_df(symbol, bucket_min + 5, df, is_rest_fetch=False)
+            except Exception as e:
+                log.exception(f"bar worker error for {symbol}: {e}")
+
+    def _sweep_loop(self):
+        while self.running:
+            time.sleep(2)
+            try:
+                self.aggregator.sweep_stale()
+            except Exception as e:
+                log.exception(f"sweep_stale() error: {e}")
+
+    def exit_all(self, reason: str):
+        # Same lock the bar-worker holds while managing a position — without
+        # it, the time-exit path (main thread) and a bar-close trail/close
+        # (worker thread) could both act on one position simultaneously:
+        # both pass the ACTIVE check, both place exit orders, and the second
+        # finalize would double-count day_realized_pnl.
+        for sym, pos in list(self.positions.items()):
+            with self.positions_lock:
+                if pos.status == "ACTIVE":
+                    self.close_position(sym, pos, reason, 0.0)
+
+    # ── Risk guards ──────────────────────────────────────────────────────────
+    def entry_block_reason(self) -> Optional[str]:
+        if MAX_CONCURRENT_POSITIONS > 0:
+            active = sum(1 for p in self.positions.values() if p.status == "ACTIVE")
+            if active >= MAX_CONCURRENT_POSITIONS:
+                return f"max concurrent positions ({MAX_CONCURRENT_POSITIONS}) reached"
+        if MAX_TRADES_PER_DAY > 0 and self.trades_today >= MAX_TRADES_PER_DAY:
+            return f"max trades/day ({MAX_TRADES_PER_DAY}) reached"
+        if MAX_DAILY_LOSS_RS > 0 and self.day_realized_pnl <= -MAX_DAILY_LOSS_RS:
+            return f"daily loss cap hit (realized Rs.{self.day_realized_pnl:.0f})"
+        if MAX_DAILY_PROFIT_RS > 0 and self.day_realized_pnl >= MAX_DAILY_PROFIT_RS:
+            return f"daily profit lock hit (realized Rs.{self.day_realized_pnl:.0f})"
+        return None
+
+    def open_margin_used(self) -> float:
+        frac = min(max(INTRADAY_MARGIN_PCT, 1), 100) / 100
+        return sum(p.entry_price * p.qty * frac for p in self.positions.values() if p.status == "ACTIVE")
+
+    def log_halt_once(self, reason: str):
+        if reason in self.halts_logged:
+            return
+        self.halts_logged.add(reason)
+        log.warning(f"HALT (new entries only): {reason} — existing positions still managed")
+
+    # ── Session cutoffs ──────────────────────────────────────────────────────
+    def exit_min(self) -> int:
+        return EXIT_HOUR * 60 + EXIT_MINUTE
+
+    def no_entry_after_min(self) -> int:
+        configured = (NO_ENTRY_AFTER_HOUR * 60 + NO_ENTRY_AFTER_MINUTE) if (NO_ENTRY_AFTER_HOUR or NO_ENTRY_AFTER_MINUTE) else self.exit_min() - 5
+        return min(configured, self.exit_min() - 5)
+
+    def no_entry_before_min(self) -> int:
+        configured = (NO_ENTRY_BEFORE_HOUR * 60 + NO_ENTRY_BEFORE_MINUTE) if (NO_ENTRY_BEFORE_HOUR or NO_ENTRY_BEFORE_MINUTE) else 9 * 60 + 15
+        return max(configured, 9 * 60 + 15)
+
+    # ── Tick ─────────────────────────────────────────────────────────────────
+    def tick(self):
+        self.check_tf_token()
+        self.refresh_symbols_if_due()
+        now = now_ist()
+        now_min = now.hour * 60 + now.minute
+        bar_min = (now_min // 5) * 5
+
+        if bar_min >= self.exit_min():
+            self.exit_all("TIME_EXIT")
+            still_open = any(p.status == "ACTIVE" for p in self.positions.values())
+            if still_open:
+                log.warning("Time exit incomplete — some positions still open, retrying in 15s")
+            else:
+                closed = [p for p in self.positions.values() if p.status == "CLOSED"]
+                wins = sum(1 for p in closed if p.net_pnl > 0)
+                alert(f"🏁 DAY DONE ({EXIT_HOUR:02d}:{EXIT_MINUTE:02d} time exit) — {len(closed)} trades, "
+                      f"{wins} wins / {len(closed) - wins} losses · net day P&L "
+                      f"{'+' if self.day_realized_pnl >= 0 else ''}Rs.{self.day_realized_pnl:,.0f}", sound=True)
+                self.stop()
+            return
+
+        if bar_min < 9 * 60 + 15:
+            return
+
+        if self.feed.connected:
+            # WS feed healthy: signal search + trailing/target/SL-breach run
+            # event-driven via _on_bar_closed the instant a bar closes. This
+            # loop only needs to catch broker-side SL fills/cancels, which can
+            # happen anytime — not tied to candle timing.
+            for sym, pos in list(self.positions.items()):
+                if pos.status == "ACTIVE":
+                    with self.positions_lock:
+                        self.sync_with_broker(sym, pos)
+            return
+
+        # ── WS feed down/reconnecting: REST-polling fallback (unchanged from
+        # the original design) so the strategy degrades gracefully instead of
+        # going blind while the feed reconnects. ────────────────────────────
+        if bar_min != self.last_bar_min and (now_min - bar_min) * 60 + now.second >= 30:
+            self.last_bar_min = bar_min
+            self.pending = set(self.symbols) | set(self.positions.keys())
+
+        for sym in list(getattr(self, "pending", set())):
+            if self.process_symbol(sym, self.last_bar_min):
+                self.pending.discard(sym)
+
+    def process_symbol(self, symbol: str, bar_min: int) -> bool:
+        """REST-polling path — used only while the WS feed is down. Fetches a
+        fresh 20-day history every call, same as before the WS redesign."""
+        df = fetch_candles(symbol)
+        if df is None or len(df) < 5:
+            return True  # don't hammer a failing endpoint every tick
+        return self.process_symbol_df(symbol, bar_min, df, is_rest_fetch=True)
+
+    def process_symbol_df(self, symbol: str, bar_min: int, df: pd.DataFrame, is_rest_fetch: bool) -> bool:
+        """Shared core: REST fallback and the WS fast path both land here.
+        `df` from the WS path already contains only closed bars (each row is
+        a finalized bucket by construction) — only the REST path can have a
+        still-forming last candle that needs trimming."""
+        today = today_ist()
+        last_row = df.iloc[-1]
+        is_forming = is_rest_fetch and last_row["_date"] == today and int(last_row["_hm"]) == bar_min
+        closed = df.iloc[:-1] if is_forming else df
+        if len(closed) < 4:
+            log.debug(f"{symbol}: not enough closed candles yet ({len(closed)}) — skipping this bar")
+            return True
+
+        last_bar = closed.iloc[-1]
+        last_bar_m = int(last_bar["_hm"])
+        if last_bar["_date"] != today or last_bar_m < bar_min - 5:
+            log.debug(f"{symbol}: feed lag — last bar {last_bar['_date']} {last_bar_m} behind bar_min {bar_min}, retrying")
+            return False  # feed lag — retry in 15s
+
+        pos = self.positions.get(symbol)
+
+        if pos and pos.status == "ACTIVE":
+            with self.positions_lock:
+                self.sync_with_broker(symbol, pos)
+                if pos.status != "ACTIVE":
+                    return True
+                log.debug(f"{symbol}: managing ACTIVE {pos.direction} qty={pos.qty} sl={pos.current_sl:.2f} "
+                         f"target={pos.target_price} sl_order={pos.sl_order_id}")
+                if pos.sl_order_id == "NONE":
+                    breached = (last_bar["low"] <= pos.current_sl) if pos.direction == "LONG" else (last_bar["high"] >= pos.current_sl)
+                    if breached:
+                        self.close_position(symbol, pos, "SL_HIT", pos.current_sl, already_flat=False)
+                        return True
+                if pos.target_price is not None:
+                    hit = (last_bar["high"] >= pos.target_price) if pos.direction == "LONG" else (last_bar["low"] <= pos.target_price)
+                    if hit:
+                        self.close_position(symbol, pos, "TARGET", pos.target_price, already_flat=False)
+                        return True
+                self.trail(symbol, pos, last_bar)
+            return True
+
+        if pos is not None:
+            return True  # CLOSED position kept for the day's audit trail; nothing to do
+
+        # ── Look for a fresh signal ───────────────────────────────────────────
+        if bar_min < self.no_entry_before_min() or bar_min >= self.no_entry_after_min():
+            log.debug(f"{symbol}: outside entry window (bar_min={bar_min}) — not scanning")
+            return True
+        blocked = self.entry_block_reason()
+        if blocked:
+            self.log_halt_once(blocked)
+            return True
+
+        sig = compute_last_signal(closed)
+        if sig.direction == 0 or sig.entry is None or sig.sl is None or sig.time is None:
+            log.debug(f"{symbol}: no active signal at bar {bar_min}")
+            return True
+
+        # compute_last_signal reads times via df["_dt"].to_numpy(), so sig.time
+        # arrives as numpy.datetime64 — which has NO .hour/.minute/.strftime.
+        # Without this conversion the freshness check below crashed with
+        # AttributeError on EVERY signal (caught by the bar-worker's
+        # try/except, so it logged but silently blocked all entries — found
+        # by the end-to-end harness, never by compile/read-through).
+        sig_time = pd.Timestamp(sig.time)
+        if pd.Timestamp(sig_time).strftime("%Y-%m-%d") != today:
+            log.debug(f"{symbol}: signal exists but is from a prior day ({sig_time}) — ignoring")
+            return True
+
+        def skip_once(msg: str) -> bool:
+            key = str(sig_time)
+            if self.logged_skips.get(symbol) != key:
+                self.logged_skips[symbol] = key
+                log.info(f"{symbol}: {msg}")
+            return True
+
+        sig_min = sig_time.hour * 60 + sig_time.minute
+        age_min = (bar_min - 5) - sig_min
+        if age_min > 10:
+            return skip_once(f"active {'BUY' if sig.direction == 1 else 'SELL'} signal from "
+                             f"{sig_time.strftime('%H:%M')} is {age_min}m old — too late to enter")
+
+        is_long = sig.direction == 1
+        entry, sl = sig.entry, sig.sl
+        sl_dist = abs(entry - sl)
+        if sl_dist < 0.01:
+            return True
+        if is_long and entry <= sl:
+            return True
+        if not is_long and entry >= sl:
+            return True
+
+        sl_pct = sig.locked_sl_pct if sig.locked_sl_pct is not None else ((sl_dist / entry) * 100 if entry > 0 else 0)
+        if MIN_SL_DIST_PCT > 0 and sl_pct < MIN_SL_DIST_PCT:
+            return skip_once(f"signal skipped — SL {sl_pct:.2f}% < min {MIN_SL_DIST_PCT}%")
+
+        required = confirmation_requirement(CONFIRMATION_MODE)
+        if required > 0:
+            post_signal = closed[closed["_dt"] > sig_time]
+            if len(post_signal) < required:
+                return True
+            window = post_signal.iloc[:required]
+            confirmed = all(should_enter_on_confirmation(is_long, entry, row["close"]) for _, row in window.iterrows())
+            if not confirmed:
+                return skip_once(f"signal ignored — did not hold {'above' if is_long else 'below'} "
+                                 f"entry through {required} candle(s) after the signal (confirmation mode)")
+
+        sizing = compute_isi_qty(entry, sl_dist)
+        qty = sizing["qty"]
+        if qty == 0:
+            return skip_once(f"signal skipped — qty 0 (risk cap {sizing['risk_qty_cap']}, "
+                             f"margin cap {sizing['margin_qty_cap']})")
+
+        if BALANCE > 0:
+            open_margin = self.open_margin_used()
+            if open_margin + sizing["margin_used"] > BALANCE:
+                return skip_once(f"signal skipped — margin cap: open Rs.{open_margin:,.0f} + this trade "
+                                 f"Rs.{sizing['margin_used']:,.0f} > balance Rs.{BALANCE:,.0f}")
+
+        # Cross-check against the broker's ACTUAL live available cash — the
+        # check above only knows about positions THIS script opened. Another
+        # bot or a manual trade on the same OpenAlgo account can commit real
+        # capital this script has no visibility into; its own in-memory
+        # ledger would still "approve" a trade the account can no longer
+        # afford. One extra REST call right before an entry (not per tick)
+        # closes that blind spot.
+        funds = get_funds()
+        avail = float(funds.get("availablecash", 0) or 0)
+        if not funds:
+            return skip_once("signal skipped — could not verify broker available funds, not entering")
+        if avail < sizing["margin_used"]:
+            return skip_once(f"signal skipped — broker available cash Rs.{avail:,.0f} < required margin "
+                             f"Rs.{sizing['margin_used']:,.0f} (capital may be committed elsewhere on this account)")
+
+        log.info(f"SIGNAL {symbol} {'LONG' if is_long else 'SHORT'} entry={entry:.2f} sl={sl:.2f} "
+                 f"time={sig_time.strftime('%H:%M')}")
+        jlog("SIGNAL", symbol=symbol, direction="LONG" if is_long else "SHORT", entry=entry, sl=sl)
+        self.enter(symbol, is_long, entry, sl, sl_dist, qty)
+        return True
+
+    # ── Entry ────────────────────────────────────────────────────────────────
+    def flatten_entry(self, symbol: str, is_long: bool, qty: int) -> bool:
+        flat = place_order(symbol, "SELL" if is_long else "BUY", qty)
+        if flat.get("status") == "success":
+            log.info(f"{symbol}: entry flattened — no position taken")
+            return True
+        log.error(f"{symbol}: Flatten failed ({flat.get('message')}) — position has NO stop-loss at broker; "
+                 f"will manage locally, exit at time-exit or Exit All, or close it manually")
+        return False
+
+    def enter(self, symbol: str, is_long: bool, entry: float, sl: float, sl_dist: float, qty: int):
+        # Broker-state idempotency check (algo-expert preflight-checks.md
+        # pattern): the in-memory positions dict only knows about trades THIS
+        # script opened. If the broker already holds this symbol — a manual
+        # buy made after startup reconciliation passed, or any other source —
+        # placing our entry would silently stack on top of it.
+        pre = broker_position(symbol)
+        if pre is not None:
+            log.error(f"{symbol}: broker already holds qty {pre['qty']} this trader did not open — "
+                      f"skipping entry to avoid stacking on an unknown position")
+            jlog("ENTRY_BLOCKED", symbol=symbol, reason="unknown_broker_position", broker_qty=pre["qty"])
+            alert(f"🚫 ENTRY BLOCKED {symbol} — broker already holds qty {pre['qty']} this strategy "
+                  f"did not open; not stacking on it", sound=True)
+            return
+
+        entry_res = place_order(symbol, "BUY" if is_long else "SELL", qty)
+        entry_orderid = entry_res.get("orderid") or ""
+        if entry_res.get("status") != "success":
+            adopted = find_recent_auto_order(symbol, "BUY" if is_long else "SELL", qty)
+            if not adopted:
+                log.error(f"{symbol}: Entry failed: {entry_res.get('message')} — no matching order found, not entering")
+                jlog("ERROR", symbol=symbol, msg="entry failed, no orderbook match")
+                return
+            entry_orderid = adopted["orderid"]
+            log.warning(f"{symbol}: entry request failed/timed out but order {entry_orderid} found in orderbook — adopting it")
+
+        entry_ord = await_order_status(entry_orderid, 12) if entry_orderid else None
+        if entry_ord and order_status(entry_ord) in ("REJECTED", "CANCELLED"):
+            log.error(f"{symbol}: Entry order {order_status(entry_ord)} by broker — no position taken")
+            return
+        if entry_ord and order_status(entry_ord) == "COMPLETE":
+            fill = float(entry_ord.get("average_price") or 0) or entry
+            log.info(f"{symbol}: entry filled @ {fill:.2f}")
+            entry = fill
+        else:
+            log.warning(f"{symbol}: entry status unconfirmed, checking broker position before proceeding")
+
+        # Reconcile against what the broker ACTUALLY holds before sizing anything
+        # else — a MARKET order can partially fill (thin liquidity, circuit
+        # limits, a fast-moving signal candle). Trusting the REQUESTED qty here
+        # would size the SL-M order (and this script's own qty/P&L tracking) for
+        # shares we don't actually have: a broker will reject an SL-M sized
+        # larger than the real holding, or worse, the mismatch goes unnoticed
+        # and every P&L/margin number downstream is wrong for this trade.
+        held = broker_position(symbol)
+        if not held or held["qty"] == 0:
+            log.error(f"{symbol}: Entry fill UNCONFIRMED — broker shows no position. Not tracking. Verify manually in OpenAlgo!")
+            return
+        actual_qty = abs(held["qty"])
+        if actual_qty != qty:
+            log.warning(f"{symbol}: PARTIAL FILL — requested {qty}, broker actually holds {actual_qty}. "
+                       f"Sizing SL and position to the real quantity.")
+            jlog("PARTIAL_FILL", symbol=symbol, requested=qty, actual=actual_qty)
+            alert(f"⚠️ PARTIAL FILL {symbol} — requested {qty}, filled {actual_qty}; leftover order "
+                  f"cancelled, position sized to {actual_qty}", sound=True)
+            # OpenAlgo places every order with DAY validity (hardcoded in the
+            # broker transform layer — there's no IOC option to request), so
+            # NSE converts an unfilled MARKET remainder into a resting order
+            # at the last traded price instead of auto-cancelling it. Left
+            # alone, that leftover can fill LATER — silently growing this
+            # position behind the strategy's back with no code watching for
+            # it. Cancel the entry order's own leftover immediately so
+            # nothing more can fill after this point; a failure here just
+            # means it already finished filling (or cancelling) on its own,
+            # which is fine either way — the actual_qty check above is what
+            # this position is sized to regardless.
+            if entry_orderid:
+                cancel_order(entry_orderid)
+            # Re-check once more: cancellation isn't instantaneous, so a sliver
+            # more could have filled in the gap between the check above and
+            # the cancel taking effect. This closes that window down to
+            # whatever's left irreducibly unknowable (the time this REST call
+            # itself takes), rather than leaving it open for the rest of the day.
+            held2 = broker_position(symbol)
+            if held2 and abs(held2["qty"]) != actual_qty:
+                actual_qty = abs(held2["qty"])
+                log.warning(f"{symbol}: quantity moved again during cancel — now {actual_qty}")
+            qty = actual_qty
+
+        sl_res = place_order(symbol, "SELL" if is_long else "BUY", qty, price_type="SL-M", trigger_price=sl)
+        sl_order_id = "NONE"
+        if sl_res.get("status") != "success":
+            log.error(f"{symbol}: SL order failed: {sl_res.get('message')} — flattening entry at market")
+            if self.flatten_entry(symbol, is_long, qty):
+                return
+        else:
+            sl_order_id = sl_res.get("orderid") or "UNKNOWN"
+            sl_ord = await_order_status(sl_order_id, 6)
+            if sl_ord and order_status(sl_ord) in ("REJECTED", "CANCELLED"):
+                log.error(f"{symbol}: SL order {order_status(sl_ord)} by broker — flattening entry at market")
+                if self.flatten_entry(symbol, is_long, qty):
+                    return
+                sl_order_id = "NONE"
+
+        jlog("ENTRY", symbol=symbol, qty=qty, price=entry, order_id=sl_order_id)
+        target_price = (entry + TARGET_RR * sl_dist if is_long else entry - TARGET_RR * sl_dist) if TARGET_RR > 0 else None
+
+        self.positions[symbol] = LivePosition(
+            symbol=symbol, direction="LONG" if is_long else "SHORT", qty=qty,
+            entry_price=entry, entry_time=now_ist().isoformat(),
+            initial_sl=sl, current_sl=sl, sl_dist=sl_dist, target_price=target_price,
+            be_triggered=False, sl_order_id=sl_order_id, status="ACTIVE",
+        )
+        self.trades_today += 1
+        self.persist()
+        alert(f"✅ ENTRY {symbol} {'LONG' if is_long else 'SHORT'} — qty {qty} @ Rs.{entry:.2f}, "
+              f"SL Rs.{sl:.2f}{f', target Rs.{target_price:.2f}' if target_price else ''} "
+              f"(trade #{self.trades_today} today)", sound=True)
+
+    # ── Trail ────────────────────────────────────────────────────────────────
+    def trail(self, symbol: str, pos: LivePosition, candle):
+        is_long = pos.direction == "LONG"
+        new_sl, new_be = trail_sl(pos.current_sl, pos.entry_price, candle, is_long, pos.be_triggered, pos.sl_dist)
+        if new_sl == pos.current_sl:
+            return
+        reason = "BE" if (new_be and not pos.be_triggered) else "TRAIL"
+
+        if pos.sl_order_id != "NONE":
+            res = modify_order(pos.sl_order_id, symbol, "SELL" if is_long else "BUY", pos.qty, new_sl)
+            if res.get("status") != "success":
+                log.error(f"{symbol}: SL modify failed: {res.get('message')}")
+                return
+
+        log.info(f"{symbol}: SL {reason} {pos.current_sl:.2f} -> {new_sl:.2f}")
+        jlog("SL_MOVED", symbol=symbol, frm=pos.current_sl, to=new_sl, reason=reason)
+        pos.current_sl = new_sl
+        pos.be_triggered = new_be
+        self.persist()
+
+    # ── Sync with broker ─────────────────────────────────────────────────────
+    def sync_with_broker(self, symbol: str, pos: LivePosition):
+        if pos.sl_order_id in ("NONE", "PAPER"):
+            return
+        ord_ = find_order(pos.sl_order_id)
+        if not ord_:
+            return
+        status = order_status(ord_)
+        if status == "COMPLETE":
+            exit_price = float(ord_.get("average_price") or 0) or pos.current_sl
+            self.close_position(symbol, pos, "SL_HIT", exit_price, already_flat=True)
+            return
+        if status in ("CANCELLED", "REJECTED"):
+            # A cancelled/rejected SL order does NOT necessarily mean the
+            # position is still open and merely unprotected — some platforms'
+            # "close position" / square-off action cancels resting orders as
+            # part of flattening. Check the position itself before assuming
+            # anything: if the broker confirms flat, record it as a MANUAL
+            # close instead of leaving a phantom ACTIVE position that a later
+            # SL-breach/target check would try to exit a second time (risking
+            # a rejected order, or worse, an unintended reverse position if
+            # the broker allows naked selling).
+            if broker_position(symbol) is None:
+                book = get_positionbook()
+                row = next((pos_fields(r) for r in book if pos_fields(r)["symbol"] == symbol), None) if book else None
+                if row and row["qty"] == 0:
+                    log.info(f"{symbol}: SL order {status} AND broker confirms flat — "
+                             f"position was closed together with the order (manual square-off?), recording exit")
+                    self.close_position(symbol, pos, "MANUAL", 0.0, already_flat=True)
+                    return
+                # book empty/unavailable or symbol absent — no positive evidence of flat,
+                # don't guess; fall through to the conservative "unprotected" branch below.
+            log.error(f"{symbol}: SL order {pos.sl_order_id} is {status} at broker — position UNPROTECTED, managing SL locally")
+            pos.sl_order_id = "NONE"
+            self.persist()
+            return
+        held = broker_position(symbol)
+        if held is None:
+            book = get_positionbook()
+            if not book:
+                return  # API failure — no evidence
+            row = next((pos_fields(r) for r in book if pos_fields(r)["symbol"] == symbol), None)
+            if row and row["qty"] == 0:
+                log.info(f"{symbol}: position closed at broker (manually?) — cancelling SL order {pos.sl_order_id}")
+                cancel_order(pos.sl_order_id)
+                self.close_position(symbol, pos, "MANUAL", 0.0, already_flat=True)
+
+    # ── Close ────────────────────────────────────────────────────────────────
+    def close_position(self, symbol: str, pos: LivePosition, reason: str, exit_price: float, already_flat: bool = False):
+        # Idempotency guard: a position that already finished closing must
+        # never be closed (and its P&L realized) a second time, no matter
+        # which caller/thread gets here late.
+        if pos.status != "ACTIVE":
+            return
+        if not already_flat:
+            if pos.sl_order_id != "NONE":
+                c_res = cancel_order(pos.sl_order_id)
+                if c_res.get("status") != "success":
+                    still = find_order(pos.sl_order_id)
+                    st = order_status(still) if still else None
+                    if st == "COMPLETE":
+                        px = float(still.get("average_price") or 0) or pos.current_sl
+                        self.finalize_close(symbol, pos, "SL_HIT", px)
+                        return
+                    if st in WORKING_STATES:
+                        log.error(f"{symbol}: Cannot cancel SL order — position still protected; exit will be retried")
+                        return
+                pos.sl_order_id = "NONE"
+                self.persist()
+
+            # Re-verify the ACTUAL held quantity right before exiting rather
+            # than trusting the remembered pos.qty — it can drift from the
+            # broker's truth (e.g. the SL-M order itself partially filling at
+            # some point). A plain placeorder(qty=pos.qty) that's stale either
+            # over-sells (rejected, or worse opens a reverse position) or
+            # under-sells (leaves a residual unprotected once the SL order
+            # was just cancelled above).
+            live = broker_position(symbol)
+            if live is None:
+                log.info(f"{symbol}: broker already shows flat — skipping exit order")
+                self.finalize_close(symbol, pos, reason, exit_price)
+                return
+            exit_qty = abs(live["qty"])
+            if exit_qty != pos.qty:
+                log.warning(f"{symbol}: exit qty adjusted — tracked {pos.qty}, broker actually holds {exit_qty}")
+                pos.qty = exit_qty  # so finalize_close()'s P&L math uses the real quantity, not the stale one
+
+            exit_res = place_order(symbol, "SELL" if pos.direction == "LONG" else "BUY", exit_qty)
+            if exit_res.get("status") != "success":
+                log.error(f"{symbol}: Exit order failed: {exit_res.get('message')} — position still OPEN, retrying")
+                return
+            orderid = exit_res.get("orderid")
+            if orderid:
+                ord_ = await_order_status(orderid, 12)
+                if ord_ and order_status(ord_) in ("REJECTED", "CANCELLED"):
+                    log.error(f"{symbol}: Exit order {order_status(ord_)} by broker — position still OPEN, retrying")
+                    return
+                if ord_ and order_status(ord_) == "COMPLETE" and float(ord_.get("average_price") or 0) > 0:
+                    exit_price = float(ord_["average_price"])
+            else:
+                held = broker_position(symbol)
+                if held:
+                    log.error(f"{symbol}: Exit unconfirmed and broker still shows the position — retrying")
+                    return
+
+        self.finalize_close(symbol, pos, reason, exit_price)
+
+    def finalize_close(self, symbol: str, pos: LivePosition, reason: str, exit_price: float):
+        actual_exit = exit_price or pos.current_sl
+        gross = (actual_exit - pos.entry_price) * pos.qty * (1 if pos.direction == "LONG" else -1)
+        ch = compute_charges(pos.entry_price, actual_exit, pos.qty, pos.direction)
+        net = gross - ch["total"]
+
+        pos.status = "CLOSED"
+        pos.exit_reason = reason
+        pos.exit_price = actual_exit
+        pos.gross_pnl = gross
+        pos.net_pnl = net
+        pos.charges = ch["total"]
+
+        self.day_realized_pnl += net
+        self.persist()
+        log.info(f"{symbol}: EXIT {reason} @ {actual_exit:.2f} gross={gross:.2f} net={net:.2f}")
+        jlog("EXIT", symbol=symbol, reason=reason, exit_price=actual_exit, gross_pnl=gross, net_pnl=net)
+        emoji = "🟢" if net >= 0 else "🔻"
+        alert(f"{emoji} EXIT {symbol} {pos.direction} — {reason} @ Rs.{actual_exit:.2f} · "
+              f"net {'+' if net >= 0 else ''}Rs.{net:,.0f} (charges Rs.{ch['total']:.0f}) · "
+              f"day P&L {'+' if self.day_realized_pnl >= 0 else ''}Rs.{self.day_realized_pnl:,.0f}", sound=True)
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# MAIN
+# ══════════════════════════════════════════════════════════════════════════════
+
+def main():
+    if not OPENALGO_API_KEY:
+        log.error("OPENALGO_API_KEY is empty.")
+        sys.exit(1)
+
+    if TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID:
+        log.info("Telegram alerts: ENABLED")
+    else:
+        log.warning("Telegram alerts: DISABLED — set TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID "
+                    "env vars to receive trade/token alerts on your phone")
+
+    log.info("Fetching initial TradeFinder Intraday Boost symbol list...")
+    initial_symbols = fetch_intraday_boost()
+    if not initial_symbols:
+        log.error("Could not fetch TradeFinder Intraday Boost list (empty/failed) — "
+                  "this strategy only trades that list, so there is nothing to trade. "
+                  f"Check TF_JWT_TOKEN / {TF_JWT_FILE} and try again.")
+        sys.exit(1)
+    log.info(f"TradeFinder Intraday Boost: {len(initial_symbols)} symbols")
+
+    trader = ISILiveTrader(initial_symbols)
+    trader.last_tf_refresh = time.time()  # just fetched above — don't re-fetch immediately
+    if not trader.start():
+        sys.exit(1)
+
+    last_heartbeat = 0.0
+    while not _stop and trader.running:
+        try:
+            trader.tick()
+        except Exception as e:
+            log.exception(f"tick() error: {e}")
+        if time.time() - last_heartbeat >= 60:
+            last_heartbeat = time.time()
+            active = sum(1 for p in trader.positions.values() if p.status == "ACTIVE")
+            log.info(f"heartbeat: ws={'up' if trader.feed.connected else 'down'} "
+                     f"symbols={len(trader.symbols)} active_positions={active} "
+                     f"day_pnl=Rs.{trader.day_realized_pnl:.0f}")
+        for _ in range(POLL_INTERVAL_SEC):
+            if _stop or not trader.running:
+                break
+            time.sleep(1)
+
+    if trader.running:
+        trader.stop()
+    log.info("Exited.")
+
+
+if __name__ == "__main__":
+    main()

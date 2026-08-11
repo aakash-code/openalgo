@@ -8,6 +8,7 @@ Optimized for backtesting and analytical queries.
 
 from __future__ import annotations
 import os
+import threading
 from contextlib import contextmanager
 from datetime import date, datetime
 from pathlib import Path
@@ -46,13 +47,23 @@ def ensure_db_directory():
         logger.info(f"Created database directory: {db_dir}")
 
 
+_connect_lock = threading.Lock()
+
+
 @contextmanager
 def get_connection(max_retries: int = 3, retry_delay: float = 0.5):
     """
     Get a DuckDB connection with proper resource management and retry logic.
 
-    DuckDB uses exclusive file locking on Windows. This function includes retry
-    logic to handle temporary file access conflicts in concurrent scenarios.
+    The whole open -> yield -> close cycle is serialized behind a process-wide
+    lock. DuckDB does not allow two independent `duckdb.connect()` calls to the
+    same file to race — concurrent callers within this process would otherwise
+    fail with "Unique file handle conflict: ... already attached". Serializing
+    keeps each call's connection short-lived (open only for its own duration,
+    same as before), which matters because the file lock is also what lets
+    external processes (standalone backtest/analysis scripts using
+    `duckdb.connect(path, read_only=True)`) attach in the gaps between calls —
+    a permanently-held single connection would starve them entirely.
 
     Args:
         max_retries: Maximum number of connection attempts (default: 3)
@@ -69,27 +80,28 @@ def get_connection(max_retries: int = 3, retry_delay: float = 0.5):
     conn = None
     last_error = None
 
-    for attempt in range(max_retries):
+    with _connect_lock:
+        for attempt in range(max_retries):
+            try:
+                import duckdb
+
+                conn = duckdb.connect(db_path)
+                break
+            except Exception as e:
+                last_error = e
+                if attempt < max_retries - 1:
+                    logger.debug(f"DuckDB connection attempt {attempt + 1} failed, retrying: {e}")
+                    time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
+                else:
+                    logger.exception(f"Failed to connect to DuckDB after {max_retries} attempts: {e}")
+
+        if conn is None:
+            raise last_error or Exception("Failed to connect to DuckDB")
+
         try:
-            import duckdb
-
-            conn = duckdb.connect(db_path)
-            break
-        except Exception as e:
-            last_error = e
-            if attempt < max_retries - 1:
-                logger.debug(f"DuckDB connection attempt {attempt + 1} failed, retrying: {e}")
-                time.sleep(retry_delay * (attempt + 1))  # Exponential backoff
-            else:
-                logger.exception(f"Failed to connect to DuckDB after {max_retries} attempts: {e}")
-
-    if conn is None:
-        raise last_error or Exception("Failed to connect to DuckDB")
-
-    try:
-        yield conn
-    finally:
-        conn.close()
+            yield conn
+        finally:
+            conn.close()
 
 
 def init_database():

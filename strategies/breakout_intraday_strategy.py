@@ -150,6 +150,21 @@ SECTOR_ONLY_MODE         = os.getenv("SECTOR_ONLY_MODE", "false").lower() == "tr
 if SECTOR_ONLY_MODE:
     SECTOR_FILTER_ENABLED = True
 
+# ── Narrow CPR filter ──────────────────────────────────────────────────────────
+# When CPR_FILTER_ENABLED=true the strategy only trades stocks whose PRIOR DAY's
+# Central Pivot Range (CP=(H+L+C)/3, BC=(H+L)/2, TC=(CP-BC)+CP) is "narrow" — a
+# well-known breakout-day signal: a tight prior-day pivot range often precedes a
+# bigger intraday move. Width = (TC-BC) as % of CP. Off by default so existing
+# behaviour is unchanged.
+CPR_FILTER_ENABLED = os.getenv("CPR_FILTER_ENABLED", "false").lower() == "true"
+CPR_NARROW_PCT      = float(os.getenv("CPR_NARROW_PCT", "0.5"))   # e.g. 0.5 or 1.0
+
+# CPR_POSITION_FILTER_ENABLED: directional confirmation, independent of the narrow-CPR
+# filter above. LONG only allowed with price above CPR top (TC); SHORT only allowed
+# with price below CPR bottom (BC). Price inside the CPR band (BC..TC) blocks both
+# directions — no directional edge in the pivot zone itself.
+CPR_POSITION_FILTER_ENABLED = os.getenv("CPR_POSITION_FILTER_ENABLED", "false").lower() == "true"
+
 
 def _get_tf_jwt() -> str:
     """Read JWT dynamically: file first (hot-reloadable), then env var."""
@@ -955,6 +970,86 @@ def get_sector_gate(symbol: str, direction: str) -> tuple[bool, str]:
     chg_str  = f"stock={stock_chg:+.2f}%" if stock_chg is not None else ""
     rfac_str = f"rf={stock_rfac:.2f}"     if stock_rfac is not None else ""
     return True, f"sector_ok({qualifying[0]} {chg_str} {rfac_str})".strip()
+
+
+_CprInfo = tuple[bool, float, float, float]   # (is_narrow, width_pct, bottom, top)
+_cpr_cache: dict[str, tuple[str, _CprInfo]] = {}   # symbol -> (date, info)
+
+
+def _get_cpr(symbol: str, today: str) -> Optional[_CprInfo]:
+    """
+    Fetches (or returns cached) prior-day CPR for symbol: (is_narrow, width_pct,
+    bottom, top). CPR is a static daily value, so it's cached per symbol per
+    day — the daily bar is fetched at most once per symbol per trading day.
+    Returns None if the daily bar can't be fetched/parsed.
+    """
+    cached = _cpr_cache.get(symbol)
+    if cached and cached[0] == today:
+        return cached[1]
+
+    df = fetch_history(symbol, "1d", 5)
+    df = _normalise(df) if df is not None else None
+    if df is None or len(df) < 2:
+        return None
+
+    prev = df.iloc[-2] if df.iloc[-1]["_date"] == today else df.iloc[-1]
+    prev_h, prev_l, prev_c = float(prev["high"]), float(prev["low"]), float(prev["close"])
+    cp = (prev_h + prev_l + prev_c) / 3
+    bc = (prev_h + prev_l) / 2
+    tc = (cp - bc) + cp
+    bottom, top = (bc, tc) if bc <= tc else (tc, bc)
+    width_pct = (top - bottom) / cp * 100 if cp else 999.0
+    narrow = width_pct <= CPR_NARROW_PCT
+
+    info: _CprInfo = (narrow, width_pct, bottom, top)
+    _cpr_cache[symbol] = (today, info)
+    return info
+
+
+def get_cpr_gate(symbol: str, today: str) -> tuple[bool, str]:
+    """
+    Returns (allowed, reason). allowed=True -> prior-day CPR is narrow enough to trade.
+    When CPR_FILTER_ENABLED=False always returns (True, "disabled").
+    """
+    if not CPR_FILTER_ENABLED:
+        return True, "disabled"
+
+    info = _get_cpr(symbol, today)
+    if info is None:
+        return False, "cpr_no_data"
+    narrow, width_pct, _bottom, _top = info
+    reason = (f"cpr_narrow({width_pct:.2f}%<={CPR_NARROW_PCT}%)" if narrow
+              else f"cpr_wide({width_pct:.2f}%>{CPR_NARROW_PCT}%)")
+    return narrow, reason
+
+
+def get_cpr_position_gate(symbol: str, price: float, direction: str, today: str) -> tuple[bool, str]:
+    """
+    Directional CPR confirmation: a LONG signal is only allowed if price is
+    ABOVE the CPR top (TC), a SHORT signal only if price is BELOW the CPR
+    bottom (BC). Price sitting inside the CPR band (between BC and TC) has no
+    directional edge either way, so both directions are blocked there.
+    When CPR_POSITION_FILTER_ENABLED=False always returns (True, "disabled").
+    """
+    if not CPR_POSITION_FILTER_ENABLED:
+        return True, "disabled"
+
+    info = _get_cpr(symbol, today)
+    if info is None:
+        return False, "cpr_no_data"
+    _narrow, _width_pct, bottom, top = info
+
+    if bottom <= price <= top:
+        return False, f"cpr_inside_band({price:.2f} in [{bottom:.2f},{top:.2f}])"
+    if direction == "LONG":
+        allowed = price > top
+        reason = (f"cpr_above_top({price:.2f}>{top:.2f})" if allowed
+                   else f"cpr_below_top({price:.2f}<={top:.2f})")
+    else:
+        allowed = price < bottom
+        reason = (f"cpr_below_bottom({price:.2f}<{bottom:.2f})" if allowed
+                   else f"cpr_above_bottom({price:.2f}>={bottom:.2f})")
+    return allowed, reason
 
 
 def load_sector_snapshots(date_str: str, log_dir: str = "logs/breakout") -> list[dict]:
@@ -2039,6 +2134,11 @@ def run_live():
     # Start background pollers
     if TF_RANK_CAP > 0:
         log.info(f"TF_RANK_CAP={TF_RANK_CAP}: only trading stocks ranked <= {TF_RANK_CAP} in TF list")
+    if CPR_FILTER_ENABLED:
+        log.info(f"CPR_FILTER_ENABLED: only trading stocks with prior-day CPR width <= {CPR_NARROW_PCT}%")
+    if CPR_POSITION_FILTER_ENABLED:
+        log.info("CPR_POSITION_FILTER_ENABLED: LONG only above CPR top, SHORT only below CPR bottom "
+                  "(blocked while price is inside the CPR band)")
     start_tf_rank_poller(stop_event)
     if SECTOR_FILTER_ENABLED:
         start_sector_poller(stop_event)
@@ -2171,6 +2271,21 @@ def run_live():
                     log.info(f"  {sym:12s} {direction} skip: {sec_reason}")
                     continue
 
+            # CPR gate: skip if prior-day Central Pivot Range is not narrow enough
+            if CPR_FILTER_ENABLED:
+                cpr_ok, cpr_reason = get_cpr_gate(sym, today)
+                if not cpr_ok:
+                    log.info(f"  {sym:12s} {direction} skip: {cpr_reason}")
+                    continue
+
+            # CPR position gate: LONG only above CPR top, SHORT only below CPR
+            # bottom; skip if price is inside the CPR band (no directional edge)
+            if CPR_POSITION_FILTER_ENABLED:
+                cpr_pos_ok, cpr_pos_reason = get_cpr_position_gate(sym, entry_ref, direction, today)
+                if not cpr_pos_ok:
+                    log.info(f"  {sym:12s} {direction} skip: {cpr_pos_reason}")
+                    continue
+
             qty = compute_qty(entry_ref, sl)
             ok, reason = _pre_trade_check(sym, direction, qty, entry_ref, sl)
             if not ok:
@@ -2266,8 +2381,16 @@ def run_diagnostics():
             qty = compute_qty(sig["entry_ref"], sig["sl"])
             sl_dist = abs(sig["entry_ref"] - sig["sl"])
             tgt = sig["entry_ref"] + TARGET_RR * sl_dist if sig["direction"] == "LONG" else sig["entry_ref"] - TARGET_RR * sl_dist
+            cpr_note = ""
+            if CPR_FILTER_ENABLED:
+                cpr_ok, cpr_reason = get_cpr_gate(sym, today)
+                cpr_note += f"  [{cpr_reason}]" + ("" if cpr_ok else " SKIP")
+            if CPR_POSITION_FILTER_ENABLED:
+                cpr_pos_ok, cpr_pos_reason = get_cpr_position_gate(
+                    sym, sig["entry_ref"], sig["direction"], today)
+                cpr_note += f"  [{cpr_pos_reason}]" + ("" if cpr_pos_ok else " SKIP")
             log.info(f"  {sym:12s}  {sig['direction']} [{sig['kind']}] entry~{sig['entry_ref']:.2f} "
-                     f"SL={sig['sl']:.2f} T={tgt:.2f} qty={qty} adx={sig['adx']:.1f}")
+                     f"SL={sig['sl']:.2f} T={tgt:.2f} qty={qty} adx={sig['adx']:.1f}{cpr_note}")
         else:
             log.info(f"  {sym:12s}  no signal on last closed {INTERVAL} bar")
         time.sleep(0.2)

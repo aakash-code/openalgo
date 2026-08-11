@@ -88,7 +88,6 @@ import { cn } from '@/lib/utils'
 import { useAuthStore } from '@/stores/authStore'
 import { useThemeStore } from '@/stores/themeStore'
 import { showToast } from '@/utils/toast'
-import { LogoutConfirmDialog } from '@/components/auth/LogoutConfirmDialog'
 import { ExpiredFnoTab } from './historify/ExpiredFnoTab'
 
 // Types

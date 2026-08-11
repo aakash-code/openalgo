@@ -67,6 +67,12 @@ def _run_snapshot_tick():
         with get_connection() as conn:
             for list_type, items in result.items():
                 if not items:
+                    # Was permanently empty for breakout_beacon due to a parsing
+                    # bug (tradefinder_service._map_items dropped every item
+                    # whose param_2 wasn't numeric — fixed 2026-07-29). Genuinely
+                    # possible for any list to be empty on a given tick though,
+                    # so this stays a plain skip-and-log rather than a warning.
+                    logger.debug(f"tf_boost_snapshot: {list_type} empty @ {snapshot_time}, skipping")
                     continue
                 for rank, item in enumerate(items, start=1):
                     conn.execute(

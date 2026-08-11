@@ -56,6 +56,10 @@ from .split_order import api as split_order_ns
 from .symbol import api as symbol_ns
 from .synthetic_future import api as synthetic_future_ns
 from .telegram_bot import api as telegram_ns
+from .tf_jwt_keepalive import api as tf_jwt_keepalive_ns
+from .tf_market_pulse import api as tf_market_pulse_ns
+from .tf_sector_scope import api as tf_sector_scope_ns
+from .nse_events import api as nse_events_ns
 from .tick_replay import api as tick_replay_ns
 from .ticker import api as ticker_ns
 from .tradebook import api as tradebook_ns
@@ -111,3 +115,7 @@ api.add_namespace(cancel_gtt_order_ns, path="/cancelgttorder")
 api.add_namespace(gtt_orderbook_ns, path="/gttorderbook")
 api.add_namespace(tick_replay_ns, path="/tickreplay")
 api.add_namespace(boost_snapshots_ns, path="/boostsnapshots")
+api.add_namespace(tf_jwt_keepalive_ns, path="/tfjwtkeepalive")
+api.add_namespace(tf_market_pulse_ns, path="/tfmarketpulse")
+api.add_namespace(tf_sector_scope_ns, path="/tfsectorscope")
+api.add_namespace(nse_events_ns, path="/nseevents")

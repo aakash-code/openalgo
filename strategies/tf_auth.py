@@ -88,32 +88,47 @@ def _attempt_google_login(page) -> None:
     """
     Best-effort: trigger the Google-OAuth login when the persistent session is logged out.
     With the persistent profile already signed into Google, clicking the account tile
-    completes in ~5s without a password. Selectors are intentionally broad/forgiving.
+    completes in ~5s without a password.
+
+    Current TF landing-page flow (verified 2026-07-21): the "Login with Google"
+    text/aria selectors this used to rely on don't exist — the site opens a
+    "Welcome!" modal with a "User Login" button (Google-icon, no "google" in
+    its text) that then shows the standard Google account chooser.
     """
-    # 1) Click a "Login with Google" / "Sign in with Google" control on the TF login page.
-    for sel in [
-        "text=/sign in with google/i",
-        "text=/login with google/i",
-        "text=/continue with google/i",
-        "button:has-text('Google')",
-        "[class*='google']",
-    ]:
+    # 1) Open the "Welcome!" login modal from the homepage nav/hero button.
+    # Click directly (no count()>0 pre-check) — count() is a synchronous
+    # snapshot taken before Playwright's own actionability wait runs, so it
+    # can read 0 a moment before the element renders, silently skipping a
+    # click that would have succeeded. click(timeout=...) already waits/
+    # retries for the element to appear, so let it do that job.
+    for sel in ["div.homepagebutton.login", "a.item-menu-mobile:has-text('Login')"]:
         try:
-            el = page.locator(sel).first
-            if el.count() > 0:
-                el.click(timeout=5000)
-                break
+            page.locator(sel).first.click(timeout=5000)
+            break
         except Exception:
             continue
 
-    # 2) On the Google account chooser, click our email tile if presented.
+    # 2) In the modal, click "User Login" (the Google-OAuth option).
     try:
-        page.wait_for_timeout(2500)
-        tile = page.locator(f"text={TF_EMAIL}").first
-        if tile.count() > 0:
-            tile.click(timeout=8000)
+        page.locator("text=User Login").first.click(timeout=5000)
     except Exception:
         pass
+
+    # 3) On the Google account chooser, click our email tile if presented.
+    try:
+        page.locator(f"text={TF_EMAIL}").first.click(timeout=8000)
+    except Exception:
+        pass
+
+
+# A page reload doesn't necessarily make TradeFinder mint a NEW `lt` token —
+# their frontend appears to only rotate it once the current one is genuinely
+# (near-)expired, not proactively ahead of time. So a token can still satisfy
+# "> 60s left" while being the exact same stale token we already had, minutes
+# from dying — that's not a real refresh. Require a meaningfully fresh token
+# (most of TF's own ~180min lifetime) before accepting it as "refreshed";
+# anything less forces the login-modal flow to try to force a real re-mint.
+_FRESH_ENOUGH_SECONDS = 2700   # 45 min — well under the observed 180min TTL
 
 
 def refresh_tf_jwt(headless: bool = True, timeout_s: int = 60) -> str | None:
@@ -145,30 +160,43 @@ def refresh_tf_jwt(headless: bool = True, timeout_s: int = 60) -> str | None:
             except Exception:
                 pass
 
-            # Poll localStorage for the token; the app re-issues `lt` on load.
-            jwt = None
+            # Poll localStorage for the token; the app re-issues `lt` on load
+            # — but only once the current one is close to/actually expired,
+            # so a merely-alive-but-stale token doesn't count as fresh here.
+            jwt = _read_lt_from_page(page)
+            if not (jwt and jwt_expiry_seconds(jwt) > _FRESH_ENOUGH_SECONDS):
+                # Stale/missing token on first load — run the login-modal flow
+                # once (harmless no-op if already fully authenticated, but
+                # this is what actually triggers TF's backend to mint a new
+                # token when a plain reload alone doesn't), then keep polling.
+                _attempt_google_login(page)
+                try:
+                    page.wait_for_url("**/home", timeout=15000)
+                except Exception:
+                    pass
+
             while time.time() < deadline:
                 jwt = _read_lt_from_page(page)
-                if jwt and jwt_expiry_seconds(jwt) > 60:
+                if jwt and jwt_expiry_seconds(jwt) > _FRESH_ENOUGH_SECONDS:
                     break
-                # If we appear logged out, run the Google login flow once, then keep polling.
-                if "login" in (page.url or "").lower():
-                    _attempt_google_login(page)
-                    try:
-                        page.wait_for_url("**/home", timeout=15000)
-                    except Exception:
-                        pass
                 page.wait_for_timeout(1500)
-                jwt = _read_lt_from_page(page)
-                if jwt and jwt_expiry_seconds(jwt) > 60:
-                    break
 
             ctx.close()
 
-            if jwt and jwt_expiry_seconds(jwt) > 60:
+            if jwt and jwt_expiry_seconds(jwt) > _FRESH_ENOUGH_SECONDS:
                 _write_file_jwt(jwt)
                 mins = jwt_expiry_seconds(jwt) / 60.0
                 print(f"[tf_auth] refreshed JWT (expires in {mins:.0f} min) → {TF_JWT_FILE}")
+                return jwt
+
+            # Didn't get a meaningfully fresh token, but if what we have is
+            # still technically alive, write it anyway (better than nothing —
+            # matches ensure_fresh_jwt's stale-fallback contract) and say so.
+            if jwt and jwt_expiry_seconds(jwt) > 60:
+                _write_file_jwt(jwt)
+                mins = jwt_expiry_seconds(jwt) / 60.0
+                print(f"[tf_auth] WARNING: could not obtain a fresh token — reusing stale "
+                      f"token (expires in {mins:.0f} min) → {TF_JWT_FILE}")
                 return jwt
 
             print("[tf_auth] could not obtain a fresh token (session may be logged out — "

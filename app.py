@@ -831,13 +831,13 @@ def setup_environment(app):
             except Exception as e:
                 logger.error(f"Failed to initialize signal summary scheduler: {e}")
 
-                try:
-                    from services.tf_jwt_keepalive_service import init_tf_jwt_keepalive_scheduler
+            try:
+                from services.tf_jwt_keepalive_service import init_tf_jwt_keepalive_scheduler
 
-                    init_tf_jwt_keepalive_scheduler()
-                    logger.debug("TF JWT keep-alive scheduler initialized")
-                except Exception as e:
-                    logger.error(f"Failed to initialize TF JWT keep-alive scheduler: {e}")
+                init_tf_jwt_keepalive_scheduler()
+                logger.debug("TF JWT keep-alive scheduler initialized")
+            except Exception as e:
+                logger.error(f"Failed to initialize TF JWT keep-alive scheduler: {e}")
 
             try:
                 # Server-side scalping SL / target / trailing-stop engine. Runs

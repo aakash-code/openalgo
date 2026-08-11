@@ -707,8 +707,7 @@ def get_auth_token(name, bypass_cache: bool = False):
     if bypass_cache:
         logger.debug(f"Bypassing cache for user: {name} (fresh token requested)")
         # Clear stale cache entry
-        if cache_key in auth_cache:
-            del auth_cache[cache_key]
+        auth_cache.pop(cache_key, None)
         # Query database directly
         auth_obj = get_auth_token_dbquery(name)
         if isinstance(auth_obj, Auth) and not auth_obj.is_revoked:
@@ -717,13 +716,14 @@ def get_auth_token(name, bypass_cache: bool = False):
             return decrypt_token(auth_obj.auth)
         return None
 
-    # Normal cache-first lookup
-    if cache_key in auth_cache:
-        auth_obj = auth_cache[cache_key]
+    # Normal cache-first lookup. Read through .get() - the TTL can expire
+    # between an `in` test and the lookup, turning a hit into a KeyError.
+    auth_obj = auth_cache.get(cache_key)
+    if auth_obj is not None:
         if isinstance(auth_obj, Auth) and not auth_obj.is_revoked:
             return decrypt_token(auth_obj.auth)
         else:
-            del auth_cache[cache_key]
+            auth_cache.pop(cache_key, None)
             return None
     else:
         auth_obj = get_auth_token_dbquery(name)
@@ -793,12 +793,12 @@ def get_feed_token(name):
         return None
 
     cache_key = f"feed-{name}"
-    if cache_key in feed_token_cache:
-        auth_obj = feed_token_cache[cache_key]
+    auth_obj = feed_token_cache.get(cache_key)
+    if auth_obj is not None:
         if isinstance(auth_obj, Auth) and not auth_obj.is_revoked:
             return decrypt_token(auth_obj.feed_token) if auth_obj.feed_token else None
         else:
-            del feed_token_cache[cache_key]
+            feed_token_cache.pop(cache_key, None)
             return None
     else:
         auth_obj = get_feed_token_dbquery(name)
@@ -1029,9 +1029,11 @@ def get_username_by_apikey(provided_api_key):
 
 def get_broker_name(provided_api_key):
     """Get only the broker name for a valid API key with caching"""
-    # Check if broker name is in cache
-    if provided_api_key in broker_cache:
-        return broker_cache[provided_api_key]
+    # Check if broker name is in cache (.get(): the TTL can expire between an
+    # `in` test and the lookup)
+    cached_broker = broker_cache.get(provided_api_key)
+    if cached_broker is not None:
+        return cached_broker
 
     # Not in cache, need to look it up
     user_id = verify_api_key(provided_api_key)
@@ -1066,9 +1068,11 @@ def get_auth_token_broker(provided_api_key, include_feed_token=False):
     # Generate cache key
     cache_key = f"{hashlib.sha256(provided_api_key.encode()).hexdigest()}_{include_feed_token}"
 
-    # Check cache first (but still verify revocation status)
-    if cache_key in auth_cache:
-        cached_result = auth_cache[cache_key]
+    # Check cache first (but still verify revocation status).
+    # Read through .get(): the TTL can expire between an `in` test and the
+    # lookup, and every removal below must tolerate an already-evicted key.
+    cached_result = auth_cache.get(cache_key)
+    if cached_result is not None:
         # Security: Still check if auth is revoked even with cached data
         user_id = verify_api_key(provided_api_key)
         if user_id:
@@ -1076,7 +1080,7 @@ def get_auth_token_broker(provided_api_key, include_feed_token=False):
                 auth_obj = Auth.query.filter_by(name=user_id).first()
                 if auth_obj and auth_obj.is_revoked:
                     # Token was revoked, remove from cache
-                    del auth_cache[cache_key]
+                    auth_cache.pop(cache_key, None)
                     logger.warning(f"Cached auth token was revoked for user_id '{user_id}'.")
                     return (None, None, None) if include_feed_token else (None, None)
                 # Not revoked, return cached result
@@ -1085,7 +1089,7 @@ def get_auth_token_broker(provided_api_key, include_feed_token=False):
             except Exception as e:
                 logger.exception(f"Error checking revocation status: {e}")
                 # On error, don't use cache
-                del auth_cache[cache_key]
+                auth_cache.pop(cache_key, None)
 
     # Cache miss or revocation check failed - fetch from database
     user_id = verify_api_key(provided_api_key)

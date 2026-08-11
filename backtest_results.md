@@ -1,0 +1,765 @@
+- generic [ref=f13e3]:
+  - link "Skip to chart" [ref=f13e4] [cursor=pointer]:
+    - /url: "#main-chart"
+  - generic [ref=f13e14]:
+    - button "Menu" [ref=f13e16] [cursor=pointer]
+    - generic [ref=f13e22]:
+      - button "Symbol Search" [ref=f13e23] [cursor=pointer]:
+        - generic [ref=f13e27]: HDFCAMC
+      - button "Compare or Add Symbol" [ref=f13e28] [cursor=pointer]
+      - button "Option Strategy Chart" [ref=f13e34] [cursor=pointer]
+      - button "Auto Spread Builder" [ref=f13e42] [cursor=pointer]
+    - button "5m" [ref=f13e49] [cursor=pointer]
+    - button [ref=f13e56] [cursor=pointer]
+    - generic [ref=f13e65]:
+      - button "Indicators" [ref=f13e67] [cursor=pointer]
+      - button "Pine Script Editor" [ref=f13e74] [cursor=pointer]:
+        - generic [ref=f13e79]: Pine
+    - generic [ref=f13e82]:
+      - button "Create Alert" [ref=f13e83] [cursor=pointer]:
+        - generic [ref=f13e88]: Alert
+      - button "Create Indicator Alert" [ref=f13e90] [cursor=pointer]:
+        - generic [ref=f13e94]: Indicator Alert
+      - button "Bar Replay" [ref=f13e95] [cursor=pointer]:
+        - generic [ref=f13e99]: Replay
+      - button "Option Chain" [ref=f13e100] [cursor=pointer]:
+        - generic [ref=f13e104]: Options
+      - button "Sector Heatmap" [ref=f13e106] [cursor=pointer]:
+        - generic [ref=f13e110]: Heatmap
+    - generic [ref=f13e113]:
+      - button "Undo" [ref=f13e115] [cursor=pointer]
+      - button "Redo" [ref=f13e120] [cursor=pointer]
+    - generic [ref=f13e124]:
+      - button "Layout setup" [ref=f13e126] [cursor=pointer]
+      - button "Save" [ref=f13e130] [cursor=pointer]
+      - button "Templates" [ref=f13e133] [cursor=pointer]
+      - button "Indicator Templates" [ref=f13e138] [cursor=pointer]
+      - button "Switch to Dark Mode" [ref=f13e144] [cursor=pointer]
+      - button "Settings" [ref=f13e151] [cursor=pointer]
+      - button "Fullscreen" [ref=f13e157] [cursor=pointer]
+      - button "Snapshot" [ref=f13e163] [cursor=pointer]
+  - generic [ref=f13e168]:
+    - generic [ref=f13e170]:
+      - generic "Cross" [ref=f13e173] [cursor=pointer]
+      - generic "Trend Line" [ref=f13e185] [cursor=pointer]
+      - generic "Fib Retracement" [ref=f13e197] [cursor=pointer]
+      - generic "Brush" [ref=f13e212] [cursor=pointer]
+      - generic "Text" [ref=f13e224] [cursor=pointer]
+      - generic "Elliott Impulse Wave (12345)" [ref=f13e234] [cursor=pointer]
+      - generic "Long Position" [ref=f13e248] [cursor=pointer]
+      - generic "Measure" [ref=f13e259] [cursor=pointer]
+      - generic "Zoom In" [ref=f13e265] [cursor=pointer]
+      - generic "Show Timer" [ref=f13e275] [cursor=pointer]
+      - generic "Lock All Drawing Tools" [ref=f13e283] [cursor=pointer]
+      - generic "Sequential Drawing Mode" [ref=f13e289] [cursor=pointer]
+      - generic "Hide All Drawings" [ref=f13e299] [cursor=pointer]
+      - generic "Remove Objects" [ref=f13e305] [cursor=pointer]
+    - generic [ref=f13e309]:
+      - generic [ref=f13e313]:
+        - generic [ref=f13e315]:
+          - table [ref=f13e316]:
+            - row [ref=f13e317]:
+              - cell
+              - cell [ref=f13e318]
+              - cell [ref=f13e322]
+            - row [ref=f13e326]:
+              - cell
+              - cell [ref=f13e327]
+              - cell [ref=f13e331]
+          - generic:
+            - button "Zoom Out" [ref=f13e5113] [cursor=pointer]
+            - button "Zoom In" [ref=f13e5115] [cursor=pointer]
+            - button "Scroll Left" [ref=f13e5118] [cursor=pointer]
+            - button "Scroll Right" [ref=f13e5121] [cursor=pointer]
+            - button "Reset View" [ref=f13e5124] [cursor=pointer]
+        - generic:
+          - generic: HDFCAMC:NSE
+          - generic: · 5M
+          - generic:
+            - generic:
+              - generic: O
+              - generic: "2654.80"
+            - generic:
+              - generic: H
+              - generic: "2657.60"
+            - generic:
+              - generic: L
+              - generic: "2654.10"
+            - generic:
+              - generic: C
+              - generic: "2654.50"
+            - generic: "-0.30 (-0.01%)"
+        - generic [ref=f13e351]:
+          - generic [ref=f13e352]:
+            - generic [ref=f13e353]:
+              - generic [ref=f13e354]: Volume
+              - generic [ref=f13e355]: "508.00"
+            - generic [ref=f13e356]:
+              - generic [ref=f13e357]: Intraday Signals
+              - generic [ref=f13e358]: "--"
+            - generic [ref=f13e359]:
+              - generic [ref=f13e360]: EMA Ribbon
+              - generic [ref=f13e361]: 2657.08 / 2659.06 / 2666.24 / 2681.64
+          - generic "Hide indicator legend" [ref=f13e362] [cursor=pointer]
+      - generic [ref=f13e365]:
+        - generic "Drag to resize" [ref=f13e366]
+        - generic [ref=f13e367]:
+          - generic [ref=f13e368]:
+            - generic [ref=f13e369]: Account Manager
+            - generic [ref=f13e374]:
+              - generic [ref=f13e375]:
+                - generic [ref=f13e376]: Unrealized P&L
+                - generic [ref=f13e377]: +₹0.00
+              - generic [ref=f13e378]:
+                - generic [ref=f13e379]: Realized P&L
+                - generic [ref=f13e380]: +₹294.40
+              - generic [ref=f13e381]:
+                - generic [ref=f13e382]: Available
+                - generic [ref=f13e383]: ₹99,50,365.15
+              - generic [ref=f13e384]:
+                - generic [ref=f13e385]: Used
+                - generic [ref=f13e386]: ₹0.00
+              - generic [ref=f13e387]:
+                - generic [ref=f13e388]: Margin Used
+                - generic [ref=f13e389]: 0.0%
+            - generic [ref=f13e390]:
+              - button "Refresh data" [ref=f13e391] [cursor=pointer]
+              - button "Table Settings" [ref=f13e397] [cursor=pointer]
+              - button "Minimize panel" [ref=f13e401] [cursor=pointer]
+              - button "Maximize panel" [ref=f13e403] [cursor=pointer]
+              - button "Close panel" [ref=f13e409] [cursor=pointer]
+          - generic [ref=f13e413]:
+            - button "Positions" [ref=f13e414] [cursor=pointer]
+            - button "Orders 6" [ref=f13e415] [cursor=pointer]:
+              - text: Orders
+              - generic [ref=f13e416]: "6"
+            - button "Holdings" [ref=f13e417] [cursor=pointer]
+            - button "Trades" [ref=f13e418] [cursor=pointer]
+          - generic [ref=f13e420]:
+            - generic [ref=f13e421]:
+              - textbox "Search symbol..." [ref=f13e423]
+              - button "Filters" [ref=f13e424] [cursor=pointer]
+            - generic [ref=f13e429]:
+              - generic [ref=f13e430]: 📊
+              - paragraph [ref=f13e431]: No open positions
+            - generic [ref=f13e4329]:
+              - heading "Closed Positions (1) ▼" [level=3] [ref=f13e4331] [cursor=pointer]:
+                - text: Closed Positions (1)
+                - generic [ref=f13e4332]: ▼
+              - generic [ref=f13e4333]:
+                - generic [ref=f13e4334]:
+                  - textbox "Search symbol..." [ref=f13e4336]
+                  - button "Filters" [ref=f13e4337] [cursor=pointer]
+                - table [ref=f13e4343]:
+                  - rowgroup [ref=f13e4353]:
+                    - row [ref=f13e4354]:
+                      - columnheader "Symbol" [ref=f13e4355] [cursor=pointer]
+                      - columnheader "Exchange" [ref=f13e4356] [cursor=pointer]
+                      - columnheader "Product" [ref=f13e4357] [cursor=pointer]
+                      - columnheader "Entry Price" [ref=f13e4358] [cursor=pointer]
+                      - columnheader "Exit Price" [ref=f13e4359] [cursor=pointer]
+                      - columnheader "Day P&L" [ref=f13e4360] [cursor=pointer]
+                      - columnheader "Overall P&L" [ref=f13e4361] [cursor=pointer]
+                      - columnheader "Closed At ↓" [ref=f13e4362] [cursor=pointer]:
+                        - text: Closed At
+                        - generic [ref=f13e4363]: ↓
+                  - rowgroup [ref=f13e4364]:
+                    - row [ref=f13e4365] [cursor=pointer]:
+                      - cell "SUNPHARMA" [ref=f13e4366]
+                      - cell "NSE" [ref=f13e4367]
+                      - cell "MIS" [ref=f13e4368]
+                      - cell "0.00" [ref=f13e4369]
+                      - cell "1,945.60" [ref=f13e4370]
+                      - cell "+294.40" [ref=f13e4371]
+                      - cell "+294.40" [ref=f13e4373]
+                      - cell "-" [ref=f13e4375]
+      - generic [ref=f13e434]:
+        - generic [ref=f13e435]:
+          - generic [ref=f13e436] [cursor=pointer]: 1D
+          - generic [ref=f13e437] [cursor=pointer]: 5D
+          - generic [ref=f13e438] [cursor=pointer]: 1M
+          - generic [ref=f13e439] [cursor=pointer]: 3M
+          - generic [ref=f13e440] [cursor=pointer]: 6M
+          - generic [ref=f13e441] [cursor=pointer]: YTD
+          - generic [ref=f13e442] [cursor=pointer]: 1Y
+          - generic [ref=f13e443] [cursor=pointer]: 5Y
+          - generic [ref=f13e444] [cursor=pointer]: All
+        - generic [ref=f13e445]:
+          - generic "WebSocket connected - receiving live data" [ref=f13e446]
+          - generic [ref=f13e451]:
+            - generic [ref=f13e452]: "Local:"
+            - generic [ref=f13e453]: 14:44:20
+          - generic [ref=f13e455]:
+            - generic "Time synced with WorldTimeAPI" [ref=f13e4379]
+            - generic [ref=f13e457]: "IST:"
+            - generic [ref=f13e458]: 14:44:20
+          - generic [ref=f13e460]: UTC+5:30
+          - generic "Toggle Account Manager Panel" [ref=f13e463] [cursor=pointer]: Account
+          - generic [ref=f13e465] [cursor=pointer]: log
+          - generic [ref=f13e466] [cursor=pointer]: auto
+          - generic "Reset Chart View" [ref=f13e467] [cursor=pointer]: reset
+    - generic [ref=f13e468]:
+      - generic "Drag to resize" [ref=f13e469]
+      - generic [ref=f13e6152]:
+        - generic [ref=f13e6153]:
+          - generic [ref=f13e6154]: ISI v5.6
+          - generic [ref=f13e6158]:
+            - button "Backtest" [ref=f13e6159] [cursor=pointer]
+            - button "Live" [ref=f13e6160] [cursor=pointer]
+          - button "Close" [ref=f13e6163] [cursor=pointer]
+        - generic [ref=f13e6167]:
+          - generic [ref=f13e6168]: "80 stocks:"
+          - generic [ref=f13e6169]: ADANIGREEN
+          - generic [ref=f13e6170]: DIVISLAB
+          - generic [ref=f13e6171]: ADANIPOWER
+          - generic [ref=f13e6172]: BIOCON
+          - generic [ref=f13e6173]: ALKEM
+          - generic [ref=f13e6174]: ADANIENSOL
+          - generic [ref=f13e6179]: SBICARD
+          - generic [ref=f13e6175]: NUVAMA
+          - generic [ref=f13e6176]: SUPREMEIND
+          - generic [ref=f13e6177]: POLYCAB
+          - generic [ref=f13e6178]: HDFCLIFE
+          - generic [ref=f13e6180]: ITC
+          - generic [ref=f13e6181]: TATAELXSI
+          - generic [ref=f13e6182]: JUBLFOOD
+          - generic [ref=f13e6183]: ICICIPRULI
+          - generic [ref=f13e6184]: FEDERALBNK
+          - generic [ref=f13e6185]: HCLTECH
+          - generic [ref=f13e6186]: CONCOR
+          - generic [ref=f13e6187]: DMART
+          - generic [ref=f13e6188]: BAJAJ-AUTO
+          - generic [ref=f13e6189]: LTM
+          - generic [ref=f13e6190]: RADICO
+          - generic [ref=f13e6191]: DALBHARAT
+          - generic [ref=f13e6192]: HAL
+          - generic [ref=f13e6193]: KALYANKJIL
+          - generic [ref=f13e6194]: CIPLA
+          - generic [ref=f13e6195]: BHARTIARTL
+          - generic [ref=f13e6196]: MAXHEALTH
+          - generic [ref=f13e6197]: PIDILITIND
+          - generic [ref=f13e6198]: GODREJCP
+          - generic [ref=f13e6199]: KPITTECH
+          - generic [ref=f13e6200]: BHARATFORG
+          - generic [ref=f13e6201]: JSWSTEEL
+          - generic [ref=f13e6202]: HEROMOTOCO
+          - generic [ref=f13e6203]: SUNPHARMA
+          - generic [ref=f13e6204]: ADANIENT
+          - generic [ref=f13e6205]: ULTRACEMCO
+          - generic [ref=f13e6206]: SBIN
+          - generic [ref=f13e6207]: ZYDUSLIFE
+          - generic [ref=f13e6208]: HDFCAMC
+          - generic [ref=f13e6209]: AXISBANK
+          - generic [ref=f13e6210]: WIPRO
+          - generic [ref=f13e6211]: MPHASIS
+          - generic [ref=f13e6212]: HINDALCO
+          - generic [ref=f13e6213]: APOLLOHOSP
+          - generic [ref=f13e6218]: VOLTAS
+          - generic [ref=f13e6214]: JSWENERGY
+          - generic [ref=f13e6215]: BRITANNIA
+          - generic [ref=f13e6216]: PFC
+          - generic [ref=f13e6217]: PNBHOUSING
+          - generic [ref=f13e6219]: APLAPOLLO
+          - generic [ref=f13e6220]: NESTLEIND
+          - generic [ref=f13e6221]: NTPC
+          - generic [ref=f13e6222]: KEI
+          - generic [ref=f13e6223]: NAM-INDIA
+          - generic [ref=f13e6224]: PREMIERENE
+          - generic [ref=f13e6225]: POWERINDIA
+          - generic [ref=f13e6226]: NAUKRI
+          - generic [ref=f13e6227]: TATACONSUM
+          - generic [ref=f13e6228]: HYUNDAI
+          - generic [ref=f13e6229]: DELHIVERY
+          - generic [ref=f13e6230]: COALINDIA
+          - generic [ref=f13e6231]: TECHM
+          - generic [ref=f13e6232]: INDIANB
+          - generic [ref=f13e6233]: CANBK
+          - generic [ref=f13e6234]: VMM
+          - generic [ref=f13e6235]: 360ONE
+          - generic [ref=f13e6236]: HAVELLS
+          - generic [ref=f13e6237]: OBEROIRLTY
+          - generic [ref=f13e6238]: IEX
+          - generic [ref=f13e6239]: BANKINDIA
+          - generic [ref=f13e6240]: NYKAA
+          - generic [ref=f13e6241]: BAJAJFINSV
+          - generic [ref=f13e6242]: TVSMOTOR
+          - generic [ref=f13e6243]: POWERGRID
+          - generic [ref=f13e6244]: ABB
+          - generic [ref=f13e6245]: UNOMINDA
+          - generic [ref=f13e6246]: BAJAJHLDNG
+          - generic [ref=f13e6247]: LICI
+          - generic [ref=f13e6248]: NBCC
+        - generic:
+          - generic [ref=f13e6250]:
+            - generic [ref=f13e6251]: Capital & Sizing
+            - generic [ref=f13e6252]:
+              - generic [ref=f13e6253]: ₹/trade
+              - spinbutton "MIS margin budget per trade. Under intraday MIS this is the capital actually blocked, so it controls capital ÷ Margin% of notional (₹50k @ 20% margin ⇒ ₹2.5L notional room). Caps qty when the Max Loss % risk size would need more margin than this." [ref=f13e6254]: "50000"
+              - generic [ref=f13e6255]: Balance ₹
+              - spinbutton "Account balance — risk budget per trade = Balance × Max Loss %, matches the live scanner's sizing" [ref=f13e6256]: "311000"
+              - generic [ref=f13e6257]: Max Loss %
+              - spinbutton "% of balance risked per trade — qty is sized so a full SL hit loses this much" [ref=f13e6258]: "1"
+              - generic [ref=f13e6259]: Margin %
+              - spinbutton "Intraday MIS margin % (20% = 5× leverage)" [ref=f13e6260]: "20"
+          - generic [ref=f13e6261]:
+            - generic [ref=f13e6262]: Entry Filters
+            - generic [ref=f13e6263]:
+              - generic [ref=f13e6264]: Min SL %
+              - spinbutton "Reject signals whose SL is closer than this % of entry (0 = off) — matches the live scanner's filter" [ref=f13e6265]: "0.3"
+              - generic [ref=f13e6266]: Filters
+              - generic [ref=f13e6267]:
+                - button "VWAP" [ref=f13e6268] [cursor=pointer]
+                - button "Ribbon" [ref=f13e6269] [cursor=pointer]
+                - button "RVOL" [ref=f13e6270] [cursor=pointer]
+                - button "ORB" [ref=f13e6271] [cursor=pointer]
+                - button "MZ" [ref=f13e6272] [cursor=pointer]
+                - button "Re-entry" [ref=f13e6273] [cursor=pointer]
+              - generic [ref=f13e6274]: Confirmation
+              - generic [ref=f13e6275]:
+                - button "Immediate" [ref=f13e6276] [cursor=pointer]
+                - button "1 Candle" [ref=f13e6277] [cursor=pointer]
+                - button "2 Candles" [ref=f13e6278] [cursor=pointer]
+              - generic [ref=f13e6279]: Scope
+              - generic [ref=f13e6280]:
+                - button "Both" [ref=f13e6281] [cursor=pointer]
+                - button "Long" [ref=f13e6282] [cursor=pointer]
+                - button "Short" [ref=f13e6283] [cursor=pointer]
+          - generic [ref=f13e6284]:
+            - generic [ref=f13e6285]: Exit & Trailing
+            - generic [ref=f13e6286]:
+              - generic [ref=f13e6287]: R:R
+              - spinbutton "Target R:R — set 0 for no target" [ref=f13e6288]: "0"
+              - generic [ref=f13e6289]: Trail
+              - generic [ref=f13e6290]:
+                - generic [ref=f13e6291]:
+                  - button "None" [ref=f13e6292] [cursor=pointer]
+                  - button "Candle" [ref=f13e6293] [cursor=pointer]
+                  - button "%" [ref=f13e6294] [cursor=pointer]
+                  - button "B/E+Trail" [ref=f13e6295] [cursor=pointer]
+                - spinbutton "R-multiple at which SL steps to breakeven (e.g. 1.0 = 1R profit)" [ref=f13e6296]: "1.5"
+              - generic [ref=f13e6297]: Exit time
+              - textbox "Forced time-exit for any position still open — matches the live trader's exit cutoff (default 15:10)" [ref=f13e6298]: 15:10
+          - generic [ref=f13e6299]:
+            - generic [ref=f13e6300]: Timing & Data Range
+            - generic [ref=f13e6301]:
+              - generic [ref=f13e6302]: Period
+              - generic [ref=f13e6303]:
+                - button "1D" [ref=f13e6304] [cursor=pointer]
+                - button "1W" [ref=f13e6305] [cursor=pointer]
+                - button "1M" [ref=f13e6306] [cursor=pointer]
+                - button "3M" [ref=f13e6307] [cursor=pointer]
+              - generic [ref=f13e6308]: Entry after
+              - textbox "Reject signals before this time (fed into the engine, not just a display filter)" [ref=f13e6309]
+              - generic [ref=f13e6310]: Entry before
+              - textbox "Reject signals at/after this time (fed into the engine, not just a display filter)" [ref=f13e6311]
+              - generic [ref=f13e6312]: Slippage (bps)
+              - 'spinbutton "Basis points of slippage on entry + SL exit, scaled to each trade''s own price (0 = no slippage). Realistic: 3–10 bps for liquid large-caps, higher for thinner names." [ref=f13e6313]': "0"
+          - generic [ref=f13e6314]:
+            - generic [ref=f13e6315]: Portfolio Risk Caps
+            - generic [ref=f13e6316]:
+              - generic [ref=f13e6317]: Max loss/day ₹
+              - spinbutton "Stop all new trades once portfolio day loss ≥ this amount (0 = off)" [ref=f13e6318]: "0"
+              - generic [ref=f13e6319]: Profit lock ₹
+              - spinbutton "Stop all new trades once portfolio day profit ≥ this amount (0 = off)" [ref=f13e6320]: "0"
+              - generic [ref=f13e6321]: Max trades/day
+              - spinbutton "Cap on entries per day (0 = unlimited). Previously only affected live trading — the backtest ignored this control entirely." [ref=f13e6322]: "0"
+              - generic [ref=f13e6323]: Max concurrent
+              - spinbutton "Cap on simultaneously open positions across all symbols (0 = unlimited). Matches the live trader's cap — trades that would exceed it are dropped from the results, same as the live trader would skip them." [ref=f13e6324]: "106"
+          - generic [ref=f13e6325]:
+            - generic [ref=f13e6326]:
+              - text: Charges
+              - button "+ Advanced (STT / GST / etc.)" [ref=f13e6327] [cursor=pointer]
+            - generic [ref=f13e6328]:
+              - generic [ref=f13e6329]: Brokerage ₹/order (×2/trade)
+              - spinbutton "Flat brokerage per executed order — every trade has 2 orders (entry + exit), so the round-trip total shown in results is up to 2× this. Actual charge per leg is whichever is LOWER of this flat ₹ or Brokerage % below." [ref=f13e6330]: "20"
+            - generic [ref=f13e6331]:
+              - generic [ref=f13e6332]: "Preview @ ₹50,000 trade:"
+              - generic [ref=f13e6333]: Total ₹53.14 — Brokerage ₹30.00 · STT ₹12.50 · Txn ₹3.07 · SEBI ₹0.10 · Stamp ₹1.50 · GST ₹5.97
+        - generic [ref=f13e6334]:
+          - button "Run" [active] [ref=f13e6363] [cursor=pointer]
+          - button "Expand results" [ref=f13e6364] [cursor=pointer]
+          - button "Export trades to CSV" [ref=f13e6370]
+        - generic [ref=f13e6374]:
+          - generic [ref=f13e6375]:
+            - generic [ref=f13e6376]: Trades
+            - generic [ref=f13e6377]: "12"
+          - generic [ref=f13e6378]:
+            - generic [ref=f13e6379]: Days
+            - generic "Trading days with at least one trade" [ref=f13e6380]: "2"
+          - generic [ref=f13e6381]:
+            - generic [ref=f13e6382]: Win%
+            - generic [ref=f13e6383]: 67%
+          - generic [ref=f13e6384]:
+            - generic [ref=f13e6385]: Gross P&L
+            - generic [ref=f13e6386]: +₹12217
+          - generic [ref=f13e6387]:
+            - generic [ref=f13e6388]: Charges
+            - generic [ref=f13e6389]: −₹1602
+          - generic [ref=f13e6390]:
+            - generic [ref=f13e6391]: Net P&L
+            - generic [ref=f13e6392]: +₹10615
+          - generic [ref=f13e6393]:
+            - generic [ref=f13e6394]: SL / TGT / Time
+            - generic [ref=f13e6395]: 8 / 0 / 4
+          - generic [ref=f13e6396]:
+            - generic [ref=f13e6397]: Profit Factor
+            - generic "Gross wins ÷ gross losses. >1.5 = healthy, <1 = losing strategy" [ref=f13e6398]: "3.79"
+          - generic [ref=f13e6399]:
+            - generic [ref=f13e6400]: Expectancy
+            - generic "Average net P&L per trade — the edge per trade in ₹" [ref=f13e6401]: +₹885
+          - generic [ref=f13e6402]:
+            - generic [ref=f13e6403]: Max DD
+            - generic "Maximum peak-to-trough drawdown on the running equity curve" [ref=f13e6404]: −₹1646
+          - generic [ref=f13e6405]:
+            - generic [ref=f13e6406]: Avg MFE
+            - generic "Average max-favourable-excursion — how far price moved in your direction before exit" [ref=f13e6407]: 18.2 pts
+          - generic [ref=f13e6408]:
+            - generic [ref=f13e6409]: Avg MAE
+            - generic "Average max-adverse-excursion — how far price moved against you. Compare to initial SL to judge SL placement." [ref=f13e6410]: 11.0 pts
+          - generic [ref=f13e6411]:
+            - generic [ref=f13e6412]: Avg Duration
+            - generic "Average time from entry to exit in minutes" [ref=f13e6413]: 143 min
+          - generic [ref=f13e6414]:
+            - generic [ref=f13e6415]: Captured
+            - generic "Gross P&L as % of the max possible gain (MFE × qty). 100% = perfect exit at every peak." [ref=f13e6416]: 45%
+          - generic [ref=f13e6417]:
+            - generic [ref=f13e6418]: Total Margin
+            - generic "Sum of intraday margin across all trades at 20% (entry × qty × 20%)" [ref=f13e6419]: ₹5,81,690
+          - generic [ref=f13e6420]:
+            - generic [ref=f13e6421]: Peak Margin
+            - generic "Maximum concurrent margin when multiple positions were open at the same time" [ref=f13e6422]: ₹2,93,830
+        - table [ref=f13e6424]:
+          - rowgroup [ref=f13e6425]:
+            - row [ref=f13e6426]:
+              - columnheader "Symbol" [ref=f13e6427] [cursor=pointer]
+              - columnheader "Date" [ref=f13e6428] [cursor=pointer]
+              - columnheader "Dir" [ref=f13e6429] [cursor=pointer]
+              - columnheader "Entry" [ref=f13e6430] [cursor=pointer]
+              - columnheader "Exit" [ref=f13e6431] [cursor=pointer]
+              - columnheader "Qty" [ref=f13e6432] [cursor=pointer]
+              - columnheader "Gross" [ref=f13e6433] [cursor=pointer]
+              - columnheader "Net ↓" [ref=f13e6434] [cursor=pointer]
+              - columnheader "Value" [ref=f13e6435] [cursor=pointer]
+              - columnheader "MIS Cap" [ref=f13e6436] [cursor=pointer]
+              - columnheader "Fees" [ref=f13e6437] [cursor=pointer]
+              - columnheader "MFE" [ref=f13e6438] [cursor=pointer]
+              - columnheader "MAE" [ref=f13e6439] [cursor=pointer]
+              - columnheader "Dur" [ref=f13e6440] [cursor=pointer]
+              - columnheader "Exit" [ref=f13e6441] [cursor=pointer]
+              - columnheader "Time" [ref=f13e6442] [cursor=pointer]
+          - rowgroup [ref=f13e6443]:
+            - row [ref=f13e6444] [cursor=pointer]:
+              - cell "BIOCON" [ref=f13e6445]
+              - cell "07-14" [ref=f13e6446]
+              - cell "LONG" [ref=f13e6447]
+              - cell "435.00" [ref=f13e6448]
+              - cell "443.20" [ref=f13e6449]
+              - cell "518R" [ref=f13e6450]
+              - cell "+₹4248" [ref=f13e6451]
+              - cell "+₹4119" [ref=f13e6452]
+              - cell "₹2,25,330" [ref=f13e6453]
+              - cell "₹45,066" [ref=f13e6454]
+              - cell "₹128 B:₹40.00 · S:₹57.39" [ref=f13e6455]:
+                - generic [ref=f13e6456]: ₹128
+                - generic [ref=f13e6457]: B:₹40.00 · S:₹57.39
+              - cell "9.0" [ref=f13e6458]
+              - cell "3.1" [ref=f13e6459]
+              - cell "125m" [ref=f13e6460]
+              - cell "SL" [ref=f13e6461]
+              - cell "09:35→11:40" [ref=f13e6462]
+            - row [ref=f13e6463] [cursor=pointer]:
+              - cell "CONCOR" [ref=f13e6464]
+              - cell "07-14" [ref=f13e6465]
+              - cell "LONG" [ref=f13e6466]
+              - cell "485.35" [ref=f13e6467]
+              - cell "493.40" [ref=f13e6468]
+              - cell "458R" [ref=f13e6469]
+              - cell "+₹3687" [ref=f13e6470]
+              - cell "+₹3560" [ref=f13e6471]
+              - cell "₹2,22,290" [ref=f13e6472]
+              - cell "₹44,458" [ref=f13e6473]
+              - cell "₹127 B:₹40.00 · S:₹56.49" [ref=f13e6474]:
+                - generic [ref=f13e6475]: ₹127
+                - generic [ref=f13e6476]: B:₹40.00 · S:₹56.49
+              - cell "10.6" [ref=f13e6477]
+              - cell "5.4" [ref=f13e6478]
+              - cell "285m" [ref=f13e6479]
+              - cell "SL" [ref=f13e6480]
+              - cell "09:55→14:40" [ref=f13e6481]
+            - row [ref=f13e6482] [cursor=pointer]:
+              - cell "ADANIPOWER" [ref=f13e6483]
+              - cell "07-14" [ref=f13e6484]
+              - cell "LONG" [ref=f13e6485]
+              - cell "221.71" [ref=f13e6486]
+              - cell "223.80" [ref=f13e6487]
+              - cell "1127M" [ref=f13e6488]
+              - cell "+₹2355" [ref=f13e6489]
+              - cell "+₹2219" [ref=f13e6490]
+              - cell "₹2,49,867" [ref=f13e6491]
+              - cell "₹49,973" [ref=f13e6492]
+              - cell "₹137 B:₹40.00 · S:₹63.06" [ref=f13e6493]:
+                - generic [ref=f13e6494]: ₹137
+                - generic [ref=f13e6495]: B:₹40.00 · S:₹63.06
+              - cell "3.2" [ref=f13e6496]
+              - cell "0.3" [ref=f13e6497]
+              - cell "50m" [ref=f13e6498]
+              - cell "SL" [ref=f13e6499]
+              - cell "10:00→10:50" [ref=f13e6500]
+            - row [ref=f13e6501] [cursor=pointer]:
+              - cell "UNOMINDA" [ref=f13e6502]
+              - cell "07-14" [ref=f13e6503]
+              - cell "SHORT" [ref=f13e6504]
+              - cell "1133.30" [ref=f13e6505]
+              - cell "1123.40" [ref=f13e6506]
+              - cell "220M" [ref=f13e6507]
+              - cell "+₹2178" [ref=f13e6508]
+              - cell "+₹2042" [ref=f13e6509]
+              - cell "₹2,49,326" [ref=f13e6510]
+              - cell "₹49,865" [ref=f13e6511]
+              - cell "₹136 B:₹40.00 · S:₹62.33" [ref=f13e6512]:
+                - generic [ref=f13e6513]: ₹136
+                - generic [ref=f13e6514]: B:₹40.00 · S:₹62.33
+              - cell "14.3" [ref=f13e6515]
+              - cell "3.3" [ref=f13e6516]
+              - cell "310m" [ref=f13e6517]
+              - cell "3:10" [ref=f13e6518]
+              - cell "09:30→14:40" [ref=f13e6519]
+            - row [ref=f13e6520] [cursor=pointer]:
+              - cell "SUPREMEIND" [ref=f13e6521]
+              - cell "07-14" [ref=f13e6522]
+              - cell "LONG" [ref=f13e6523]
+              - cell "3381.90" [ref=f13e6524]
+              - cell "3405.80" [ref=f13e6525]
+              - cell "73M" [ref=f13e6526]
+              - cell "+₹1745" [ref=f13e6527]
+              - cell "+₹1609" [ref=f13e6528]
+              - cell "₹2,46,879" [ref=f13e6529]
+              - cell "₹49,376" [ref=f13e6530]
+              - cell "₹135 B:₹40.00 · S:₹62.16" [ref=f13e6531]:
+                - generic [ref=f13e6532]: ₹135
+                - generic [ref=f13e6533]: B:₹40.00 · S:₹62.16
+              - cell "54.9" [ref=f13e6534]
+              - cell "2.1" [ref=f13e6535]
+              - cell "40m" [ref=f13e6536]
+              - cell "SL" [ref=f13e6537]
+              - cell "11:10→11:50" [ref=f13e6538]
+            - row [ref=f13e6539] [cursor=pointer]:
+              - cell "ADANIENSOL" [ref=f13e6540]
+              - cell "07-14" [ref=f13e6541]
+              - cell "LONG" [ref=f13e6542]
+              - cell "1690.00" [ref=f13e6543]
+              - cell "1696.20" [ref=f13e6544]
+              - cell "147M" [ref=f13e6545]
+              - cell "+₹911" [ref=f13e6546]
+              - cell "+₹776" [ref=f13e6547]
+              - cell "₹2,48,430" [ref=f13e6548]
+              - cell "₹49,686" [ref=f13e6549]
+              - cell "₹136 B:₹40.00 · S:₹62.34" [ref=f13e6550]:
+                - generic [ref=f13e6551]: ₹136
+                - generic [ref=f13e6552]: B:₹40.00 · S:₹62.34
+              - cell "14.5" [ref=f13e6553]
+              - cell "12.2" [ref=f13e6554]
+              - cell "160m" [ref=f13e6555]
+              - cell "3:10" [ref=f13e6556]
+              - cell "12:00→14:40" [ref=f13e6557]
+            - row [ref=f13e6558] [cursor=pointer]:
+              - cell "DIVISLAB" [ref=f13e6559]
+              - cell "07-14" [ref=f13e6560]
+              - cell "LONG" [ref=f13e6561]
+              - cell "7033.50" [ref=f13e6562]
+              - cell "7057.50" [ref=f13e6563]
+              - cell "35M" [ref=f13e6564]
+              - cell "+₹840" [ref=f13e6565]
+              - cell "+₹705" [ref=f13e6566]
+              - cell "₹2,46,173" [ref=f13e6567]
+              - cell "₹49,235" [ref=f13e6568]
+              - cell "₹135 B:₹40.00 · S:₹61.75" [ref=f13e6569]:
+                - generic [ref=f13e6570]: ₹135
+                - generic [ref=f13e6571]: B:₹40.00 · S:₹61.75
+              - cell "76.5" [ref=f13e6572]
+              - cell "10.5" [ref=f13e6573]
+              - cell "30m" [ref=f13e6574]
+              - cell "SL" [ref=f13e6575]
+              - cell "10:35→11:05" [ref=f13e6576]
+            - row [ref=f13e6577] [cursor=pointer]:
+              - cell "VMM" [ref=f13e6578]
+              - cell "07-14" [ref=f13e6579]
+              - cell "SHORT" [ref=f13e6580]
+              - cell "114.81" [ref=f13e6581]
+              - cell "114.52" [ref=f13e6582]
+              - cell "2177M" [ref=f13e6583]
+              - cell "+₹631" [ref=f13e6584]
+              - cell "+₹495" [ref=f13e6585]
+              - cell "₹2,49,941" [ref=f13e6586]
+              - cell "₹49,988" [ref=f13e6587]
+              - cell "₹136 B:₹40.00 · S:₹62.49" [ref=f13e6588]:
+                - generic [ref=f13e6589]: ₹136
+                - generic [ref=f13e6590]: B:₹40.00 · S:₹62.49
+              - cell "0.4" [ref=f13e6591]
+              - cell "0.3" [ref=f13e6592]
+              - cell "280m" [ref=f13e6593]
+              - cell "3:10" [ref=f13e6594]
+              - cell "10:00→14:40" [ref=f13e6595]
+            - row [ref=f13e6596] [cursor=pointer]:
+              - cell "LICI" [ref=f13e6597]
+              - cell "07-14" [ref=f13e6598]
+              - cell "SHORT" [ref=f13e6599]
+              - cell "435.25" [ref=f13e6600]
+              - cell "436.30" [ref=f13e6601]
+              - cell "574M" [ref=f13e6602]
+              - cell "−₹603" [ref=f13e6603]
+              - cell "−₹739" [ref=f13e6604]
+              - cell "₹2,49,834" [ref=f13e6605]
+              - cell "₹49,967" [ref=f13e6606]
+              - cell "₹136 B:₹40.00 · S:₹62.46" [ref=f13e6607]:
+                - generic [ref=f13e6608]: ₹136
+                - generic [ref=f13e6609]: B:₹40.00 · S:₹62.46
+              - cell "0.3" [ref=f13e6610]
+              - cell "1.8" [ref=f13e6611]
+              - cell "160m" [ref=f13e6612]
+              - cell "3:10" [ref=f13e6613]
+              - cell "12:00→14:40" [ref=f13e6614]
+            - row [ref=f13e6615] [cursor=pointer]:
+              - cell "HINDALCO" [ref=f13e6616]
+              - cell "07-13" [ref=f13e6617]
+              - cell "SHORT" [ref=f13e6618]
+              - cell "957.55" [ref=f13e6619]
+              - cell "961.31" [ref=f13e6620]
+              - cell "261M" [ref=f13e6621]
+              - cell "−₹981" [ref=f13e6622]
+              - cell "−₹1117" [ref=f13e6623]
+              - cell "₹2,49,921" [ref=f13e6624]
+              - cell "₹49,984" [ref=f13e6625]
+              - cell "₹136 B:₹40.00 · S:₹62.48" [ref=f13e6626]:
+                - generic [ref=f13e6627]: ₹136
+                - generic [ref=f13e6628]: B:₹40.00 · S:₹62.48
+              - cell "0.3" [ref=f13e6629]
+              - cell "3.5" [ref=f13e6630]
+              - cell "75m" [ref=f13e6631]
+              - cell "SL" [ref=f13e6632]
+              - cell "12:25→13:40" [ref=f13e6633]
+            - row [ref=f13e6634] [cursor=pointer]:
+              - cell "CIPLA" [ref=f13e6635]
+              - cell "07-14" [ref=f13e6636]
+              - cell "LONG" [ref=f13e6637]
+              - cell "1449.60" [ref=f13e6638]
+              - cell "1442.18" [ref=f13e6639]
+              - cell "172M" [ref=f13e6640]
+              - cell "−₹1276" [ref=f13e6641]
+              - cell "−₹1411" [ref=f13e6642]
+              - cell "₹2,49,331" [ref=f13e6643]
+              - cell "₹49,866" [ref=f13e6644]
+              - cell "₹135 B:₹40.00 · S:₹62.01" [ref=f13e6645]:
+                - generic [ref=f13e6646]: ₹135
+                - generic [ref=f13e6647]: B:₹40.00 · S:₹62.01
+              - cell "4.9" [ref=f13e6648]
+              - cell "5.1" [ref=f13e6649]
+              - cell "165m" [ref=f13e6650]
+              - cell "SL" [ref=f13e6651]
+              - cell "11:05→13:50" [ref=f13e6652]
+            - row [ref=f13e6653] [cursor=pointer]:
+              - cell "POWERINDIA" [ref=f13e6654]
+              - cell "07-14" [ref=f13e6655]
+              - cell "SHORT" [ref=f13e6656]
+              - cell "31590.00" [ref=f13e6657]
+              - cell "31807.13" [ref=f13e6658]
+              - cell "7M" [ref=f13e6659]
+              - cell "−₹1520" [ref=f13e6660]
+              - cell "−₹1646" [ref=f13e6661]
+              - cell "₹2,21,130" [ref=f13e6662]
+              - cell "₹44,226" [ref=f13e6663]
+              - cell "₹126 B:₹40.00 · S:₹55.28" [ref=f13e6664]:
+                - generic [ref=f13e6665]: ₹126
+                - generic [ref=f13e6666]: B:₹40.00 · S:₹55.28
+              - cell "30.0" [ref=f13e6667]
+              - cell "85.0" [ref=f13e6668]
+              - cell "30m" [ref=f13e6669]
+              - cell "SL" [ref=f13e6670]
+              - cell "09:55→10:25" [ref=f13e6671]
+        - generic [ref=f13e6672]:
+          - generic [ref=f13e6673]:
+            - generic [ref=f13e6674]: Signals skipped (22)
+            - button "Expand" [ref=f13e6675] [cursor=pointer]
+          - generic [ref=f13e6681]:
+            - generic [ref=f13e6682]: JSWSTEEL 15:35 LONG — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6683]: KEI 15:35 SHORT — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6684]: IEX 15:35 SHORT — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6685]: BAJAJFINSV 15:35 SHORT — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6686]: BHARTIARTL 15:40 LONG — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6687]: PIDILITIND 15:45 SHORT — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6688]: AXISBANK 15:45 SHORT — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6689]: INDIANB 16:05 SHORT — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6690]: ITC 16:10 SHORT — SL distance 0.26% < Min SL 0.3%
+            - generic [ref=f13e6691]: SBICARD 16:45 LONG — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6692]: BRITANNIA 16:45 SHORT — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6693]: COALINDIA 16:55 LONG — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6694]: ADANIGREEN 17:30 LONG — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6695]: SUNPHARMA 17:30 LONG — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6696]: POLYCAB 17:35 LONG — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6697]: PFC 17:40 LONG — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6698]: HDFCLIFE 17:45 SHORT — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6699]: NYKAA 17:45 SHORT — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6700]: JUBLFOOD 17:50 SHORT — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6701]: GODREJCP 17:55 SHORT — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6702]: HDFCAMC 18:00 SHORT — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+            - generic [ref=f13e6703]: JSWENERGY 18:50 LONG — portfolio cap — daily loss/profit cap, max trades/day, max concurrent, or insufficient free margin at entry time
+        - generic [ref=f13e6356]:
+          - generic [ref=f13e6357]: No signal (47)
+          - generic [ref=f13e6358]:
+            - generic [ref=f13e6359] [cursor=pointer]: ALKEM
+            - generic [ref=f13e6704] [cursor=pointer]: NUVAMA
+            - generic [ref=f13e6705] [cursor=pointer]: ITC
+            - generic [ref=f13e6706] [cursor=pointer]: TATAELXSI
+            - generic [ref=f13e6707] [cursor=pointer]: ICICIPRULI
+            - generic [ref=f13e6708] [cursor=pointer]: FEDERALBNK
+            - generic [ref=f13e6709] [cursor=pointer]: HCLTECH
+            - generic [ref=f13e6710] [cursor=pointer]: DMART
+            - generic [ref=f13e6711] [cursor=pointer]: BAJAJ-AUTO
+            - generic [ref=f13e6712] [cursor=pointer]: LTM
+            - generic [ref=f13e6713] [cursor=pointer]: RADICO
+            - generic [ref=f13e6714] [cursor=pointer]: DALBHARAT
+            - generic [ref=f13e6715] [cursor=pointer]: HAL
+            - generic [ref=f13e6716] [cursor=pointer]: KALYANKJIL
+            - generic [ref=f13e6717] [cursor=pointer]: MAXHEALTH
+            - generic [ref=f13e6718] [cursor=pointer]: KPITTECH
+            - generic [ref=f13e6719] [cursor=pointer]: BHARATFORG
+            - generic [ref=f13e6720] [cursor=pointer]: HEROMOTOCO
+            - generic [ref=f13e6721] [cursor=pointer]: ADANIENT
+            - generic [ref=f13e6722] [cursor=pointer]: ULTRACEMCO
+            - generic [ref=f13e6723] [cursor=pointer]: SBIN
+            - generic [ref=f13e6724] [cursor=pointer]: ZYDUSLIFE
+            - generic [ref=f13e6725] [cursor=pointer]: WIPRO
+            - generic [ref=f13e6726] [cursor=pointer]: MPHASIS
+            - generic [ref=f13e6727] [cursor=pointer]: APOLLOHOSP
+            - generic [ref=f13e6728] [cursor=pointer]: PNBHOUSING
+            - generic [ref=f13e6729] [cursor=pointer]: VOLTAS
+            - generic [ref=f13e6730] [cursor=pointer]: APLAPOLLO
+            - generic [ref=f13e6731] [cursor=pointer]: NESTLEIND
+            - generic [ref=f13e6732] [cursor=pointer]: NTPC
+            - generic [ref=f13e6733] [cursor=pointer]: NAM-INDIA
+            - generic [ref=f13e6734] [cursor=pointer]: PREMIERENE
+            - generic [ref=f13e6735] [cursor=pointer]: NAUKRI
+            - generic [ref=f13e6736] [cursor=pointer]: TATACONSUM
+            - generic [ref=f13e6737] [cursor=pointer]: HYUNDAI
+            - generic [ref=f13e6738] [cursor=pointer]: DELHIVERY
+            - generic [ref=f13e6739] [cursor=pointer]: TECHM
+            - generic [ref=f13e6740] [cursor=pointer]: CANBK
+            - generic [ref=f13e6741] [cursor=pointer]: 360ONE
+            - generic [ref=f13e6742] [cursor=pointer]: HAVELLS
+            - generic [ref=f13e6743] [cursor=pointer]: OBEROIRLTY
+            - generic [ref=f13e6744] [cursor=pointer]: BANKINDIA
+            - generic [ref=f13e6745] [cursor=pointer]: TVSMOTOR
+            - generic [ref=f13e6746] [cursor=pointer]: POWERGRID
+            - generic [ref=f13e6747] [cursor=pointer]: ABB
+            - generic [ref=f13e6748] [cursor=pointer]: BAJAJHLDNG
+            - generic [ref=f13e6749] [cursor=pointer]: NBCC
+    - generic [ref=f13e4296]:
+      - generic "Watchlist" [ref=f13e4297] [cursor=pointer]
+      - generic "Object Tree" [ref=f13e4299] [cursor=pointer]
+      - generic "Market Screener" [ref=f13e4304] [cursor=pointer]
+      - generic "Position Flow" [ref=f13e4307] [cursor=pointer]
+      - generic "Intraday Boost" [ref=f13e4311] [cursor=pointer]
+      - generic "Sector Scope" [ref=f13e4314] [cursor=pointer]
+      - generic "Alerts" [ref=f13e4316] [cursor=pointer]
+      - generic "Depth of Market" [ref=f13e4320] [cursor=pointer]
+      - generic "Trade Panel" [ref=f13e4325] [cursor=pointer]

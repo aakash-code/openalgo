@@ -73,25 +73,36 @@ def _tf_server_time_ms() -> int:
         return int(time.time() * 1000)
 
 
+def _safe_float(v) -> float:
+    try:
+        return float(v)
+    except (TypeError, ValueError):
+        return 0.0
+
+
 def _map_items(raw: list[dict]) -> list[dict]:
     """Symbol->symbol, param_0->ltp, param_1->prev_close, param_2->change_pct,
     param_3->score. Sorted by |score| desc (same convention as the strategy
-    and the openalgo-chart TS client)."""
+    and the openalgo-chart TS client's mapRawItems()).
+
+    breakout_beacon uses a different schema per-field (param_2 is a "BULL"/
+    "BEAR" sentiment label, not a numeric change_pct; param_0/param_1 aren't
+    genuine ltp/prev_close either). Each field is converted independently
+    (non-numeric -> 0.0) rather than in one all-or-nothing try/except, so one
+    off-schema field (e.g. "BEAR") no longer drops the whole item — matching
+    the TS client, which never dropped these rows to begin with."""
     items = []
     for it in raw:
         symbol = it.get("Symbol")
         if not symbol:
             continue
-        try:
-            items.append({
-                "symbol": symbol,
-                "ltp": float(it.get("param_0") or 0),
-                "prev_close": float(it.get("param_1") or 0),
-                "change_pct": float(it.get("param_2") or 0),
-                "score": float(it.get("param_3") or 0),
-            })
-        except (TypeError, ValueError) as e:
-            logger.warning(f"TF item parse skipped ({e}): {it}")
+        items.append({
+            "symbol": symbol,
+            "ltp": _safe_float(it.get("param_0")),
+            "prev_close": _safe_float(it.get("param_1")),
+            "change_pct": _safe_float(it.get("param_2")),
+            "score": _safe_float(it.get("param_3")),
+        })
     items.sort(key=lambda x: abs(x["score"]), reverse=True)
     return items
 
@@ -126,3 +137,32 @@ def fetch_market_pulse() -> Optional[dict[str, list[dict]]]:
                 break
         result[list_type] = _map_items(raw or [])
     return result
+
+
+def fetch_sector_scope() -> Optional[dict]:
+    """Fetch TradeFinder's sector rfactor index + per-sector stock breakdown
+    (the two calls openalgo-chart's SectorScope.tsx makes client-side) using
+    the server's own auto-refreshing JWT. Returns None on ANY failure (empty/
+    expired JWT, network error, TF error payload) — mirrors fetch_market_pulse's
+    all-or-nothing contract so the caller can fall back cleanly."""
+    jwt = _get_tf_jwt()
+    if not jwt:
+        logger.warning(f"TF_JWT_TOKEN is empty. Quick fix: echo '<token>' > {TF_JWT_FILE}")
+        return None
+    totp = _tf_totp(_tf_server_time_ms())
+    headers = {"jwttoken": jwt, "accesstoken": totp}
+    try:
+        r_index = requests.get(f"{TF_BASE}/data/order/daily-index", headers=headers, timeout=10)
+        r_sectors = requests.get(f"{TF_BASE}/data/order/all_sector", headers=headers, timeout=10)
+        index_data = r_index.json()
+        sectors_data = r_sectors.json()
+    except Exception as e:
+        logger.warning(f"TradeFinder sector scope request failed: {e}")
+        return None
+    if index_data.get("status") == "ERROR" or sectors_data.get("status") == "ERROR":
+        logger.warning(f"TradeFinder sector scope error (JWT expired? paste a fresh token into {TF_JWT_FILE})")
+        return None
+    return {
+        "index": (index_data.get("payload") or {}).get("data") or [],
+        "sectors": (sectors_data.get("payload") or {}).get("data") or {},
+    }

@@ -1,4 +1,5 @@
 import asyncio as aio
+import itertools
 import json
 import os
 import signal
@@ -139,6 +140,15 @@ class WebSocketProxy:
         # Reuses _stale_recover_seconds as the sustain window before acting, so
         # a brief blip doesn't trigger a rebuild.
         self._majority_stale_since: dict[str, float] = {}
+
+        # Grace window before a disconnected client's subscriptions and broker
+        # adapter are torn down, so a page reload does not cost a full
+        # unsubscribe-all + adapter rebuild. See cleanup_client.
+        self._client_linger_seconds = float(os.getenv("WS_CLIENT_LINGER_SECONDS", "20"))
+        # client_id -> pending teardown task, so stop() can cancel them.
+        self._pending_teardowns: dict[str, aio.Task] = {}
+        # Monotonic client ids — see handle_client for why id(websocket) is unsafe.
+        self._client_seq = itertools.count(1)
 
         # MODE_MAP retained for any external consumers that imported it from
         # this class. New code should call normalize_mode() / normalize_mode_or_none()
@@ -324,6 +334,18 @@ class WebSocketProxy:
         """Stop the WebSocket server and clean up all resources"""
         logger.info("Stopping WebSocket server...")
         self.running = False
+
+        # Cancel any lingering client teardowns first. Each holds a reference to
+        # the broker adapter it may still disconnect; leaving them sleeping would
+        # keep those FDs alive past shutdown, and the adapter is closed below
+        # regardless.
+        if self._pending_teardowns:
+            pending = list(self._pending_teardowns.values())
+            logger.info(f"Cancelling {len(pending)} pending client teardown(s)")
+            for task in pending:
+                task.cancel()
+            await aio.gather(*pending, return_exceptions=True)
+            self._pending_teardowns.clear()
 
         try:
             # Close the WebSocket server first (this releases the port)
@@ -917,7 +939,13 @@ class WebSocketProxy:
         Args:
             websocket: The WebSocket connection
         """
-        client_id = id(websocket)
+        # NOT id(websocket): CPython reuses an address once the object is freed,
+        # and every connection is the same class, so a disconnected client's id
+        # is readily handed to the next one. That collision is fatal now that
+        # cleanup_client defers teardown — the old client's pending teardown
+        # would fire against the new client holding the same key and unsubscribe
+        # a live feed. A counter is never reused.
+        client_id = f"c{next(self._client_seq)}"
         self.clients[client_id] = websocket
         self.subscriptions[client_id] = set()
 
@@ -972,15 +1000,64 @@ class WebSocketProxy:
 
     async def cleanup_client(self, client_id):
         """
-        Clean up client resources when they disconnect
+        Handle a client disconnect, deferring the expensive teardown.
 
-        Args:
-            client_id: Client ID to clean up
+        A browser page reload IS a client disconnect. On a single-user
+        deployment the one chart tab is usually the *last* client, so running
+        the teardown inline unsubscribes every symbol and then disconnects the
+        broker adapter outright — only for the reloaded page to rebuild all of
+        it a second later. A few quick reloads therefore become a subscribe
+        storm at the broker and a genuinely stalled feed (observed 2026-08-03:
+        215 symbols torn down and replayed, ~2 min of frozen prices before
+        the majority-stale detector rebuilt the adapter).
+
+        So: drop the dead socket immediately (nothing should broadcast to it),
+        but delay the subscription/adapter teardown by WS_CLIENT_LINGER_SECONDS.
+        No cancellation bookkeeping is needed — the deferred pass runs the
+        exact same logic as before, and that logic is already conditional:
+        `should_unsubscribe_from_adapter` only fires when no other client holds
+        the symbol, and `is_last_client` only fires when no other client holds
+        the user. A tab that came back has re-registered under a new client_id
+        by then, so both checks correctly decide to do nothing and the reload
+        costs zero broker frames.
+
+        Set WS_CLIENT_LINGER_SECONDS=0 to restore the old inline behaviour.
+        Token revocation does NOT come through here — `_handle_cache_invalidation`
+        disconnects the adapter directly, so a revoked session is still torn
+        down at once rather than lingering.
         """
-        # Remove client from tracking
+        # Always drop the dead socket first: it must never be a broadcast target,
+        # and it must not count as a live client for anyone else's linger check.
         if client_id in self.clients:
             del self.clients[client_id]
 
+        if self._client_linger_seconds <= 0:
+            await self._teardown_client(client_id)
+            return
+
+        async def _deferred():
+            try:
+                await aio.sleep(self._client_linger_seconds)
+                await self._teardown_client(client_id)
+            except aio.CancelledError:
+                # Proxy shutting down — stop() drains these, and the process is
+                # going away with the adapter anyway.
+                raise
+            except Exception as e:
+                logger.exception(f"Deferred cleanup failed for client {client_id}: {e}")
+            finally:
+                self._pending_teardowns.pop(client_id, None)
+
+        # Every task is tracked so shutdown can cancel it — an orphaned sleeping
+        # task would hold the adapter (and its FDs) past process teardown.
+        self._pending_teardowns[client_id] = aio.create_task(_deferred())
+
+    async def _teardown_client(self, client_id):
+        """
+        Release a disconnected client's subscriptions and, if it was the last
+        client for its user, its broker adapter. Unchanged behaviour — only the
+        moment it runs is now deferred by cleanup_client.
+        """
         # Clean up subscriptions
         if client_id in self.subscriptions:
             subscriptions = self.subscriptions[client_id]
@@ -1729,18 +1806,40 @@ class WebSocketProxy:
 
         # Handle single symbol format
         if not symbols and not is_unsubscribe_all and (data.get("symbol") and data.get("exchange")):
-            try:
-                _mode_int, _ = normalize_mode(data.get("mode", 2))
-            except (ValueError, TypeError) as e:
-                await self.send_error(client_id, "INVALID_MODE", str(e))
-                return
-            symbols = [
-                {
-                    "symbol": data.get("symbol"),
-                    "exchange": data.get("exchange"),
-                    "mode": _mode_int,
-                }
-            ]
+            _symbol, _exchange = data.get("symbol"), data.get("exchange")
+            if data.get("mode") is None:
+                # No mode given: unsubscribe EVERY mode this client holds for the
+                # symbol. Defaulting to 2 here silently no-op'd unsubscribes for
+                # symbols subscribed in mode 3 (the index is keyed by
+                # (symbol, exchange, mode)), so the subscription survived, the
+                # client believed it was gone, and a client-side repair —
+                # unsubscribe then subscribe — collapsed into a duplicate
+                # subscribe the broker ignores. Observed 2026-08-04: mode-3
+                # symbols stalled 12-74 minutes while every mode-2 symbol on the
+                # same socket stayed live.
+                held = [
+                    key_mode
+                    for (key_sym, key_exch, key_mode), clients in self.subscription_index.items()
+                    if key_sym == _symbol and key_exch == _exchange and client_id in clients
+                ]
+                if not held:
+                    held = [2]  # nothing registered — preserve the old behaviour
+                symbols = [
+                    {"symbol": _symbol, "exchange": _exchange, "mode": m} for m in sorted(held)
+                ]
+            else:
+                try:
+                    _mode_int, _ = normalize_mode(data.get("mode"))
+                except (ValueError, TypeError) as e:
+                    await self.send_error(client_id, "INVALID_MODE", str(e))
+                    return
+                symbols = [
+                    {
+                        "symbol": _symbol,
+                        "exchange": _exchange,
+                        "mode": _mode_int,
+                    }
+                ]
 
         # If no symbols provided and not unsubscribe_all, return error
         if not symbols and not is_unsubscribe_all:

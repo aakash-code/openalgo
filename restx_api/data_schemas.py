@@ -68,6 +68,31 @@ class BoostSnapshotsSchema(Schema):
     )
 
 
+class TfMarketPulseSchema(Schema):
+    apikey = fields.Str(required=True, validate=validate.Length(min=1, max=256))
+
+
+class TfSectorScopeSchema(Schema):
+    apikey = fields.Str(required=True, validate=validate.Length(min=1, max=256))
+
+
+class NseEventsSchema(Schema):
+    apikey = fields.Str(required=True, validate=validate.Length(min=1, max=256))
+    # Symbols to look up. Empty means "return the whole calendar", which is
+    # fine for a morning prefetch but large; the scanner sends its universe.
+    symbols = fields.List(fields.Str(), required=False, load_default=list)
+    # Days ahead to include. 0 = today only; 2 covers "results tomorrow" too.
+    within_days = fields.Int(required=False, load_default=2, validate=validate.Range(min=0, max=30))
+
+
+class TfJwtKeepAliveSchema(Schema):
+    apikey = fields.Str(required=True, validate=validate.Length(min=1, max=256))
+    # Refresh only if the cached server-side TF JWT has less than this many
+    # seconds left — keeps frequent pings cheap (no browser launch) unless
+    # the token is actually close to expiry.
+    minSeconds = fields.Int(required=False, load_default=1800, validate=validate.Range(min=60, max=3600))
+
+
 class MultiQuotesSchema(Schema):
     apikey = fields.Str(required=True, validate=validate.Length(min=1, max=256))
     symbols = fields.List(

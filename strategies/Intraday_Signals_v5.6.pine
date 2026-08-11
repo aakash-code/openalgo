@@ -1,6 +1,7 @@
 //@version=6
 indicator("Intraday Signals & Risk Calculator [India v5.6]", overlay=true, max_labels_count=500, max_lines_count=500, max_boxes_count=500)
 max_bars_back(time, 500)
+import TradingView/ta/7 as tvta
 
 // ==========================================
 // PART 1: INTRADAY BUY/SELL & AUTO SL
@@ -22,7 +23,7 @@ g3 = "3) Visual — Markers"
 buyColor       = input.color(color.rgb(0, 145, 75), "Buy Color",  group=g3)
 sellColor      = input.color(color.rgb(158, 0, 0),  "Sell Color", group=g3)
 signalTextSize = input.string("Tiny", "Text/Marker Size", options=["Tiny","Small","Normal","Large","Huge"], group=g3)
-yOffsetTicks   = input.int(150, "Vertical Offset (ticks)", minval=0, group=g3)
+yOffsetTicks   = input.int(100, "Vertical Offset (ticks)", minval=0, group=g3)
 
 g4 = "4) Visual — Lines"
 showLines      = input.bool(true, "Show Horizontal Lines", group=g4)
@@ -74,6 +75,122 @@ useVWAPChopFilter = input.bool(false, "Enable VWAP Chop Filter", group=g12, tool
 vwapChopLookback  = input.int(15, "Lookback Period", minval=5, group=g12, tooltip="Number of recent candles to check for VWAP touches.")
 vwapChopMaxTouches= input.int(3, "Max Allowed Touches", minval=1, group=g12, tooltip="Maximum number of times price can touch VWAP within the lookback period.")
 
+g12b = "12b) CPR (Central Pivot Range) Width Filter"
+useCPRFilter = input.bool(false, "Enable CPR Width Filter", group=g12b, tooltip="Zerodha Varsity heuristic: a CPR narrower than its own recent trailing average signals an expected trending day; a wider-than-average CPR signals an expected sideways/range-bound day. Applies symmetrically to Buy and Sell, same as the ADX filter.")
+cprLookbackDays   = input.int(10, "Trailing Average (days)", minval=1, group=g12b, tooltip="Number of prior days used to compute the CPR width's trailing average.")
+cprRatioThreshold = input.float(1.0, "Max Width Ratio (today ÷ avg)", minval=0.05, step=0.05, group=g12b, tooltip="Pass when today's CPR width ÷ trailing average width <= this ratio. 1.0 = narrower than its own average. Lower = stricter (e.g. 0.7 only lets through days meaningfully narrower than usual); raise above 1.0 to be more permissive.")
+
+g12c = "12c) CPR Direction Filter"
+useCPRDirFilter = input.bool(false, "Enable CPR Direction Filter", group=g12c, tooltip="Independent of the width filter above. Buy only when price is above the CPR Top (TC); Sell only when price is below the CPR Bottom (BC). Price sitting inside the CPR band (BC..TC) blocks both directions — no directional edge in the pivot zone itself.")
+
+g13 = "13) EMA Ribbon Trend Filter"
+useRibbonFilter = input.bool(true, "Enable EMA Ribbon Filter", group=g13, tooltip="If enabled, Buy signals are suppressed when price is below the ribbon and Sell signals are suppressed when price is above the ribbon (based on EMA alignment).")
+ribLen1 = input.int(8, "EMA 1 Length", minval=1, group=g13)
+ribLen2 = input.int(21, "EMA 2 Length", minval=1, group=g13)
+ribLen3 = input.int(50, "EMA 3 Length", minval=1, group=g13)
+ribLen4 = input.int(100, "EMA 4 Length", minval=1, group=g13)
+ribbonThreshold = input.int(4, "Min EMA Alignment", minval=1, maxval=4, group=g13, tooltip="Number of EMAs price must be above/below to confirm trend. With 4, price must be above/below ALL 4 EMAs and the ribbon must be fully stacked in order (EMA1>EMA2>EMA3>EMA4 for Buy).")
+showRibbon = input.bool(false, "Show Ribbon on Chart", group=g13)
+
+g14 = "14) Previous Day High/Low Filter"
+usePDHLLFilter = input.bool(false, "Enable PDH/PDL Filter", group=g14, tooltip="If enabled, Buy signals only fire when price is ABOVE Previous Day High, and Sell signals only fire when price is BELOW Previous Day Low.")
+showPDLevels   = input.bool(true,  "Show PDH/PDL Lines", group=g14)
+pdhColor       = input.color(color.new(color.blue, 20),  "PDH Color", inline="pdh", group=g14)
+pdhStyle       = input.string("Dashed", "Style", options=["Solid","Dashed","Dotted"], inline="pdh", group=g14)
+pdlColor       = input.color(color.new(color.orange, 20), "PDL Color", inline="pdl", group=g14)
+pdlStyle       = input.string("Dashed", "Style", options=["Solid","Dashed","Dotted"], inline="pdl", group=g14)
+
+g15 = "15) Opening Range Breakout (ORB)"
+showORB       = input.bool(true,  "Show Opening Range (ORB) Lines", group=g15, tooltip="Marks the High/Low of the first N minutes of the session (the opening range). Lines extend right for the rest of the day.")
+orbMinutes    = input.int(5, "Opening Range Minutes", minval=1, group=g15, tooltip="Length of the opening range from session open. 5 = the first 5-minute candle/range.")
+useORBFilter  = input.bool(false, "Enable ORB Breakout Filter", group=g15, tooltip="When ON: Buy signals only fire when price is ABOVE the ORB High, and Sell signals only fire when price is BELOW the ORB Low. Signals are suppressed until the opening range is complete.")
+orbHighColor  = input.color(color.new(#2962ff, 0), "ORB High Color", inline="orb", group=g15)
+orbLowColor   = input.color(color.new(#ff6d00, 0), "ORB Low Color",  inline="orb", group=g15)
+orbStyleInput = input.string("Solid", "Line Style", options=["Solid","Dashed","Dotted"], group=g15)
+orbWidth      = input.int(1, "Line Width", minval=1, maxval=5, group=g15)
+showORBBox    = input.bool(true,  "Shade Opening Range Box", inline="orbbox", group=g15)
+orbBoxColor   = input.color(color.new(color.gray, 0), "Box Color", inline="orbbox", group=g15)
+
+g16 = "16) Relative Volume at Time Filter"
+useRVOLFilter   = input.bool(false, "Enable Relative Volume Filter", group=g16, tooltip="If enabled, signals only fire when the relative volume (vs. the same time-of-day over previous sessions) is above the threshold. Filters out low-participation breakouts.")
+rvolAnchorInput = input.timeframe("1D", "Anchor Timeframe", group=g16, tooltip="When Chart Timeframe >= Anchor Timeframe, the last Length bars are used.")
+rvolLengthInput = input.int(10, "Length", minval=1, group=g16)
+rvolModeInput   = input.string("Cumulative", "Calculation Mode", options=["Cumulative","Regular"], group=g16)
+rvolAdjustInput = input.bool(true, "Adjust Unconfirmed", group=g16, tooltip="If checked, volume on bars that have not yet closed is extrapolated to the end of the period.")
+rvolThreshold   = input.float(1.0, "Min Relative Volume", minval=0.1, step=0.1, group=g16, tooltip="Relative volume ratio must be above this value (1.0 = average for this time of day).")
+
+// ==========================================
+// MAGNETIC ZONES — inputs (ported from "Magnetic Zones [Open]")
+// ==========================================
+g17 = "17) Magnetic Zones — Filter"
+useMZFilter = input.bool(false, "Enable Magnetic Zones Filter (Daily)", group=g17, tooltip="If enabled, Buy signals only fire when price is ABOVE the green Daily R2 zone, and Sell signals only fire when price is BELOW the red Daily S2 zone.")
+
+// Daily zones
+g18 = "18) Magnetic Zones — Daily"
+mzShowD = input.bool(true, "Enable Daily", group=g18)
+mzPbD   = input.int(1, "Periods back", minval=1, maxval=50, group=g18)
+mzStD   = input.string("Solid", "Line style", options=["Solid","Dashed","Dotted"], group=g18)
+mzSR2_D = input.bool(true, "R2", inline="dlv", group=g18)
+mzSR1_D = input.bool(true, "R1", inline="dlv", group=g18)
+mzSS1_D = input.bool(true, "S1", inline="dlv", group=g18)
+mzSS2_D = input.bool(true, "S2", inline="dlv", group=g18)
+mzSMidD = input.bool(true, "Mid zone", inline="dlv2", group=g18)
+mzSLabD = input.bool(true, "Labels", inline="dlv2", group=g18)
+mzCR2_D = input.color(color.green,               "R2",  inline="dc",  group=g18)
+mzCR1_D = input.color(color.gray,                "R1",  inline="dc",  group=g18)
+mzCMidD = input.color(color.new(color.gray, 50), "Mid", inline="dc",  group=g18)
+mzCS1_D = input.color(color.gray,                "S1",  inline="dc2", group=g18)
+mzCS2_D = input.color(color.red,                 "S2",  inline="dc2", group=g18)
+
+// Weekly
+g19 = "19) Magnetic Zones — Weekly"
+mzShowW = input.bool(true, "Enable Weekly", group=g19)
+mzPbW   = input.int(1, "Periods back", minval=1, maxval=50, group=g19)
+mzStW   = input.string("Dashed", "Line style", options=["Solid","Dashed","Dotted"], group=g19)
+mzSR2_W = input.bool(true, "R2", inline="wlv", group=g19)
+mzSR1_W = input.bool(true, "R1", inline="wlv", group=g19)
+mzSS1_W = input.bool(true, "S1", inline="wlv", group=g19)
+mzSS2_W = input.bool(true, "S2", inline="wlv", group=g19)
+mzSMidW = input.bool(true, "Mid zone", inline="wlv2", group=g19)
+mzSLabW = input.bool(true, "Labels", inline="wlv2", group=g19)
+mzCR2_W = input.color(color.lime,                  "R2",  inline="wc",  group=g19)
+mzCR1_W = input.color(color.silver,                "R1",  inline="wc",  group=g19)
+mzCMidW = input.color(color.new(color.silver, 50), "Mid", inline="wc",  group=g19)
+mzCS1_W = input.color(color.silver,                "S1",  inline="wc2", group=g19)
+mzCS2_W = input.color(color.maroon,                "S2",  inline="wc2", group=g19)
+
+// Monthly
+g20 = "20) Magnetic Zones — Monthly"
+mzShowM = input.bool(true, "Enable Monthly", group=g20)
+mzPbM   = input.int(1, "Periods back", minval=1, maxval=50, group=g20)
+mzStM   = input.string("Dotted", "Line style", options=["Solid","Dashed","Dotted"], group=g20)
+mzSR2_M = input.bool(true, "R2", inline="mlv", group=g20)
+mzSR1_M = input.bool(true, "R1", inline="mlv", group=g20)
+mzSS1_M = input.bool(true, "S1", inline="mlv", group=g20)
+mzSS2_M = input.bool(true, "S2", inline="mlv", group=g20)
+mzSMidM = input.bool(true, "Mid zone", inline="mlv2", group=g20)
+mzSLabM = input.bool(true, "Labels", inline="mlv2", group=g20)
+mzCR2_M = input.color(color.teal,                "R2",  inline="mc",  group=g20)
+mzCR1_M = input.color(color.new(color.gray, 20), "R1",  inline="mc",  group=g20)
+mzCMidM = input.color(color.new(color.gray, 60), "Mid", inline="mc",  group=g20)
+mzCS1_M = input.color(color.new(color.gray, 20), "S1",  inline="mc2", group=g20)
+mzCS2_M = input.color(color.new(color.red, 20),  "S2",  inline="mc2", group=g20)
+
+// Global zone parameters
+g21 = "21) Magnetic Zones — Global"
+mzFibInner = input.float(0.236, "Inner level (R1/S1) Fib", minval=0.0, maxval=1.0, step=0.001, group=g21)
+mzFibOuter = input.float(0.786, "Outer level (R2/S2) Fib", minval=0.0, maxval=2.0, step=0.001, group=g21)
+mzWidthPct = input.float(13.0, "Zone width (% of prev range)", minval=0.1, maxval=100, group=g21) / 100.0
+mzTrans    = input.int(80, "Zone transparency", minval=0, maxval=100, group=g21)
+mzLabSz    = input.string("Small", "Label size", options=["Tiny","Small","Normal","Large"], group=g21)
+mzLabelPos = input.string("Right", "Label position", options=["Right","Left"], group=g21)
+
+g22 = "22) Liquidity Floor Filter"
+useLiquidityFilter = input.bool(false, "Enable Liquidity Filter", group=g22, tooltip="Guards against 'spike-then-fade' liquidity traps: a single large print makes one candle look like a real breakout, but the surrounding bars are thin, so there's no genuine participation behind the move and price often snaps back. Measured in TURNOVER (price × volume), not raw share count — raw volume is biased against high-priced stocks. Uses the MEDIAN turnover over a trailing lookback (not the mean) specifically because a median is not skewed upward by the very spike bar this filter is trying to see past.")
+liquidityLookback = input.int(20, "Lookback (bars)", minval=2, group=g22, tooltip="Bars used to compute the trailing median turnover.")
+minAvgTurnover    = input.float(300000, "Min Median Turnover (Rs.)", minval=0, step=50000, group=g22, tooltip="Trailing median turnover (Rs.) must be >= this to allow a signal.")
+maxSpikeMultiple  = input.float(10, "Max Spike Multiple", minval=1, step=1, group=g22, tooltip="Also rejects the signal bar itself if ITS turnover is an extreme outlier vs the trailing median (e.g. printing 10x its own baseline then collapsing) — a real breakout typically runs a few x median, not double digits; a print this far outside the norm is more likely a single large order than the start of sustained participation.")
+
 sizeVal = switch signalTextSize
     "Tiny"   => size.tiny
     "Small"  => size.small
@@ -115,9 +232,135 @@ mtfSellCond = not useMTFFilter or htfBearish
 avgVol = ta.sma(volume, volLookback)
 volSpikeCond = not useVolFilter or (volume > avgVol * volMultiplier)
 
+// Relative Volume at Time Calculation
+[rvolCurrent, rvolPast, _] = tvta.relativeVolume(rvolLengthInput, rvolAnchorInput, rvolModeInput == "Cumulative", rvolAdjustInput)
+rvolRatio = rvolPast != 0 ? rvolCurrent / rvolPast : na
+rvolCond  = not useRVOLFilter or (not na(rvolRatio) and rvolRatio > rvolThreshold)
+
 // ADX Sideways Filter Calculation
 [diplus, diminus, adxValue] = ta.dmi(adxLen, adxLen)
 adxCond = not useADXFilter or (adxValue >= adxThreshold)
+
+// ==========================================
+// CPR (Central Pivot Range) Width + Direction Filter Calculation
+// Standard CPR: Pivot=(H+L+C)/3, BC=(H+L)/2, TC=2*Pivot-BC, using the PRIOR
+// completed day's H/L/C. A persistent per-day array tracks CPR width % so a
+// trailing average can be computed without look-ahead (today's width is
+// pushed only once, on the first bar of the new day, and the average used to
+// gate today's signals excludes today's own value).
+// ==========================================
+[cprPrevH, cprPrevL, cprPrevC] = request.security(syminfo.tickerid, "D", [high[1], low[1], close[1]], lookahead=barmerge.lookahead_on)
+
+var float[] cprWidthHistory        = array.new_float()
+var float   todayCPRTop            = na
+var float   todayCPRBottom         = na
+var float   cprTrailingAvgWidthPct = na
+
+cprNewDay = ta.change(time("D")) != 0
+
+if cprNewDay and not na(cprPrevH) and not na(cprPrevL) and not na(cprPrevC)
+    float cprPivot = (cprPrevH + cprPrevL + cprPrevC) / 3.0
+    float cprBC    = (cprPrevH + cprPrevL) / 2.0
+    float cprTC    = (cprPivot - cprBC) + cprPivot
+    float cprTopNew    = math.max(cprTC, cprBC)
+    float cprBottomNew = math.min(cprTC, cprBC)
+    float cprWidthPct  = cprPivot != 0 ? ((cprTopNew - cprBottomNew) / cprPivot) * 100 : na
+
+    // Trailing average BEFORE today's value is added — avoids gating today off itself.
+    if array.size(cprWidthHistory) > 0
+        cprTrailingAvgWidthPct := array.avg(cprWidthHistory)
+    else
+        cprTrailingAvgWidthPct := na
+
+    todayCPRTop    := cprTopNew
+    todayCPRBottom := cprBottomNew
+
+    if not na(cprWidthPct)
+        array.push(cprWidthHistory, cprWidthPct)
+        if array.size(cprWidthHistory) > cprLookbackDays
+            array.shift(cprWidthHistory)
+
+cprTodayWidthPct = (not na(todayCPRTop) and not na(todayCPRBottom) and not na(cprPrevH)) ? ((todayCPRTop - todayCPRBottom) / ((todayCPRTop + todayCPRBottom) / 2.0)) * 100 : na
+cprWidthRatio    = (not na(cprTodayWidthPct) and not na(cprTrailingAvgWidthPct) and cprTrailingAvgWidthPct > 0) ? cprTodayWidthPct / cprTrailingAvgWidthPct : na
+cprWidthCond     = not useCPRFilter or (not na(cprWidthRatio) and cprWidthRatio <= cprRatioThreshold)
+
+cprDirBuyCond  = not useCPRDirFilter or (not na(todayCPRTop)    and close > todayCPRTop)
+cprDirSellCond = not useCPRDirFilter or (not na(todayCPRBottom) and close < todayCPRBottom)
+
+// ==========================================
+// Liquidity Floor Filter Calculation
+// Trailing MEDIAN turnover (price × volume, not raw share count — biased
+// against high-priced stocks) over `liquidityLookback` bars, computed from
+// bars BEFORE the current one (pushed to the window only after the gate is
+// evaluated) so a signal never gates off its own turnover. Also rejects the
+// signal bar if ITS turnover is an extreme spike vs that median.
+// ==========================================
+var float[] liqTurnoverWindow = array.new_float()
+
+float liqBarTurnover = close * nz(volume, 0.0)
+float liqMedianTurnover = na
+if array.size(liqTurnoverWindow) >= liquidityLookback
+    float[] liqSorted = array.copy(liqTurnoverWindow)
+    array.sort(liqSorted, order.ascending)
+    int liqN = array.size(liqSorted)
+    liqMedianTurnover := liqN % 2 == 0 ? (array.get(liqSorted, liqN / 2 - 1) + array.get(liqSorted, liqN / 2)) / 2.0 : array.get(liqSorted, int(math.floor(liqN / 2.0)))
+
+liquidityFloorCond  = not useLiquidityFilter or (not na(liqMedianTurnover) and liqMedianTurnover >= minAvgTurnover)
+liquiditySpikeCond  = not useLiquidityFilter or (na(liqMedianTurnover) or liqMedianTurnover <= 0 or liqBarTurnover <= liqMedianTurnover * maxSpikeMultiple)
+liquidityCond       = liquidityFloorCond and liquiditySpikeCond
+
+array.push(liqTurnoverWindow, liqBarTurnover)
+if array.size(liqTurnoverWindow) > liquidityLookback
+    array.shift(liqTurnoverWindow)
+
+// EMA Ribbon Calculation
+ribEma1 = ta.ema(close, ribLen1)
+ribEma2 = ta.ema(close, ribLen2)
+ribEma3 = ta.ema(close, ribLen3)
+ribEma4 = ta.ema(close, ribLen4)
+
+// Count how many EMAs are below/above price
+aboveRibbonCount = (close > ribEma1 ? 1 : 0) + (close > ribEma2 ? 1 : 0) + (close > ribEma3 ? 1 : 0) + (close > ribEma4 ? 1 : 0)
+belowRibbonCount = (close < ribEma1 ? 1 : 0) + (close < ribEma2 ? 1 : 0) + (close < ribEma3 ? 1 : 0) + (close < ribEma4 ? 1 : 0)
+
+// Full EMA stacking alignment (fast → slow ordering)
+ribbonStackedBull = ribEma1 > ribEma2 and ribEma2 > ribEma3 and ribEma3 > ribEma4
+ribbonStackedBear = ribEma1 < ribEma2 and ribEma2 < ribEma3 and ribEma3 < ribEma4
+
+// Trend conditions — require all 4 EMAs aligned (price beyond every EMA AND ribbon stacked in order)
+ribbonBullish = aboveRibbonCount >= ribbonThreshold and ribbonStackedBull
+ribbonBearish = belowRibbonCount >= ribbonThreshold and ribbonStackedBear
+
+ribbonBuyCond  = not useRibbonFilter or ribbonBullish
+ribbonSellCond = not useRibbonFilter or ribbonBearish
+
+// Previous Day Levels Calculation
+pdHigh = request.security(syminfo.tickerid, "D", high[1], lookahead=barmerge.lookahead_on)
+pdLow  = request.security(syminfo.tickerid, "D", low[1],  lookahead=barmerge.lookahead_on)
+
+pdhBuyCond  = not usePDHLLFilter or close > pdHigh
+pdlSellCond = not usePDHLLFilter or close < pdLow
+
+// Magnetic Zones — Daily green R2 / red S2 levels used for signal gating
+[mzDH, mzDL] = request.security(syminfo.tickerid, "D", [high[mzPbD], low[mzPbD]], lookahead=barmerge.lookahead_on)
+mzDRange  = mzDH - mzDL
+mzDCenter = (mzDH + mzDL) / 2.0
+mzR2_D = mzDCenter + mzFibOuter * mzDRange   // green upper zone (resistance)
+mzS2_D = mzDCenter - mzFibOuter * mzDRange   // red lower zone (support)
+mzBuyCond  = not useMZFilter or (not na(mzR2_D) and close > mzR2_D)
+mzSellCond = not useMZFilter or (not na(mzS2_D) and close < mzS2_D)
+
+pdhStyleSel = switch pdhStyle
+    "Solid"  => line.style_solid
+    "Dashed" => line.style_dashed
+    "Dotted" => line.style_dotted
+    => line.style_dashed
+
+pdlStyleSel = switch pdlStyle
+    "Solid"  => line.style_solid
+    "Dashed" => line.style_dashed
+    "Dotted" => line.style_dotted
+    => line.style_dashed
 
 var label[] sessionLabels = array.new_label()
 var line[]  lines   = array.new_line()
@@ -181,6 +424,62 @@ if newSession
     lastSigStart := na
     lockedSLPct  := na
 
+// ==========================================
+// Opening Range Breakout (ORB) — first N minutes of the session
+// ==========================================
+orbStyleSel = switch orbStyleInput
+    "Solid"  => line.style_solid
+    "Dashed" => line.style_dashed
+    "Dotted" => line.style_dotted
+    => line.style_solid
+
+var float orbHigh      = na
+var float orbLow       = na
+var int   orbStartTime = na
+var int   orbStartBar  = na
+var int   orbEndBar    = na
+var bool  orbLocked    = false
+var line  orbHiLine    = na
+var line  orbLoLine    = na
+var box   orbRangeBox  = na
+
+if newSession
+    line.delete(orbHiLine)
+    line.delete(orbLoLine)
+    box.delete(orbRangeBox)
+    orbHiLine    := na
+    orbLoLine    := na
+    orbRangeBox  := na
+    orbHigh      := na
+    orbLow       := na
+    orbLocked    := false
+    orbStartTime := time
+    orbStartBar  := bar_index
+    orbEndBar    := bar_index
+
+inOrbWindow = inSess and not na(orbStartTime) and time < orbStartTime + orbMinutes * 60000
+if inOrbWindow
+    orbHigh   := na(orbHigh) ? high : math.max(orbHigh, high)
+    orbLow    := na(orbLow)  ? low  : math.min(orbLow,  low)
+    orbEndBar := bar_index
+else if inSess and not orbLocked and not na(orbHigh)
+    orbLocked := true
+
+// Draw / extend ORB High & Low lines (and shaded range box) once the range is locked
+if showORB and orbLocked and not na(orbHigh)
+    if na(orbHiLine)
+        orbHiLine := line.new(orbStartBar, orbHigh, bar_index, orbHigh, xloc.bar_index, extend.none, orbHighColor, orbStyleSel, orbWidth)
+        orbLoLine := line.new(orbStartBar, orbLow,  bar_index, orbLow,  xloc.bar_index, extend.none, orbLowColor,  orbStyleSel, orbWidth)
+        if showORBBox
+            orbRangeBox := box.new(orbStartBar, orbHigh, orbEndBar, orbLow, xloc=xloc.bar_index, bgcolor=color.new(orbBoxColor, 88), border_color=color.new(orbBoxColor, 100))
+    else
+        line.set_x2(orbHiLine, bar_index)
+        line.set_x2(orbLoLine, bar_index)
+
+// Filter conditions: Buy only ABOVE the ORB High, Sell only BELOW the ORB Low (active only once the range is locked)
+orbBuyCond  = not useORBFilter or (orbLocked and not na(orbHigh) and close > orbHigh)
+orbSellCond = not useORBFilter or (orbLocked and not na(orbLow)  and close < orbLow)
+
 isGreen    = close > open
 isRed      = close < open
 prevGreen  = prev1InSess and close[1] > open[1]
@@ -234,7 +533,7 @@ if szBrk > 0
                 array.set(actives, i, false)
                 brokeThisBar := true
                 if enhancedMode and not forcedOppositeDone and showLines
-                    if k == 1 and vwapSellCond and mtfSellCond and volSpikeCond and adxCond and vwapChopCond
+                    if k == 1 and vwapSellCond and mtfSellCond and volSpikeCond and adxCond and vwapChopCond and cprWidthCond and cprDirSellCond and liquidityCond and ribbonSellCond and pdlSellCond and orbSellCond and rvolCond and mzSellCond
                         y  = high + syminfo.mintick * yOffsetTicks
                         array.push(sessionLabels, label.new(bar_index, y, "", style=label.style_triangledown, textcolor=color.white, color=sellColor, size=sizeVal))
                         lvlNew = high
@@ -258,7 +557,7 @@ if szBrk > 0
                         blockSellThisBar := true
                         slModeOnly := true
                         forcedOppositeDone := true
-                    else if k == -1 and vwapBuyCond and mtfBuyCond and volSpikeCond and adxCond and vwapChopCond
+                    else if k == -1 and vwapBuyCond and mtfBuyCond and volSpikeCond and adxCond and vwapChopCond and cprWidthCond and cprDirBuyCond and liquidityCond and ribbonBuyCond and pdhBuyCond and orbBuyCond and rvolCond and mzBuyCond
                         y  = low - syminfo.mintick * yOffsetTicks
                         array.push(sessionLabels, label.new(bar_index, y, "", style=label.style_triangleup, textcolor=color.white, color=buyColor, size=sizeVal))
                         lvlNew = low
@@ -301,8 +600,8 @@ if szAct > 0
 insideBuyRedZone  = enhancedMode and not na(activeBuyLvl)  and not na(activeBuyEntry)  and close >= math.min(activeBuyLvl,  activeBuyEntry)  and close <= math.max(activeBuyLvl,  activeBuyEntry)
 insideSellRedZone = enhancedMode and not na(activeSellLvl) and not na(activeSellEntry) and close >= math.min(activeSellEntry, activeSellLvl) and close <= math.max(activeSellEntry, activeSellLvl)
 
-buyFire  = (enhancedMode ? (buyCond  and not insideSellRedZone and not slModeOnly) : buyCond) and vwapBuyCond and mtfBuyCond and volSpikeCond and adxCond and vwapChopCond
-sellFire = (enhancedMode ? (sellCond and not insideBuyRedZone  and not slModeOnly) : sellCond) and vwapSellCond and mtfSellCond and volSpikeCond and adxCond and vwapChopCond
+buyFire  = (enhancedMode ? (buyCond  and not insideSellRedZone and not slModeOnly) : buyCond) and vwapBuyCond and mtfBuyCond and volSpikeCond and adxCond and vwapChopCond and cprWidthCond and cprDirBuyCond and liquidityCond and ribbonBuyCond and pdhBuyCond and orbBuyCond and rvolCond and mzBuyCond
+sellFire = (enhancedMode ? (sellCond and not insideBuyRedZone  and not slModeOnly) : sellCond) and vwapSellCond and mtfSellCond and volSpikeCond and adxCond and vwapChopCond and cprWidthCond and cprDirSellCond and liquidityCond and ribbonSellCond and pdlSellCond and orbSellCond and rvolCond and mzSellCond
 
 if buyFire and not blockBuyThisBar
     y = low - syminfo.mintick * yOffsetTicks
@@ -386,10 +685,102 @@ fill(pC_SellTop, pC_SellBot, color = ((not enhancedMode) and enableGradient and 
 
 plot(showVWAP ? vwapVal : na, "VWAP Line", color=vwapColor, linewidth=1)
 
+// EMA Ribbon Plots
+plot(showRibbon ? ribEma1 : na, color=color.new(color.blue, 50),   title="Ribbon EMA 1", linewidth=1)
+plot(showRibbon ? ribEma2 : na, color=color.new(color.green, 50),  title="Ribbon EMA 2", linewidth=1)
+plot(showRibbon ? ribEma3 : na, color=color.new(color.orange, 50), title="Ribbon EMA 3", linewidth=2)
+plot(showRibbon ? ribEma4 : na, color=color.new(color.red, 50),    title="Ribbon EMA 4", linewidth=2)
+
+// CPR Top/Bottom Plots (only meaningful once either CPR filter is enabled)
+plot((useCPRFilter or useCPRDirFilter) ? todayCPRTop    : na, "CPR Top (TC)",    color=color.new(color.teal, 30),   style=plot.style_linebr, linewidth=1)
+plot((useCPRFilter or useCPRDirFilter) ? todayCPRBottom : na, "CPR Bottom (BC)", color=color.new(color.maroon, 30), style=plot.style_linebr, linewidth=1)
+
+// Previous Day Level Plots
+plot(showPDLevels ? pdHigh : na, "PDH", color=pdhColor, style=plot.style_linebr, linewidth=1)
+plot(showPDLevels ? pdLow  : na, "PDL", color=pdlColor, style=plot.style_linebr, linewidth=1)
+
 barcolor(paintBreakCandle and brokeThisBar and not (inSess and sessBar == 0) ? (close >= open ? breakBullColor : breakBearColor) : na)
 
-alertcondition(buyFire,  "Buy Signal",  "Buy Signal: Confirmed by VWAP, MTF, Vol, ADX & Chop Filter")
-alertcondition(sellFire, "Sell Signal", "Sell Signal: Confirmed by VWAP, MTF, Vol, ADX & Chop Filter")
+alertcondition(buyFire,  "Buy Signal",  "Buy Signal: Confirmed by VWAP, MTF, Vol, ADX, Chop, CPR, Liquidity, Ribbon & PD Filter")
+alertcondition(sellFire, "Sell Signal", "Sell Signal: Confirmed by VWAP, MTF, Vol, ADX, Chop, CPR, Liquidity, Ribbon & PD Filter")
+
+orbBreakUp   = orbLocked and not na(orbHigh) and ta.crossover(close, orbHigh)
+orbBreakDown = orbLocked and not na(orbLow)  and ta.crossunder(close, orbLow)
+alertcondition(orbBreakUp,   "ORB Breakout Up",   "Price broke ABOVE the opening range high")
+alertcondition(orbBreakDown, "ORB Breakout Down", "Price broke BELOW the opening range low")
+
+// ==========================================
+// MAGNETIC ZONES — drawing (ported from "Magnetic Zones [Open]")
+// Symmetric Fib zones around a prior D/W/M candle midpoint, drawn for the
+// current period only. Daily R2 (green) / S2 (red) also gate signals above.
+// ==========================================
+mzStyleOf(s) => s == "Dashed" ? line.style_dashed : s == "Dotted" ? line.style_dotted : line.style_solid
+mzSizeOf(s)  => s == "Tiny" ? size.tiny : s == "Normal" ? size.normal : s == "Large" ? size.large : size.small
+mzPrevHL(tf, n) => request.security(syminfo.tickerid, tf, [high[n], low[n]], lookahead=barmerge.lookahead_on)
+
+// Daily H/L reuse mzDH/mzDL computed above; fetch Weekly/Monthly here
+[mzWH, mzWL] = mzPrevHL("W", mzPbW)
+[mzMH, mzML] = mzPrevHL("M", mzPbM)
+
+// current-period boundaries (start → close) keep each zone inside its period
+mzDStart = time("D"), mzDEnd = time_close("D")
+mzWStart = time("W"), mzWEnd = time_close("W")
+mzMStart = time("M"), mzMEnd = time_close("M")
+
+var line[]  mzL = array.new<line>()
+var box[]   mzB = array.new<box>()
+var label[] mzT = array.new<label>()
+
+mzClearAll() =>
+    for x in mzL
+        line.delete(x)
+    for x in mzB
+        box.delete(x)
+    for x in mzT
+        label.delete(x)
+    array.clear(mzL)
+    array.clear(mzB)
+    array.clear(mzT)
+
+mzDrawOne(lv, col, ls, txt, half, leftT, rightT, labT, showLab) =>
+    ln = line.new(leftT, lv, rightT, lv, xloc=xloc.bar_time, color=col, style=ls, width=1)
+    array.push(mzL, ln)
+    bx = box.new(leftT, lv + half, rightT, lv - half, xloc=xloc.bar_time, border_color=na, bgcolor=color.new(col, mzTrans))
+    array.push(mzB, bx)
+    if showLab
+        lstyle = mzLabelPos == "Left" ? label.style_label_right : label.style_label_left
+        lx     = mzLabelPos == "Left" ? leftT : labT
+        lb = label.new(lx, lv, str.tostring(lv, format.mintick) + " (" + txt + ")", xloc=xloc.bar_time, style=lstyle, color=color.new(col, 30), textcolor=color.white, size=mzSizeOf(mzLabSz))
+        array.push(mzT, lb)
+
+mzDrawTF(en, H, Lo, styStr, tag, leftT, rightT, labT, sR2, sR1, sS1, sS2, sMid, sLab, cR2, cR1, cMid, cS1, cS2) =>
+    if en and not na(H) and not na(Lo)
+        rng = H - Lo
+        if rng > 0
+            half   = rng * mzWidthPct / 2.0
+            ls     = mzStyleOf(styStr)
+            center = (H + Lo) / 2.0
+            r2 = center + mzFibOuter * rng
+            r1 = center + mzFibInner * rng
+            s1 = center - mzFibInner * rng
+            s2 = center - mzFibOuter * rng
+            if sR2
+                mzDrawOne(r2, cR2, ls, "R2" + tag, half, leftT, rightT, labT, sLab)
+            if sR1
+                mzDrawOne(r1, cR1, ls, "R1" + tag, half, leftT, rightT, labT, sLab)
+            if sS1
+                mzDrawOne(s1, cS1, ls, "S1" + tag, half, leftT, rightT, labT, sLab)
+            if sS2
+                mzDrawOne(s2, cS2, ls, "S2" + tag, half, leftT, rightT, labT, sLab)
+            if sMid
+                mb = box.new(leftT, r1 + half, rightT, s1 - half, xloc=xloc.bar_time, border_color=na, bgcolor=color.new(cMid, math.min(99, mzTrans + 12)))
+                array.push(mzB, mb)
+
+if barstate.islast
+    mzClearAll()
+    mzDrawTF(mzShowD, mzDH, mzDL, mzStD, " D", mzDStart, mzDEnd, time, mzSR2_D, mzSR1_D, mzSS1_D, mzSS2_D, mzSMidD, mzSLabD, mzCR2_D, mzCR1_D, mzCMidD, mzCS1_D, mzCS2_D)
+    mzDrawTF(mzShowW, mzWH, mzWL, mzStW, " W", mzWStart, mzWEnd, time, mzSR2_W, mzSR1_W, mzSS1_W, mzSS2_W, mzSMidW, mzSLabW, mzCR2_W, mzCR1_W, mzCMidW, mzCS1_W, mzCS2_W)
+    mzDrawTF(mzShowM, mzMH, mzML, mzStM, " M", mzMStart, mzMEnd, time, mzSR2_M, mzSR1_M, mzSS1_M, mzSS2_M, mzSMidM, mzSLabM, mzCR2_M, mzCR1_M, mzCMidM, mzCS1_M, mzCS2_M)
 
 // ==========================================
 // PART 2: RISK CALCULATOR [India v5.6]
@@ -558,7 +949,7 @@ bool isT2Valid = not isT2Active or (isLong ? target2 > target : target2 < target
 bool isT3Valid = not isT3Active or (isLong ? target3 > (isT2Active ? target2 : target) : target3 < (isT2Active ? target2 : target))
 bool isT4Valid = not isT4Active or (isLong ? target4 > (isT3Active ? target3 : (isT2Active ? target2 : target)) : target4 < (isT3Active ? target3 : (isT2Active ? target2 : target)))
 bool isT5Valid = not isT5Active or (isLong ? target5 > (isT4Active ? target4 : (isT3Active ? target3 : target)) : target5 < (isT4Active ? target4 : (isT3Active ? target3 : target)))
-bool isT6Valid = not isT6Active or (isLong ? target6 > (isT5Active ? target5 : (isT4Active ? target4 : target)) : target6 < (isT5Active ? target5 : (isT4Active ? target4 : target)))
+bool isT6Valid = not isT6Active or (isLong ? target6 > (isT5Active ? target5 : (isT4Active ? target4 : (isT3Active ? target3 : (isT2Active ? target2 : target)))) : target6 < (isT5Active ? target5 : (isT4Active ? target4 : (isT3Active ? target3 : (isT2Active ? target2 : target)))))
 
 // ============ CALCULATION LOGIC ============
 float riskAmount   = balance * (maxLossPct / 100)
@@ -809,6 +1200,7 @@ int drawEndTime   = time + (barInterval * extendBars)
 // ==================== DRAWING ====================
 var line targetLine    = na
 var line target2Line   = na
+var line line3Line     = na // Fixed potential naming conflict or typo in user script if any
 var line target3Line   = na
 var line target4Line   = na
 var line target5Line   = na
@@ -833,156 +1225,158 @@ var box profit5Box = na
 var box profit6Box = na
 var box lossBox    = na
 
-line.delete(targetLine),   line.delete(target2Line), line.delete(target3Line)
-line.delete(target4Line),  line.delete(target5Line), line.delete(target6Line)
-line.delete(entryLine),    line.delete(stopLine),    line.delete(breakEvenLine)
-label.delete(targetLabel), label.delete(target2Label), label.delete(target3Label)
-label.delete(target4Label),label.delete(target5Label), label.delete(target6Label)
-label.delete(entryLabel),  label.delete(stopLabel),    label.delete(currentPriceLabel)
-box.delete(profitBox), box.delete(profit2Box), box.delete(profit3Box)
-box.delete(profit4Box),box.delete(profit5Box), box.delete(profit6Box)
-box.delete(lossBox)
+// 🚀 OPTIMIZATION: Graphical management inside barstate.islast
+if barstate.islast
+    line.delete(targetLine),   line.delete(target2Line), line.delete(target3Line)
+    line.delete(target4Line),  line.delete(target5Line), line.delete(target6Line)
+    line.delete(entryLine),    line.delete(stopLine),    line.delete(breakEvenLine)
+    label.delete(targetLabel), label.delete(target2Label), label.delete(target3Label)
+    label.delete(target4Label),label.delete(target5Label), label.delete(target6Label)
+    label.delete(entryLabel),  label.delete(stopLabel),    label.delete(currentPriceLabel)
+    box.delete(profitBox), box.delete(profit2Box), box.delete(profit3Box)
+    box.delete(profit4Box),box.delete(profit5Box), box.delete(profit6Box)
+    box.delete(lossBox)
 
-lblSize = rc_getTextSize(rc_textSize)
+    lblSize = rc_getTextSize(rc_textSize)
 
-string stopText = "Stop: " + str.tostring(stopLoss, format.mintick) + " (-" + str.tostring(stopPct, "#.##") + "%)"
-if showPoints
-    stopText += " [" + str.tostring(stopPoints, "#.##") + " pts]"
-if showPL
-    stopText += " Loss: " + rc_formatCurrency(potentialLoss)
-if showROI
-    stopText += " ROI: -" + str.tostring(lossROI, "#.##") + "%"
-
-string entryText = "Entry: " + str.tostring(entry, format.mintick)
-if showValue
-    entryText += " Value: " + rc_formatCurrency(actualPositionValue)
-if showMargin
-    entryText += " Margin: " + rc_formatCurrency(initialMargin)
-if showRR
-    entryText += " RR: " + str.tostring(rrRatio, "#.##")
-
-string targetText = "T1: " + str.tostring(target, format.mintick) + " (+" + str.tostring(targetPct, "#.##") + "%)"
-if showPoints
-    targetText += " [" + str.tostring(targetPoints, "#.##") + " pts]"
-if showPL
-    targetText += " Profit: " + rc_formatCurrency(potentialProfit)
-if showROI
-    targetText += " ROI: +" + str.tostring(profitROI, "#.##") + "%"
-
-string target2Text = ""
-if isT2Active
-    target2Text := "T2: " + str.tostring(target2, format.mintick) + " (+" + str.tostring(target2Pct, "#.##") + "%)"
+    string stopText = "Stop: " + str.tostring(stopLoss, format.mintick) + " (-" + str.tostring(stopPct, "#.##") + "%)"
     if showPoints
-        target2Text += " [" + str.tostring(target2Points, "#.##") + " pts]"
-    if showRR
-        target2Text += " RR: " + str.tostring(rr2Ratio, "#.##")
+        stopText += " [" + str.tostring(stopPoints, "#.##") + " pts]"
     if showPL
-        target2Text += " Profit: " + rc_formatCurrency(potentialProfit2)
+        stopText += " Loss: " + rc_formatCurrency(potentialLoss)
     if showROI
-        target2Text += " ROI: +" + str.tostring(profit2ROI, "#.##") + "%"
+        stopText += " ROI: -" + str.tostring(lossROI, "#.##") + "%"
 
-string target3Text = ""
-if isT3Active
-    target3Text := "T3: " + str.tostring(target3, format.mintick) + " (+" + str.tostring(target3Pct, "#.##") + "%)"
+    string entryText = "Entry: " + str.tostring(entry, format.mintick)
+    if showValue
+        entryText += " Value: " + rc_formatCurrency(actualPositionValue)
+    if showMargin
+        entryText += " Margin: " + rc_formatCurrency(initialMargin)
+    if showRR
+        entryText += " RR: " + str.tostring(rrRatio, "#.##")
+
+    string targetText = "T1: " + str.tostring(target, format.mintick) + " (+" + str.tostring(targetPct, "#.##") + "%)"
     if showPoints
-        target3Text += " [" + str.tostring(target3Points, "#.##") + " pts]"
-    if showRR
-        target3Text += " RR: " + str.tostring(rr3Ratio, "#.##")
+        targetText += " [" + str.tostring(targetPoints, "#.##") + " pts]"
     if showPL
-        target3Text += " Profit: " + rc_formatCurrency(potentialProfit3)
+        targetText += " Profit: " + rc_formatCurrency(potentialProfit)
     if showROI
-        target3Text += " ROI: +" + str.tostring(profit3ROI, "#.##") + "%"
+        targetText += " ROI: +" + str.tostring(profitROI, "#.##") + "%"
 
-string target4Text = ""
-if isT4Active
-    target4Text := "T4: " + str.tostring(target4, format.mintick) + " (+" + str.tostring(target4Pct, "#.##") + "%)"
-    if showPoints
-        target4Text += " [" + str.tostring(target4Points, "#.##") + " pts]"
-    if showRR
-        target4Text += " RR: " + str.tostring(rr4Ratio, "#.##")
-    if showPL
-        target4Text += " Profit: " + rc_formatCurrency(potentialProfit4)
-    if showROI
-        target4Text += " ROI: +" + str.tostring(profit4ROI, "#.##") + "%"
-
-string target5Text = ""
-if isT5Active
-    target5Text := "T5: " + str.tostring(target5, format.mintick) + " (+" + str.tostring(target5Pct, "#.##") + "%)"
-    if showPoints
-        target5Text += " [" + str.tostring(target5Points, "#.##") + " pts]"
-    if showRR
-        target5Text += " RR: " + str.tostring(rr5Ratio, "#.##")
-    if showPL
-        target5Text += " Profit: " + rc_formatCurrency(potentialProfit5)
-    if showROI
-        target5Text += " ROI: +" + str.tostring(profit5ROI, "#.##") + "%"
-
-string target6Text = ""
-if isT6Active
-    target6Text := "T6: " + str.tostring(target6, format.mintick) + " (+" + str.tostring(target6Pct, "#.##") + "%)"
-    if showPoints
-        target6Text += " [" + str.tostring(target6Points, "#.##") + " pts]"
-    if showRR
-        target6Text += " RR: " + str.tostring(rr6Ratio, "#.##")
-    if showPL
-        target6Text += " Profit: " + rc_formatCurrency(potentialProfit6)
-    if showROI
-        target6Text += " ROI: +" + str.tostring(profit6ROI, "#.##") + "%"
-
-if rc_showLines and rc_isValidSetup
-    targetLine := line.new(drawStartTime, target, drawEndTime, target, xloc=xloc.bar_time, color=targetColorInput, width=2, style=line.style_solid)
-    entryLine  := line.new(drawStartTime, entry,  drawEndTime, entry,  xloc=xloc.bar_time, color=entryColorInput,  width=2, style=line.style_solid)
-    stopLine   := line.new(drawStartTime, stopLoss, drawEndTime, stopLoss, xloc=xloc.bar_time, color=stopColorInput, width=2, style=line.style_solid)
+    string target2Text = ""
     if isT2Active
-        target2Line := line.new(drawStartTime, target2, drawEndTime, target2, xloc=xloc.bar_time, color=target2ColorInput, width=2, style=line.style_dashed)
+        target2Text := "T2: " + str.tostring(target2, format.mintick) + " (+" + str.tostring(target2Pct, "#.##") + "%)"
+        if showPoints
+            target2Text += " [" + str.tostring(target2Points, "#.##") + " pts]"
+        if showRR
+            target2Text += " RR: " + str.tostring(rr2Ratio, "#.##")
+        if showPL
+            target2Text += " Profit: " + rc_formatCurrency(potentialProfit2)
+        if showROI
+            target2Text += " ROI: +" + str.tostring(profit2ROI, "#.##") + "%"
+
+    string target3Text = ""
     if isT3Active
-        target3Line := line.new(drawStartTime, target3, drawEndTime, target3, xloc=xloc.bar_time, color=target3ColorInput, width=2, style=line.style_dashed)
+        target3Text := "T3: " + str.tostring(target3, format.mintick) + " (+" + str.tostring(target3Pct, "#.##") + "%)"
+        if showPoints
+            target3Text += " [" + str.tostring(target3Points, "#.##") + " pts]"
+        if showRR
+            target3Text += " RR: " + str.tostring(rr3Ratio, "#.##")
+        if showPL
+            target3Text += " Profit: " + rc_formatCurrency(potentialProfit3)
+        if showROI
+            target3Text += " ROI: +" + str.tostring(profit3ROI, "#.##") + "%"
+
+    string target4Text = ""
     if isT4Active
-        target4Line := line.new(drawStartTime, target4, drawEndTime, target4, xloc=xloc.bar_time, color=target4ColorInput, width=2, style=line.style_dashed)
+        target4Text := "T4: " + str.tostring(target4, format.mintick) + " (+" + str.tostring(target4Pct, "#.##") + "%)"
+        if showPoints
+            target4Text += " [" + str.tostring(target4Points, "#.##") + " pts]"
+        if showRR
+            target4Text += " RR: " + str.tostring(rr4Ratio, "#.##")
+        if showPL
+            target4Text += " Profit: " + rc_formatCurrency(potentialProfit4)
+        if showROI
+            target4Text += " ROI: +" + str.tostring(profit4ROI, "#.##") + "%"
+
+    string target5Text = ""
     if isT5Active
-        target5Line := line.new(drawStartTime, target5, drawEndTime, target5, xloc=xloc.bar_time, color=target5ColorInput, width=2, style=line.style_dashed)
+        target5Text := "T5: " + str.tostring(target5, format.mintick) + " (+" + str.tostring(target5Pct, "#.##") + "%)"
+        if showPoints
+            target5Text += " [" + str.tostring(target5Points, "#.##") + " pts]"
+        if showRR
+            target5Text += " RR: " + str.tostring(rr5Ratio, "#.##")
+        if showPL
+            target5Text += " Profit: " + rc_formatCurrency(potentialProfit5)
+        if showROI
+            target5Text += " ROI: +" + str.tostring(profit5ROI, "#.##") + "%"
+
+    string target6Text = ""
     if isT6Active
-        target6Line := line.new(drawStartTime, target6, drawEndTime, target6, xloc=xloc.bar_time, color=target6ColorInput, width=2, style=line.style_dashed)
+        target6Text := "T6: " + str.tostring(target6, format.mintick) + " (+" + str.tostring(target6Pct, "#.##") + "%)"
+        if showPoints
+            target6Text += " [" + str.tostring(target6Points, "#.##") + " pts]"
+        if showRR
+            target6Text += " RR: " + str.tostring(rr6Ratio, "#.##")
+        if showPL
+            target6Text += " Profit: " + rc_formatCurrency(potentialProfit6)
+        if showROI
+            target6Text += " ROI: +" + str.tostring(profit6ROI, "#.##") + "%"
 
-if showBreakeven and rc_isValidSetup
-    breakEvenLine := line.new(drawStartTime, breakEvenPrice, drawEndTime, breakEvenPrice, xloc=xloc.bar_time, color=color.gray, width=1, style=line.style_dotted)
+    if rc_showLines and rc_isValidSetup
+        targetLine := line.new(drawStartTime, target, drawEndTime, target, xloc=xloc.bar_time, color=targetColorInput, width=2, style=line.style_solid)
+        entryLine  := line.new(drawStartTime, entry,  drawEndTime, entry,  xloc=xloc.bar_time, color=entryColorInput,  width=2, style=line.style_solid)
+        stopLine   := line.new(drawStartTime, stopLoss, drawEndTime, stopLoss, xloc=xloc.bar_time, color=stopColorInput, width=2, style=line.style_solid)
+        if isT2Active
+            target2Line := line.new(drawStartTime, target2, drawEndTime, target2, xloc=xloc.bar_time, color=target2ColorInput, width=2, style=line.style_dashed)
+        if isT3Active
+            target3Line := line.new(drawStartTime, target3, drawEndTime, target3, xloc=xloc.bar_time, color=target3ColorInput, width=2, style=line.style_dashed)
+        if isT4Active
+            target4Line := line.new(drawStartTime, target4, drawEndTime, target4, xloc=xloc.bar_time, color=target4ColorInput, width=2, style=line.style_dashed)
+        if isT5Active
+            target5Line := line.new(drawStartTime, target5, drawEndTime, target5, xloc=xloc.bar_time, color=target5ColorInput, width=2, style=line.style_dashed)
+        if isT6Active
+            target6Line := line.new(drawStartTime, target6, drawEndTime, target6, xloc=xloc.bar_time, color=target6ColorInput, width=2, style=line.style_dashed)
 
-if showBoxes and rc_isValidSetup
-    profitBox := box.new(drawStartTime, entry, drawEndTime, target, xloc=xloc.bar_time, bgcolor=color.new(targetColorInput, 85), border_color=color.new(targetColorInput, 100))
-    lossBox   := box.new(drawStartTime, entry, drawEndTime, stopLoss, xloc=xloc.bar_time, bgcolor=color.new(stopColorInput, 85), border_color=color.new(stopColorInput, 100))
-    if isT2Active
-        profit2Box := box.new(drawStartTime, target, drawEndTime, target2, xloc=xloc.bar_time, bgcolor=color.new(target2ColorInput, 90), border_color=color.new(target2ColorInput, 100))
-    if isT3Active
-        float t3BoxStart = isT2Active ? target2 : target
-        profit3Box := box.new(drawStartTime, t3BoxStart, drawEndTime, target3, xloc=xloc.bar_time, bgcolor=color.new(target3ColorInput, 90), border_color=color.new(target3ColorInput, 100))
-    if isT4Active
-        float t4BoxStart = isT3Active ? target3 : (isT2Active ? target2 : target)
-        profit4Box := box.new(drawStartTime, t4BoxStart, drawEndTime, target4, xloc=xloc.bar_time, bgcolor=color.new(target4ColorInput, 90), border_color=color.new(target4ColorInput, 100))
-    if isT5Active
-        float t5BoxStart = isT4Active ? target4 : (isT3Active ? target3 : (isT2Active ? target2 : target))
-        profit5Box := box.new(drawStartTime, t5BoxStart, drawEndTime, target5, xloc=xloc.bar_time, bgcolor=color.new(target5ColorInput, 90), border_color=color.new(target5ColorInput, 100))
-    if isT6Active
-        float t6BoxStart = isT5Active ? target5 : (isT4Active ? target4 : (isT3Active ? target3 : (isT2Active ? target2 : target)))
-        profit6Box := box.new(drawStartTime, t6BoxStart, drawEndTime, target6, xloc=xloc.bar_time, bgcolor=color.new(target6ColorInput, 90), border_color=color.new(target6ColorInput, 100))
+    if showBreakeven and rc_isValidSetup
+        breakEvenLine := line.new(drawStartTime, breakEvenPrice, drawEndTime, breakEvenPrice, xloc=xloc.bar_time, color=color.gray, width=1, style=line.style_dotted)
 
-if showPaneLabels and rc_isValidSetup
-    targetLabel := label.new(drawEndTime, target,   targetText, xloc=xloc.bar_time, color=targetColorInput, textcolor=color.white, style=label.style_label_left, size=lblSize)
-    entryLabel  := label.new(drawEndTime, entry,    entryText,  xloc=xloc.bar_time, color=entryColorInput,  textcolor=color.white, style=label.style_label_left, size=lblSize)
-    stopLabel   := label.new(drawEndTime, stopLoss, stopText,   xloc=xloc.bar_time, color=stopColorInput,   textcolor=color.white, style=label.style_label_left, size=lblSize)
-    if isT2Active
-        target2Label := label.new(drawEndTime, target2, target2Text, xloc=xloc.bar_time, color=target2ColorInput, textcolor=color.white, style=label.style_label_left, size=lblSize)
-    if isT3Active
-        target3Label := label.new(drawEndTime, target3, target3Text, xloc=xloc.bar_time, color=target3ColorInput, textcolor=color.white, style=label.style_label_left, size=lblSize)
-    if isT4Active
-        target4Label := label.new(drawEndTime, target4, target4Text, xloc=xloc.bar_time, color=target4ColorInput, textcolor=color.white, style=label.style_label_left, size=lblSize)
-    if isT5Active
-        target5Label := label.new(drawEndTime, target5, target5Text, xloc=xloc.bar_time, color=target5ColorInput, textcolor=color.white, style=label.style_label_left, size=lblSize)
-    if isT6Active
-        target6Label := label.new(drawEndTime, target6, target6Text, xloc=xloc.bar_time, color=target6ColorInput, textcolor=color.white, style=label.style_label_left, size=lblSize)
+    if showBoxes and rc_isValidSetup
+        profitBox := box.new(drawStartTime, entry, drawEndTime, target, xloc=xloc.bar_time, bgcolor=color.new(targetColorInput, 85), border_color=color.new(targetColorInput, 100))
+        lossBox   := box.new(drawStartTime, entry, drawEndTime, stopLoss, xloc=xloc.bar_time, bgcolor=color.new(stopColorInput, 85), border_color=color.new(stopColorInput, 100))
+        if isT2Active
+            profit2Box := box.new(drawStartTime, target, drawEndTime, target2, xloc=xloc.bar_time, bgcolor=color.new(target2ColorInput, 90), border_color=color.new(target2ColorInput, 100))
+        if isT3Active
+            float t3BoxStart = isT2Active ? target2 : target
+            profit3Box := box.new(drawStartTime, t3BoxStart, drawEndTime, target3, xloc=xloc.bar_time, bgcolor=color.new(target3ColorInput, 90), border_color=color.new(target3ColorInput, 100))
+        if isT4Active
+            float t4BoxStart = isT3Active ? target3 : (isT2Active ? target2 : target)
+            profit4Box := box.new(drawStartTime, t4BoxStart, drawEndTime, target4, xloc=xloc.bar_time, bgcolor=color.new(target4ColorInput, 90), border_color=color.new(target4ColorInput, 100))
+        if isT5Active
+            float t5BoxStart = isT4Active ? target4 : (isT3Active ? target3 : (isT2Active ? target2 : target))
+            profit5Box := box.new(drawStartTime, t5BoxStart, drawEndTime, target5, xloc=xloc.bar_time, bgcolor=color.new(target5ColorInput, 90), border_color=color.new(target5ColorInput, 100))
+        if isT6Active
+            float t6BoxStart = isT5Active ? target5 : (isT4Active ? target4 : (isT3Active ? target3 : (isT2Active ? target2 : target)))
+            profit6Box := box.new(drawStartTime, t6BoxStart, drawEndTime, target6, xloc=xloc.bar_time, bgcolor=color.new(target6ColorInput, 90), border_color=color.new(target6ColorInput, 100))
 
-if showCurrentPrice and rc_isValidSetup
-    string cpText = "NOW: " + str.tostring(close, format.mintick) + " | P&L: " + rc_formatCurrency(currentPnL) + " (" + str.tostring(currentPnLPct, "#.##") + "%)"
-    currentPriceLabel := label.new(time, close, cpText, xloc=xloc.bar_time, color=statusColor, textcolor=color.white, style=label.style_label_right, size=size.small)
+    if showPaneLabels and rc_isValidSetup
+        targetLabel := label.new(drawEndTime, target,   targetText, xloc=xloc.bar_time, color=targetColorInput, textcolor=color.white, style=label.style_label_left, size=lblSize)
+        entryLabel  := label.new(drawEndTime, entry,    entryText,  xloc=xloc.bar_time, color=entryColorInput,  textcolor=color.white, style=label.style_label_left, size=lblSize)
+        stopLabel   := label.new(drawEndTime, stopLoss, stopText,   xloc=xloc.bar_time, color=stopColorInput,   textcolor=color.white, style=label.style_label_left, size=lblSize)
+        if isT2Active
+            target2Label := label.new(drawEndTime, target2, target2Text, xloc=xloc.bar_time, color=target2ColorInput, textcolor=color.white, style=label.style_label_left, size=lblSize)
+        if isT3Active
+            target3Label := label.new(drawEndTime, target3, target3Text, xloc=xloc.bar_time, color=target3ColorInput, textcolor=color.white, style=label.style_label_left, size=lblSize)
+        if isT4Active
+            target4Label := label.new(drawEndTime, target4, target4Text, xloc=xloc.bar_time, color=target4ColorInput, textcolor=color.white, style=label.style_label_left, size=lblSize)
+        if isT5Active
+            target5Label := label.new(drawEndTime, target5, target5Text, xloc=xloc.bar_time, color=target5ColorInput, textcolor=color.white, style=label.style_label_left, size=lblSize)
+        if isT6Active
+            target6Label := label.new(drawEndTime, target6, target6Text, xloc=xloc.bar_time, color=target6ColorInput, textcolor=color.white, style=label.style_label_left, size=lblSize)
+
+    if showCurrentPrice and rc_isValidSetup
+        string cpText = "NOW: " + str.tostring(close, format.mintick) + " | P&L: " + rc_formatCurrency(currentPnL) + " (" + str.tostring(currentPnLPct, "#.##") + "%)"
+        currentPriceLabel := label.new(time, close, cpText, xloc=xloc.bar_time, color=statusColor, textcolor=color.white, style=label.style_label_right, size=size.small)
 
 // ==================== INFO TABLE ====================
 var table infoTable = na

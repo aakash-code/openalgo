@@ -1,0 +1,1571 @@
+- generic [ref=f3e2]:
+  - generic [ref=f3e3]:
+    - link "Skip to chart" [ref=f3e4] [cursor=pointer]:
+      - /url: "#main-chart"
+    - generic [ref=f3e14]:
+      - button "Menu" [ref=f3e16] [cursor=pointer]
+      - generic [ref=f3e22]:
+        - button "Symbol Search" [ref=f3e23] [cursor=pointer]:
+          - generic [ref=f3e27]: EICHERMOT
+        - button "Compare or Add Symbol" [ref=f3e28] [cursor=pointer]
+        - button "Option Strategy Chart" [ref=f3e34] [cursor=pointer]
+        - button "Auto Spread Builder" [ref=f3e42] [cursor=pointer]
+      - button "5m" [ref=f3e49] [cursor=pointer]
+      - button [ref=f3e56] [cursor=pointer]
+      - generic [ref=f3e65]:
+        - generic [ref=f3e66]:
+          - button "Indicators" [active] [ref=f3e67] [cursor=pointer]
+          - generic [ref=f3e4436]:
+            - generic [ref=f3e4437]: Moving Averages
+            - generic [ref=f3e4438] [cursor=pointer]: SMA
+            - generic [ref=f3e4439] [cursor=pointer]: EMA
+            - generic [ref=f3e4440] [cursor=pointer]: EMA Ribbon (8, 21, 50, 100)
+            - generic [ref=f3e4442]: Oscillators
+            - generic [ref=f3e4443] [cursor=pointer]: RSI
+            - generic [ref=f3e4444] [cursor=pointer]: Stochastic
+            - generic [ref=f3e4445] [cursor=pointer]: CCI
+            - generic [ref=f3e4446] [cursor=pointer]: Williams %R
+            - generic [ref=f3e4447] [cursor=pointer]: Hilenga-Milenga
+            - generic [ref=f3e4449]: Momentum
+            - generic [ref=f3e4450] [cursor=pointer]: MACD
+            - generic [ref=f3e4452]: Volatility
+            - generic [ref=f3e4453] [cursor=pointer]: Bollinger Bands
+            - generic [ref=f3e4454] [cursor=pointer]: ATR
+            - generic [ref=f3e4456]: Trend
+            - generic [ref=f3e4457] [cursor=pointer]: Supertrend
+            - generic [ref=f3e4458] [cursor=pointer]: Ichimoku Cloud
+            - generic [ref=f3e4460]: Trend Strength
+            - generic [ref=f3e4461] [cursor=pointer]: ADX
+            - generic [ref=f3e4462] [cursor=pointer]: Market Bias (CEREBR)
+            - generic [ref=f3e4464]: Support / Resistance
+            - generic [ref=f3e4465] [cursor=pointer]: Central Pivot Range (CPR)
+            - generic [ref=f3e4466] [cursor=pointer]: Pivot Points
+            - generic [ref=f3e4467] [cursor=pointer]: Red Candle Zones
+            - generic [ref=f3e4468] [cursor=pointer]: SR High Volume Boxes
+            - generic [ref=f3e4470]: Volume
+            - generic [ref=f3e4471] [cursor=pointer]: Volume
+            - generic [ref=f3e4472] [cursor=pointer]: MFI (Money Flow Index)
+            - generic [ref=f3e4473] [cursor=pointer]: OBV (On Balance Volume)
+            - generic [ref=f3e4474] [cursor=pointer]: Relative Volume at Time (RelVol)
+            - generic [ref=f3e4475] [cursor=pointer]: VWAP
+            - generic [ref=f3e4476] [cursor=pointer]: VWAP + Bands
+            - generic [ref=f3e4477] [cursor=pointer]: Money Flux (Options Flow)
+            - generic [ref=f3e4479]: Market Profile
+            - generic [ref=f3e4480] [cursor=pointer]: TPO Profile (30m)
+            - generic [ref=f3e4482]: Strategy
+            - generic [ref=f3e4483] [cursor=pointer]: Intraday Signals [India v5.6] ✦
+            - generic [ref=f3e4485]: Risk Management
+            - generic [ref=f3e4486] [cursor=pointer]: Risk Calculator
+        - button "Pine Script Editor" [ref=f3e74] [cursor=pointer]:
+          - generic [ref=f3e79]: Pine
+      - generic [ref=f3e82]:
+        - button "Create Alert" [ref=f3e83] [cursor=pointer]:
+          - generic [ref=f3e88]: Alert
+        - button "Create Indicator Alert" [ref=f3e90] [cursor=pointer]:
+          - generic [ref=f3e94]: Indicator Alert
+        - button "Bar Replay" [ref=f3e95] [cursor=pointer]:
+          - generic [ref=f3e99]: Replay
+        - button "Option Chain" [ref=f3e100] [cursor=pointer]:
+          - generic [ref=f3e104]: Options
+        - button "Sector Heatmap" [ref=f3e106] [cursor=pointer]:
+          - generic [ref=f3e110]: Heatmap
+      - generic [ref=f3e113]:
+        - button "Undo" [ref=f3e115] [cursor=pointer]
+        - button "Redo" [ref=f3e120] [cursor=pointer]
+      - generic [ref=f3e124]:
+        - button "Layout setup" [ref=f3e126] [cursor=pointer]
+        - button "Save" [ref=f3e130] [cursor=pointer]
+        - button "Templates" [ref=f3e133] [cursor=pointer]
+        - button "Indicator Templates" [ref=f3e138] [cursor=pointer]
+        - button "Switch to Dark Mode" [ref=f3e144] [cursor=pointer]
+        - button "Settings" [ref=f3e151] [cursor=pointer]
+        - button "Fullscreen" [ref=f3e157] [cursor=pointer]
+        - button "Snapshot" [ref=f3e163] [cursor=pointer]
+    - generic [ref=f3e168]:
+      - generic [ref=f3e170]:
+        - generic "Cross" [ref=f3e173] [cursor=pointer]
+        - generic "Trend Line" [ref=f3e185] [cursor=pointer]
+        - generic "Fib Retracement" [ref=f3e197] [cursor=pointer]
+        - generic "Brush" [ref=f3e212] [cursor=pointer]
+        - generic "Text" [ref=f3e224] [cursor=pointer]
+        - generic "Elliott Impulse Wave (12345)" [ref=f3e234] [cursor=pointer]
+        - generic "Long Position" [ref=f3e248] [cursor=pointer]
+        - generic "Measure" [ref=f3e259] [cursor=pointer]
+        - generic "Zoom In" [ref=f3e265] [cursor=pointer]
+        - generic "Show Timer" [ref=f3e275] [cursor=pointer]
+        - generic "Lock All Drawing Tools" [ref=f3e283] [cursor=pointer]
+        - generic "Sequential Drawing Mode" [ref=f3e289] [cursor=pointer]
+        - generic "Hide All Drawings" [ref=f3e299] [cursor=pointer]
+        - generic "Remove Objects" [ref=f3e305] [cursor=pointer]
+      - generic [ref=f3e309]:
+        - generic [ref=f3e313]:
+          - generic [ref=f3e315]:
+            - table [ref=f3e316]:
+              - row [ref=f3e317]:
+                - cell
+                - cell [ref=f3e318]
+                - cell [ref=f3e322]
+              - row [ref=f3e326]:
+                - cell
+                - cell [ref=f3e327]
+                - cell [ref=f3e331]
+            - generic:
+              - button "Zoom Out" [ref=f3e334] [cursor=pointer]
+              - button "Zoom In" [ref=f3e336] [cursor=pointer]
+              - button "Scroll Left" [ref=f3e339] [cursor=pointer]
+              - button "Scroll Right" [ref=f3e342] [cursor=pointer]
+              - button "Reset View" [ref=f3e345] [cursor=pointer]
+          - generic:
+            - generic: EICHERMOT:NSE
+            - generic: · 5M
+            - generic:
+              - generic:
+                - generic: O
+                - generic: "7775.00"
+              - generic:
+                - generic: H
+                - generic: "7775.00"
+              - generic:
+                - generic: L
+                - generic: "7763.50"
+              - generic:
+                - generic: C
+                - generic: "7767.00"
+              - generic: "-7.50 (-0.10%)"
+          - generic [ref=f3e351]:
+            - generic [ref=f3e352]:
+              - generic [ref=f3e353]:
+                - generic [ref=f3e354]: Volume
+                - generic [ref=f3e355]: "--"
+              - generic [ref=f3e356]:
+                - generic [ref=f3e357]: Intraday Signals
+                - generic [ref=f3e358]: "--"
+              - generic [ref=f3e359]:
+                - generic [ref=f3e360]: EMA Ribbon
+                - generic [ref=f3e361]: "--"
+              - generic [ref=f3e362]:
+                - generic [ref=f3e363]: CPR
+                - generic [ref=f3e364]: "--"
+            - generic "Hide indicator legend" [ref=f3e365] [cursor=pointer]
+        - generic [ref=f3e368]:
+          - generic "Drag to resize" [ref=f3e369]
+          - generic [ref=f3e370]:
+            - generic [ref=f3e371]:
+              - generic [ref=f3e372]: Account Manager
+              - generic [ref=f3e377]:
+                - generic [ref=f3e378]:
+                  - generic [ref=f3e379]: Unrealized P&L
+                  - generic [ref=f3e380]: +₹0.00
+                - generic [ref=f3e381]:
+                  - generic [ref=f3e382]: Realized P&L
+                  - generic [ref=f3e383]: ₹-357.20
+                - generic [ref=f3e384]:
+                  - generic [ref=f3e385]: Available
+                  - generic [ref=f3e386]: ₹1,00,23,297.01
+                - generic [ref=f3e387]:
+                  - generic [ref=f3e388]: Used
+                  - generic [ref=f3e389]: ₹-49,974.40
+                - generic [ref=f3e390]:
+                  - generic [ref=f3e391]: Margin Used
+                  - generic [ref=f3e392]: "-0.5%"
+              - generic [ref=f3e393]:
+                - button "Refresh data" [ref=f3e394] [cursor=pointer]
+                - button "Table Settings" [ref=f3e400] [cursor=pointer]
+                - button "Minimize panel" [ref=f3e404] [cursor=pointer]
+                - button "Maximize panel" [ref=f3e406] [cursor=pointer]
+                - button "Close panel" [ref=f3e412] [cursor=pointer]
+            - generic [ref=f3e416]:
+              - button "Positions" [ref=f3e417] [cursor=pointer]
+              - button "Orders" [ref=f3e418] [cursor=pointer]
+              - button "Holdings" [ref=f3e419] [cursor=pointer]
+              - button "Trades" [ref=f3e420] [cursor=pointer]
+            - generic [ref=f3e422]:
+              - generic [ref=f3e423]:
+                - textbox "Search symbol..." [ref=f3e425]
+                - button "Filters" [ref=f3e426] [cursor=pointer]
+              - generic [ref=f3e431]:
+                - generic [ref=f3e432]: 📊
+                - paragraph [ref=f3e433]: No open positions
+              - generic [ref=f3e559]:
+                - heading "Closed Positions (4) ▼" [level=3] [ref=f3e561] [cursor=pointer]:
+                  - text: Closed Positions (4)
+                  - generic [ref=f3e562]: ▼
+                - generic [ref=f3e563]:
+                  - generic [ref=f3e564]:
+                    - textbox "Search symbol..." [ref=f3e566]
+                    - button "Filters" [ref=f3e567] [cursor=pointer]
+                  - table [ref=f3e573]:
+                    - rowgroup [ref=f3e583]:
+                      - row [ref=f3e584]:
+                        - columnheader "Symbol" [ref=f3e585] [cursor=pointer]
+                        - columnheader "Exchange" [ref=f3e586] [cursor=pointer]
+                        - columnheader "Product" [ref=f3e587] [cursor=pointer]
+                        - columnheader "Entry Price" [ref=f3e588] [cursor=pointer]
+                        - columnheader "Exit Price" [ref=f3e589] [cursor=pointer]
+                        - columnheader "Day P&L" [ref=f3e590] [cursor=pointer]
+                        - columnheader "Overall P&L" [ref=f3e591] [cursor=pointer]
+                        - columnheader "Closed At ↓" [ref=f3e592] [cursor=pointer]:
+                          - text: Closed At
+                          - generic [ref=f3e593]: ↓
+                    - rowgroup [ref=f3e594]:
+                      - row [ref=f3e595] [cursor=pointer]:
+                        - cell "INDHOTEL" [ref=f3e596]
+                        - cell "NSE" [ref=f3e597]
+                        - cell "MIS" [ref=f3e598]
+                        - cell "0.00" [ref=f3e599]
+                        - cell "735.05" [ref=f3e600]
+                        - cell "-101.70" [ref=f3e601]
+                        - cell "-101.70" [ref=f3e602]
+                        - cell "-" [ref=f3e603]
+                      - row [ref=f3e604] [cursor=pointer]:
+                        - cell "SAIL" [ref=f3e605]
+                        - cell "NSE" [ref=f3e606]
+                        - cell "MIS" [ref=f3e607]
+                        - cell "0.00" [ref=f3e608]
+                        - cell "165.22" [ref=f3e609]
+                        - cell "-76.10" [ref=f3e610]
+                        - cell "-76.10" [ref=f3e611]
+                        - cell "-" [ref=f3e612]
+                      - row [ref=f3e613] [cursor=pointer]:
+                        - cell "OBEROIRLTY" [ref=f3e614]
+                        - cell "NSE" [ref=f3e615]
+                        - cell "MIS" [ref=f3e616]
+                        - cell "0.00" [ref=f3e617]
+                        - cell "1,847.00" [ref=f3e618]
+                        - cell "+81.00" [ref=f3e619]
+                        - cell "+81.00" [ref=f3e621]
+                        - cell "-" [ref=f3e623]
+                      - row [ref=f3e624] [cursor=pointer]:
+                        - cell "TRENT" [ref=f3e625]
+                        - cell "NSE" [ref=f3e626]
+                        - cell "MIS" [ref=f3e627]
+                        - cell "0.00" [ref=f3e628]
+                        - cell "2,942.80" [ref=f3e629]
+                        - cell "-260.40" [ref=f3e630]
+                        - cell "-260.40" [ref=f3e631]
+                        - cell "-" [ref=f3e632]
+        - generic [ref=f3e436]:
+          - generic [ref=f3e437]:
+            - generic [ref=f3e438] [cursor=pointer]: 1D
+            - generic [ref=f3e439] [cursor=pointer]: 5D
+            - generic [ref=f3e440] [cursor=pointer]: 1M
+            - generic [ref=f3e441] [cursor=pointer]: 3M
+            - generic [ref=f3e442] [cursor=pointer]: 6M
+            - generic [ref=f3e443] [cursor=pointer]: YTD
+            - generic [ref=f3e444] [cursor=pointer]: 1Y
+            - generic [ref=f3e445] [cursor=pointer]: 5Y
+            - generic [ref=f3e446] [cursor=pointer]: All
+          - generic [ref=f3e447]:
+            - generic "WebSocket connected - receiving live data" [ref=f3e633]
+            - generic [ref=f3e453]:
+              - generic [ref=f3e454]: "Local:"
+              - generic [ref=f3e455]: 13:50:40
+            - generic [ref=f3e457]:
+              - generic "Time synced with WorldTimeAPI" [ref=f3e637]
+              - generic [ref=f3e459]: "IST:"
+              - generic [ref=f3e460]: 13:50:40
+            - generic [ref=f3e462]: UTC+5:30
+            - generic "Toggle Account Manager Panel" [ref=f3e465] [cursor=pointer]: Account
+            - generic [ref=f3e467] [cursor=pointer]: log
+            - generic [ref=f3e468] [cursor=pointer]: auto
+            - generic "Reset Chart View" [ref=f3e469] [cursor=pointer]: reset
+      - generic [ref=f3e470]:
+        - generic "Drag to resize" [ref=f3e471]
+        - generic [ref=f3e472]:
+          - generic [ref=f3e473]:
+            - button "Watchlist 1" [ref=f3e475] [cursor=pointer]
+            - generic [ref=f3e479]:
+              - generic "Stock Library – browse & discover stocks" [ref=f3e480] [cursor=pointer]
+              - generic "Choose columns" [ref=f3e484] [cursor=pointer]
+              - generic "Add symbol" [ref=f3e487]
+          - generic [ref=f3e489]:
+            - generic [ref=f3e490] [cursor=pointer]: Symbol
+            - generic [ref=f3e492] [cursor=pointer]: Last
+            - generic [ref=f3e494] [cursor=pointer]: Chg
+            - generic [ref=f3e496] [cursor=pointer]: Chg%
+          - generic [ref=f3e498]:
+            - generic [ref=f3e638] [cursor=pointer]:
+              - generic [ref=f3e648]: RELIANCE
+              - generic [ref=f3e649]: "1279.00"
+              - generic [ref=f3e650]: "-9.20"
+              - generic [ref=f3e651]: "-0.71%"
+              - button "Remove from watchlist" [ref=f3e652]
+            - generic [ref=f3e656] [cursor=pointer]:
+              - generic [ref=f3e666]: HDFCBANK
+              - generic [ref=f3e667]: "739.05"
+              - generic [ref=f3e668]: "-7.05"
+              - generic [ref=f3e669]: "-0.94%"
+              - button "Remove from watchlist" [ref=f3e670]
+            - generic [ref=f3e674] [cursor=pointer]:
+              - generic [ref=f3e684]: BHARTIARTL
+              - generic [ref=f3e685]: "1905.30"
+              - generic [ref=f3e686]: "13.30"
+              - generic [ref=f3e687]: 0.70%
+              - button "Remove from watchlist" [ref=f3e688]
+            - generic [ref=f3e692] [cursor=pointer]:
+              - generic [ref=f3e702]: ICICIBANK
+              - generic [ref=f3e703]: "1440.70"
+              - generic [ref=f3e704]: "5.00"
+              - generic [ref=f3e705]: 0.35%
+              - button "Remove from watchlist" [ref=f3e706]
+            - generic [ref=f3e710] [cursor=pointer]:
+              - generic [ref=f3e720]: SBIN
+              - generic [ref=f3e721]: "1020.10"
+              - generic [ref=f3e722]: "-0.20"
+              - generic [ref=f3e723]: "-0.02%"
+              - button "Remove from watchlist" [ref=f3e724]
+            - generic [ref=f3e728] [cursor=pointer]:
+              - generic [ref=f3e738]: TCS
+              - generic [ref=f3e739]: "2294.40"
+              - generic [ref=f3e740]: "8.40"
+              - generic [ref=f3e741]: 0.37%
+              - button "Remove from watchlist" [ref=f3e742]
+            - generic [ref=f3e746] [cursor=pointer]:
+              - generic [ref=f3e756]: BAJFINANCE
+              - generic [ref=f3e757]: "1044.60"
+              - generic [ref=f3e758]: "17.90"
+              - generic [ref=f3e759]: 1.74%
+              - button "Remove from watchlist" [ref=f3e760]
+            - generic [ref=f3e764] [cursor=pointer]:
+              - generic [ref=f3e774]: LT
+              - generic [ref=f3e775]: "3817.50"
+              - generic [ref=f3e776]: "-2.50"
+              - generic [ref=f3e777]: "-0.07%"
+              - button "Remove from watchlist" [ref=f3e778]
+            - generic [ref=f3e782] [cursor=pointer]:
+              - generic [ref=f3e792]: LICI
+              - generic [ref=f3e793]: "424.70"
+              - generic [ref=f3e794]: "2.60"
+              - generic [ref=f3e795]: 0.62%
+              - button "Remove from watchlist" [ref=f3e796]
+            - generic [ref=f3e800] [cursor=pointer]:
+              - generic [ref=f3e810]: HINDUNILVR
+              - generic [ref=f3e811]: "2171.90"
+              - generic [ref=f3e812]: "16.90"
+              - generic [ref=f3e813]: 0.78%
+              - button "Remove from watchlist" [ref=f3e814]
+            - generic [ref=f3e818] [cursor=pointer]:
+              - generic [ref=f3e828]: INFY
+              - generic [ref=f3e829]: "1078.00"
+              - generic [ref=f3e830]: "13.00"
+              - generic [ref=f3e831]: 1.22%
+              - button "Remove from watchlist" [ref=f3e832]
+            - generic [ref=f3e836] [cursor=pointer]:
+              - generic [ref=f3e846]: MARUTI
+              - generic [ref=f3e847]: "13636.00"
+              - generic [ref=f3e848]: "57.00"
+              - generic [ref=f3e849]: 0.42%
+              - button "Remove from watchlist" [ref=f3e850]
+            - generic [ref=f3e854] [cursor=pointer]:
+              - generic [ref=f3e864]: SUNPHARMA
+              - generic [ref=f3e865]: "1967.40"
+              - generic [ref=f3e866]: "18.90"
+              - generic [ref=f3e867]: 0.97%
+              - button "Remove from watchlist" [ref=f3e868]
+            - generic [ref=f3e872] [cursor=pointer]:
+              - generic [ref=f3e882]: ADANIPOWER
+              - generic [ref=f3e883]: "213.45"
+              - generic [ref=f3e884]: "-0.78"
+              - generic [ref=f3e885]: "-0.36%"
+              - button "Remove from watchlist" [ref=f3e886]
+            - generic [ref=f3e890] [cursor=pointer]:
+              - generic [ref=f3e900]: AXISBANK
+              - generic [ref=f3e901]: "1223.10"
+              - generic [ref=f3e902]: "-13.90"
+              - generic [ref=f3e903]: "-1.12%"
+              - button "Remove from watchlist" [ref=f3e904]
+            - generic [ref=f3e908] [cursor=pointer]:
+              - generic [ref=f3e918]: ADANIPORTS
+              - generic [ref=f3e919]: "1765.20"
+              - generic [ref=f3e920]: "-18.80"
+              - generic [ref=f3e921]: "-1.05%"
+              - button "Remove from watchlist" [ref=f3e922]
+            - generic [ref=f3e926] [cursor=pointer]:
+              - generic [ref=f3e936]: KOTAKBANK
+              - generic [ref=f3e937]: "384.20"
+              - generic [ref=f3e938]: "-1.80"
+              - generic [ref=f3e939]: "-0.47%"
+              - button "Remove from watchlist" [ref=f3e940]
+            - generic [ref=f3e944] [cursor=pointer]:
+              - generic [ref=f3e954]: M&M
+              - generic [ref=f3e955]: "3224.00"
+              - generic [ref=f3e956]: "41.00"
+              - generic [ref=f3e957]: 1.29%
+              - button "Remove from watchlist" [ref=f3e958]
+            - generic [ref=f3e962] [cursor=pointer]:
+              - generic [ref=f3e972]: TITAN
+              - generic [ref=f3e973]: "4705.20"
+              - generic [ref=f3e974]: "18.30"
+              - generic [ref=f3e975]: 0.39%
+              - button "Remove from watchlist" [ref=f3e976]
+            - generic [ref=f3e980] [cursor=pointer]:
+              - generic [ref=f3e990]: ADANIENT
+              - generic [ref=f3e991]: "3027.70"
+              - generic [ref=f3e992]: "-17.40"
+              - generic [ref=f3e993]: "-0.57%"
+              - button "Remove from watchlist" [ref=f3e994]
+            - generic [ref=f3e998] [cursor=pointer]:
+              - generic [ref=f3e1008]: ITC
+              - generic [ref=f3e1009]: "286.40"
+              - generic [ref=f3e1010]: "-1.35"
+              - generic [ref=f3e1011]: "-0.47%"
+              - button "Remove from watchlist" [ref=f3e1012]
+            - generic [ref=f3e1016] [cursor=pointer]:
+              - generic [ref=f3e1026]: ULTRACEMCO
+              - generic [ref=f3e1027]: "11795.00"
+              - generic [ref=f3e1028]: "-110.00"
+              - generic [ref=f3e1029]: "-0.92%"
+              - button "Remove from watchlist" [ref=f3e1030]
+            - generic [ref=f3e1034] [cursor=pointer]:
+              - generic [ref=f3e1044]: NTPC
+              - generic [ref=f3e1045]: "350.90"
+              - generic [ref=f3e1046]: "-2.10"
+              - generic [ref=f3e1047]: "-0.59%"
+              - button "Remove from watchlist" [ref=f3e1048]
+            - generic [ref=f3e1052] [cursor=pointer]:
+              - generic [ref=f3e1062]: JSWSTEEL
+              - generic [ref=f3e1063]: "1241.20"
+              - generic [ref=f3e1064]: "-9.80"
+              - generic [ref=f3e1065]: "-0.78%"
+              - button "Remove from watchlist" [ref=f3e1066]
+            - generic [ref=f3e1070] [cursor=pointer]:
+              - generic [ref=f3e1080]: ONGC
+              - generic [ref=f3e1081]: "239.97"
+              - generic [ref=f3e1082]: "-8.03"
+              - generic [ref=f3e1083]: "-3.24%"
+              - button "Remove from watchlist" [ref=f3e1084]
+            - generic [ref=f3e1088] [cursor=pointer]:
+              - generic [ref=f3e1098]: HCLTECH
+              - generic [ref=f3e1099]: "1295.70"
+              - generic [ref=f3e1100]: "11.10"
+              - generic [ref=f3e1101]: 0.86%
+              - button "Remove from watchlist" [ref=f3e1102]
+            - generic [ref=f3e1106] [cursor=pointer]:
+              - generic [ref=f3e1116]: BEL
+              - generic [ref=f3e1117]: "406.15"
+              - generic [ref=f3e1118]: "-1.85"
+              - generic [ref=f3e1119]: "-0.45%"
+              - button "Remove from watchlist" [ref=f3e1120]
+            - generic [ref=f3e1124] [cursor=pointer]:
+              - generic [ref=f3e1134]: HAL
+              - generic [ref=f3e1135]: "4618.50"
+              - generic [ref=f3e1136]: "36.50"
+              - generic [ref=f3e1137]: 0.80%
+              - button "Remove from watchlist" [ref=f3e1138]
+            - generic [ref=f3e1142] [cursor=pointer]:
+              - generic [ref=f3e1152]: BAJAJFINSV
+              - generic [ref=f3e1153]: "1906.90"
+              - generic [ref=f3e1154]: "21.90"
+              - generic [ref=f3e1155]: 1.16%
+              - button "Remove from watchlist" [ref=f3e1156]
+            - generic [ref=f3e1160] [cursor=pointer]:
+              - generic [ref=f3e1170]: BAJAJ-AUTO
+              - generic [ref=f3e1171]: "11195.50"
+              - generic [ref=f3e1172]: "-5.00"
+              - generic [ref=f3e1173]: "-0.04%"
+              - button "Remove from watchlist" [ref=f3e1174]
+            - generic [ref=f3e1178] [cursor=pointer]:
+              - generic [ref=f3e1188]: COALINDIA
+              - generic [ref=f3e1189]: "429.25"
+              - generic [ref=f3e1190]: "-0.25"
+              - generic [ref=f3e1191]: "-0.06%"
+              - button "Remove from watchlist" [ref=f3e1192]
+            - generic [ref=f3e1196] [cursor=pointer]:
+              - generic [ref=f3e1206]: DMART
+              - generic [ref=f3e1207]: "4065.50"
+              - generic [ref=f3e1208]: "35.50"
+              - generic [ref=f3e1209]: 0.88%
+              - button "Remove from watchlist" [ref=f3e1210]
+            - generic [ref=f3e1214] [cursor=pointer]:
+              - generic [ref=f3e1224]: POWERGRID
+              - generic [ref=f3e1225]: "287.40"
+              - generic [ref=f3e1226]: "-0.90"
+              - generic [ref=f3e1227]: "-0.31%"
+              - button "Remove from watchlist" [ref=f3e1228]
+            - generic [ref=f3e1232] [cursor=pointer]:
+              - generic [ref=f3e1242]: NESTLEIND
+              - generic [ref=f3e1243]: "1443.90"
+              - generic [ref=f3e1244]: "-7.10"
+              - generic [ref=f3e1245]: "-0.49%"
+              - button "Remove from watchlist" [ref=f3e1246]
+            - generic [ref=f3e1250] [cursor=pointer]:
+              - generic [ref=f3e1260]: ASIANPAINT
+              - generic [ref=f3e1261]: "2709.20"
+              - generic [ref=f3e1262]: "43.40"
+              - generic [ref=f3e1263]: 1.63%
+              - button "Remove from watchlist" [ref=f3e1264]
+            - generic [ref=f3e1268] [cursor=pointer]:
+              - generic [ref=f3e1278]: TATASTEEL
+              - generic [ref=f3e1279]: "184.40"
+              - generic [ref=f3e1280]: "0.80"
+              - generic [ref=f3e1281]: 0.44%
+              - button "Remove from watchlist" [ref=f3e1282]
+            - generic [ref=f3e1286] [cursor=pointer]:
+              - generic [ref=f3e1296]: ADANIGREEN
+              - generic [ref=f3e1297]: "1395.40"
+              - generic [ref=f3e1298]: "-14.80"
+              - generic [ref=f3e1299]: "-1.05%"
+              - button "Remove from watchlist" [ref=f3e1300]
+            - generic [ref=f3e1304] [cursor=pointer]:
+              - generic [ref=f3e1314]: ETERNAL
+              - generic [ref=f3e1315]: "295.15"
+              - generic [ref=f3e1316]: "13.65"
+              - generic [ref=f3e1317]: 4.85%
+              - button "Remove from watchlist" [ref=f3e1318]
+            - generic [ref=f3e1322] [cursor=pointer]:
+              - generic [ref=f3e1332]: HINDZINC
+              - generic [ref=f3e1333]: "530.40"
+              - generic [ref=f3e1334]: "-10.65"
+              - generic [ref=f3e1335]: "-1.97%"
+              - button "Remove from watchlist" [ref=f3e1336]
+            - generic [ref=f3e1340] [cursor=pointer]:
+              - generic [ref=f3e1350]: SHRIRAMFIN
+              - generic [ref=f3e1351]: "1034.20"
+              - generic [ref=f3e1352]: "14.20"
+              - generic [ref=f3e1353]: 1.39%
+              - button "Remove from watchlist" [ref=f3e1354]
+            - generic [ref=f3e1358] [cursor=pointer]:
+              - generic [ref=f3e1368]: HINDALCO
+              - generic [ref=f3e1369]: "949.25"
+              - generic [ref=f3e1370]: "4.80"
+              - generic [ref=f3e1371]: 0.51%
+              - button "Remove from watchlist" [ref=f3e1372]
+            - generic [ref=f3e1376] [cursor=pointer]:
+              - generic [ref=f3e1386]: GRASIM
+              - generic [ref=f3e1387]: "3093.30"
+              - generic [ref=f3e1388]: "-6.70"
+              - generic [ref=f3e1389]: "-0.22%"
+              - button "Remove from watchlist" [ref=f3e1390]
+            - generic [ref=f3e1394] [cursor=pointer]:
+              - generic [ref=f3e1404]: EICHERMOT
+              - generic [ref=f3e1405]: "7767.00"
+              - generic [ref=f3e1406]: "0.00"
+              - generic [ref=f3e1407]: 0.00%
+              - button "Remove from watchlist" [ref=f3e1408]
+            - generic [ref=f3e1412] [cursor=pointer]:
+              - generic [ref=f3e1422]: IOC
+              - generic [ref=f3e1423]: "140.19"
+              - generic [ref=f3e1424]: "-0.31"
+              - generic [ref=f3e1425]: "-0.22%"
+              - button "Remove from watchlist" [ref=f3e1426]
+            - generic [ref=f3e1430] [cursor=pointer]:
+              - generic [ref=f3e1440]: WIPRO
+              - generic [ref=f3e1441]: "178.19"
+              - generic [ref=f3e1442]: "0.69"
+              - generic [ref=f3e1443]: 0.39%
+              - button "Remove from watchlist" [ref=f3e1444]
+            - generic [ref=f3e1448] [cursor=pointer]:
+              - generic [ref=f3e1458]: INDIGO
+              - generic [ref=f3e1459]: "5210.50"
+              - generic [ref=f3e1460]: "99.50"
+              - generic [ref=f3e1461]: 1.95%
+              - button "Remove from watchlist" [ref=f3e1462]
+            - generic [ref=f3e1466] [cursor=pointer]:
+              - generic [ref=f3e1476]: VBL
+              - generic [ref=f3e1477]: "462.10"
+              - generic [ref=f3e1478]: "1.15"
+              - generic [ref=f3e1479]: 0.25%
+              - button "Remove from watchlist" [ref=f3e1480]
+            - generic [ref=f3e1484] [cursor=pointer]:
+              - generic [ref=f3e1494]: ADANIENSOL
+              - generic [ref=f3e1495]: "1690.00"
+              - generic [ref=f3e1496]: "-29.60"
+              - generic [ref=f3e1497]: "-1.72%"
+              - button "Remove from watchlist" [ref=f3e1498]
+            - generic [ref=f3e1502] [cursor=pointer]:
+              - generic [ref=f3e1512]: SBILIFE
+              - generic [ref=f3e1513]: "1861.10"
+              - generic [ref=f3e1514]: "1.10"
+              - generic [ref=f3e1515]: 0.06%
+              - button "Remove from watchlist" [ref=f3e1516]
+            - generic [ref=f3e1520] [cursor=pointer]:
+              - generic [ref=f3e1530]: DIVISLAB
+              - generic [ref=f3e1531]: "7422.50"
+              - generic [ref=f3e1532]: "200.50"
+              - generic [ref=f3e1533]: 2.78%
+              - button "Remove from watchlist" [ref=f3e1534]
+            - generic [ref=f3e1538] [cursor=pointer]:
+              - generic [ref=f3e1548]: BSE
+              - generic [ref=f3e1549]: "3538.60"
+              - generic [ref=f3e1550]: "-36.40"
+              - generic [ref=f3e1551]: "-1.02%"
+              - button "Remove from watchlist" [ref=f3e1552]
+            - generic [ref=f3e1556] [cursor=pointer]:
+              - generic [ref=f3e1566]: HYUNDAI
+              - generic [ref=f3e1567]: "1983.30"
+              - generic [ref=f3e1568]: "20.30"
+              - generic [ref=f3e1569]: 1.03%
+              - button "Remove from watchlist" [ref=f3e1570]
+            - generic [ref=f3e1574] [cursor=pointer]:
+              - generic [ref=f3e1584]: TVSMOTOR
+              - generic [ref=f3e1585]: "3869.10"
+              - generic [ref=f3e1586]: "-35.90"
+              - generic [ref=f3e1587]: "-0.92%"
+              - button "Remove from watchlist" [ref=f3e1588]
+            - generic [ref=f3e1592] [cursor=pointer]:
+              - generic [ref=f3e1602]: IDEA
+              - generic [ref=f3e1603]: "13.08"
+              - generic [ref=f3e1604]: "-0.05"
+              - generic [ref=f3e1605]: "-0.38%"
+              - button "Remove from watchlist" [ref=f3e1606]
+            - generic [ref=f3e1610] [cursor=pointer]:
+              - generic [ref=f3e1620]: PIDILITIND
+              - generic [ref=f3e1621]: "1609.40"
+              - generic [ref=f3e1622]: "20.50"
+              - generic [ref=f3e1623]: 1.29%
+              - button "Remove from watchlist" [ref=f3e1624]
+            - generic [ref=f3e1628] [cursor=pointer]:
+              - generic [ref=f3e1638]: CUMMINSIND
+              - generic [ref=f3e1639]: "5609.50"
+              - generic [ref=f3e1640]: "-34.00"
+              - generic [ref=f3e1641]: "-0.60%"
+              - button "Remove from watchlist" [ref=f3e1642]
+            - generic [ref=f3e1646] [cursor=pointer]:
+              - generic [ref=f3e1656]: SOLARINDS
+              - generic [ref=f3e1657]: "18657.00"
+              - generic [ref=f3e1658]: "45.00"
+              - generic [ref=f3e1659]: 0.24%
+              - button "Remove from watchlist" [ref=f3e1660]
+            - generic [ref=f3e1664] [cursor=pointer]:
+              - generic [ref=f3e1674]: MOTHERSON
+              - generic [ref=f3e1675]: "148.05"
+              - generic [ref=f3e1676]: "1.06"
+              - generic [ref=f3e1677]: 0.72%
+              - button "Remove from watchlist" [ref=f3e1678]
+            - generic [ref=f3e1682] [cursor=pointer]:
+              - generic [ref=f3e1692]: TRENT
+              - generic [ref=f3e1693]: "2934.40"
+              - generic [ref=f3e1694]: "15.50"
+              - generic [ref=f3e1695]: 0.53%
+              - button "Remove from watchlist" [ref=f3e1696]
+            - generic [ref=f3e1700] [cursor=pointer]:
+              - generic [ref=f3e1710]: POWERINDIA
+              - generic [ref=f3e1711]: "31460.00"
+              - generic [ref=f3e1712]: "60.00"
+              - generic [ref=f3e1713]: 0.19%
+              - button "Remove from watchlist" [ref=f3e1714]
+            - generic [ref=f3e1718] [cursor=pointer]:
+              - generic [ref=f3e1728]: TORNTPHARM
+              - generic [ref=f3e1729]: "5006.90"
+              - generic [ref=f3e1730]: "21.90"
+              - generic [ref=f3e1731]: 0.44%
+              - button "Remove from watchlist" [ref=f3e1732]
+            - generic [ref=f3e1736] [cursor=pointer]:
+              - generic [ref=f3e1746]: JIOFIN
+              - generic [ref=f3e1747]: "235.37"
+              - generic [ref=f3e1748]: "-1.63"
+              - generic [ref=f3e1749]: "-0.69%"
+              - button "Remove from watchlist" [ref=f3e1750]
+            - generic [ref=f3e1754] [cursor=pointer]:
+              - generic [ref=f3e1764]: DLF
+              - generic [ref=f3e1765]: "643.75"
+              - generic [ref=f3e1766]: "-3.35"
+              - generic [ref=f3e1767]: "-0.52%"
+              - button "Remove from watchlist" [ref=f3e1768]
+            - generic [ref=f3e1772] [cursor=pointer]:
+              - generic [ref=f3e1782]: CGPOWER
+              - generic [ref=f3e1783]: "875.05"
+              - generic [ref=f3e1784]: "3.25"
+              - generic [ref=f3e1785]: 0.37%
+              - button "Remove from watchlist" [ref=f3e1786]
+            - generic [ref=f3e1790] [cursor=pointer]:
+              - generic [ref=f3e1800]: ABB
+              - generic [ref=f3e1801]: "7263.00"
+              - generic [ref=f3e1802]: "-156.00"
+              - generic [ref=f3e1803]: "-2.10%"
+              - button "Remove from watchlist" [ref=f3e1804]
+            - generic [ref=f3e1808] [cursor=pointer]:
+              - generic [ref=f3e1818]: POLYCAB
+              - generic [ref=f3e1819]: "9019.00"
+              - generic [ref=f3e1820]: "63.00"
+              - generic [ref=f3e1821]: 0.70%
+              - button "Remove from watchlist" [ref=f3e1822]
+            - generic [ref=f3e1826] [cursor=pointer]:
+              - generic [ref=f3e1836]: BANKBARODA
+              - generic [ref=f3e1837]: "243.10"
+              - generic [ref=f3e1838]: "-0.40"
+              - generic [ref=f3e1839]: "-0.16%"
+              - button "Remove from watchlist" [ref=f3e1840]
+            - generic [ref=f3e1844] [cursor=pointer]:
+              - generic [ref=f3e1854]: CHOLAFIN
+              - generic [ref=f3e1855]: "1794.00"
+              - generic [ref=f3e1856]: "50.00"
+              - generic [ref=f3e1857]: 2.87%
+              - button "Remove from watchlist" [ref=f3e1858]
+            - generic [ref=f3e1862] [cursor=pointer]:
+              - generic [ref=f3e1872]: PFC
+              - generic [ref=f3e1873]: "417.80"
+              - generic [ref=f3e1874]: "5.60"
+              - generic [ref=f3e1875]: 1.36%
+              - button "Remove from watchlist" [ref=f3e1876]
+            - generic [ref=f3e1880] [cursor=pointer]:
+              - generic [ref=f3e1890]: TECHM
+              - generic [ref=f3e1891]: "1575.70"
+              - generic [ref=f3e1892]: "-0.30"
+              - generic [ref=f3e1893]: "-0.02%"
+              - button "Remove from watchlist" [ref=f3e1894]
+            - generic [ref=f3e1898] [cursor=pointer]:
+              - generic [ref=f3e1908]: BPCL
+              - generic [ref=f3e1909]: "314.95"
+              - generic [ref=f3e1910]: "-0.25"
+              - generic [ref=f3e1911]: "-0.08%"
+              - button "Remove from watchlist" [ref=f3e1912]
+            - generic [ref=f3e1916] [cursor=pointer]:
+              - generic [ref=f3e1926]: BHEL
+              - generic [ref=f3e1927]: "414.75"
+              - generic [ref=f3e1928]: "-5.25"
+              - generic [ref=f3e1929]: "-1.25%"
+              - button "Remove from watchlist" [ref=f3e1930]
+            - generic [ref=f3e1934] [cursor=pointer]:
+              - generic [ref=f3e1944]: UNIONBANK
+              - generic [ref=f3e1945]: "170.28"
+              - generic [ref=f3e1946]: "-1.72"
+              - generic [ref=f3e1947]: "-1.00%"
+              - button "Remove from watchlist" [ref=f3e1948]
+            - generic [ref=f3e1952] [cursor=pointer]:
+              - generic [ref=f3e1962]: TATAPOWER
+              - generic [ref=f3e1963]: "375.85"
+              - generic [ref=f3e1964]: "-0.90"
+              - generic [ref=f3e1965]: "-0.24%"
+              - button "Remove from watchlist" [ref=f3e1966]
+            - generic [ref=f3e1970] [cursor=pointer]:
+              - generic [ref=f3e1980]: SIEMENS
+              - generic [ref=f3e1981]: "3721.20"
+              - generic [ref=f3e1982]: "0.20"
+              - generic [ref=f3e1983]: 0.01%
+              - button "Remove from watchlist" [ref=f3e1984]
+            - generic [ref=f3e1988] [cursor=pointer]:
+              - generic [ref=f3e1998]: IRFC
+              - generic [ref=f3e1999]: "88.23"
+              - generic [ref=f3e2000]: "0.13"
+              - generic [ref=f3e2001]: 0.15%
+              - button "Remove from watchlist" [ref=f3e2002]
+            - generic [ref=f3e2006] [cursor=pointer]:
+              - generic [ref=f3e2016]: MUTHOOTFIN
+              - generic [ref=f3e2017]: "3047.00"
+              - generic [ref=f3e2018]: "26.80"
+              - generic [ref=f3e2019]: 0.89%
+              - button "Remove from watchlist" [ref=f3e2020]
+            - generic [ref=f3e2024] [cursor=pointer]:
+              - generic [ref=f3e2034]: HDFCLIFE
+              - generic [ref=f3e2035]: "551.75"
+              - generic [ref=f3e2036]: "-4.20"
+              - generic [ref=f3e2037]: "-0.76%"
+              - button "Remove from watchlist" [ref=f3e2038]
+            - generic [ref=f3e2042] [cursor=pointer]:
+              - generic [ref=f3e2052]: BRITANNIA
+              - generic [ref=f3e2053]: "5363.00"
+              - generic [ref=f3e2054]: "-36.50"
+              - generic [ref=f3e2055]: "-0.68%"
+              - button "Remove from watchlist" [ref=f3e2056]
+            - generic [ref=f3e2060] [cursor=pointer]:
+              - generic [ref=f3e2070]: PNB
+              - generic [ref=f3e2071]: "111.37"
+              - generic [ref=f3e2072]: "0.12"
+              - generic [ref=f3e2073]: 0.11%
+              - button "Remove from watchlist" [ref=f3e2074]
+            - generic [ref=f3e2078] [cursor=pointer]:
+              - generic [ref=f3e2088]: GVT&D
+              - generic [ref=f3e2089]: "4292.20"
+              - generic [ref=f3e2090]: "77.20"
+              - generic [ref=f3e2091]: 1.83%
+              - button "Remove from watchlist" [ref=f3e2092]
+            - generic [ref=f3e2096] [cursor=pointer]:
+              - generic [ref=f3e2106]: APOLLOHOSP
+              - generic [ref=f3e2107]: "8795.00"
+              - generic [ref=f3e2108]: "-21.00"
+              - generic [ref=f3e2109]: "-0.24%"
+              - button "Remove from watchlist" [ref=f3e2110]
+            - generic [ref=f3e2114] [cursor=pointer]:
+              - generic [ref=f3e2124]: CANBK
+              - generic [ref=f3e2125]: "127.05"
+              - generic [ref=f3e2126]: "0.55"
+              - generic [ref=f3e2127]: 0.43%
+              - button "Remove from watchlist" [ref=f3e2128]
+            - generic [ref=f3e2132] [cursor=pointer]:
+              - generic [ref=f3e2142]: VEDL
+              - generic [ref=f3e2143]: "265.85"
+              - generic [ref=f3e2144]: "-1.20"
+              - generic [ref=f3e2145]: "-0.45%"
+              - button "Remove from watchlist" [ref=f3e2146]
+            - generic [ref=f3e2150] [cursor=pointer]:
+              - generic [ref=f3e2160]: JINDALSTEL
+              - generic [ref=f3e2161]: "1062.00"
+              - generic [ref=f3e2162]: "7.00"
+              - generic [ref=f3e2163]: 0.66%
+              - button "Remove from watchlist" [ref=f3e2164]
+            - generic [ref=f3e2168] [cursor=pointer]:
+              - generic [ref=f3e2178]: GAIL
+              - generic [ref=f3e2179]: "171.80"
+              - generic [ref=f3e2180]: "1.69"
+              - generic [ref=f3e2181]: 0.99%
+              - button "Remove from watchlist" [ref=f3e2182]
+            - generic [ref=f3e2186] [cursor=pointer]:
+              - generic [ref=f3e2196]: BOSCHLTD
+              - generic [ref=f3e2197]: "41405.00"
+              - generic [ref=f3e2198]: "-500.00"
+              - generic [ref=f3e2199]: "-1.19%"
+              - button "Remove from watchlist" [ref=f3e2200]
+            - generic [ref=f3e2204] [cursor=pointer]:
+              - generic [ref=f3e2214]: BAJAJHLDNG
+              - generic [ref=f3e2215]: "10734.00"
+              - generic [ref=f3e2216]: "40.00"
+              - generic [ref=f3e2217]: 0.37%
+              - button "Remove from watchlist" [ref=f3e2218]
+            - generic [ref=f3e2222] [cursor=pointer]:
+              - generic [ref=f3e2232]: INDIANB
+              - generic [ref=f3e2233]: "829.10"
+              - generic [ref=f3e2234]: "-5.90"
+              - generic [ref=f3e2235]: "-0.71%"
+              - button "Remove from watchlist" [ref=f3e2236]
+            - generic [ref=f3e2240] [cursor=pointer]:
+              - generic [ref=f3e2250]: GMRAIRPORT
+              - generic [ref=f3e2251]: "107.55"
+              - generic [ref=f3e2252]: "-0.25"
+              - generic [ref=f3e2253]: "-0.23%"
+              - button "Remove from watchlist" [ref=f3e2254]
+            - generic [ref=f3e2258] [cursor=pointer]:
+              - generic [ref=f3e2268]: HDFCAMC
+              - generic [ref=f3e2269]: "2551.40"
+              - generic [ref=f3e2270]: "35.50"
+              - generic [ref=f3e2271]: 1.41%
+              - button "Remove from watchlist" [ref=f3e2272]
+            - generic [ref=f3e2276] [cursor=pointer]:
+              - generic [ref=f3e2286]: CIPLA
+              - generic [ref=f3e2287]: "1393.10"
+              - generic [ref=f3e2288]: "-19.50"
+              - generic [ref=f3e2289]: "-1.38%"
+              - button "Remove from watchlist" [ref=f3e2290]
+            - generic [ref=f3e2294] [cursor=pointer]:
+              - generic [ref=f3e2304]: ZYDUSLIFE
+              - generic [ref=f3e2305]: "1106.80"
+              - generic [ref=f3e2306]: "-5.10"
+              - generic [ref=f3e2307]: "-0.46%"
+              - button "Remove from watchlist" [ref=f3e2308]
+            - generic [ref=f3e2312] [cursor=pointer]:
+              - generic [ref=f3e2322]: INDUSTOWER
+              - generic [ref=f3e2323]: "388.70"
+              - generic [ref=f3e2324]: "-7.30"
+              - generic [ref=f3e2325]: "-1.84%"
+              - button "Remove from watchlist" [ref=f3e2326]
+            - generic [ref=f3e2330] [cursor=pointer]:
+              - generic [ref=f3e2340]: TATACONSUM
+              - generic [ref=f3e2341]: "1106.30"
+              - generic [ref=f3e2342]: "-8.80"
+              - generic [ref=f3e2343]: "-0.79%"
+              - button "Remove from watchlist" [ref=f3e2344]
+            - generic [ref=f3e2348] [cursor=pointer]:
+              - generic [ref=f3e2358]: DRREDDY
+              - generic [ref=f3e2359]: "1152.50"
+              - generic [ref=f3e2360]: "-2.20"
+              - generic [ref=f3e2361]: "-0.19%"
+              - button "Remove from watchlist" [ref=f3e2362]
+            - generic [ref=f3e2366] [cursor=pointer]:
+              - generic [ref=f3e2376]: GODREJCP
+              - generic [ref=f3e2377]: "1071.00"
+              - generic [ref=f3e2378]: "6.00"
+              - generic [ref=f3e2379]: 0.56%
+              - button "Remove from watchlist" [ref=f3e2380]
+            - generic [ref=f3e2384] [cursor=pointer]:
+              - generic [ref=f3e2394]: AMBUJACEM
+              - generic [ref=f3e2395]: "429.50"
+              - generic [ref=f3e2396]: "0.50"
+              - generic [ref=f3e2397]: 0.12%
+              - button "Remove from watchlist" [ref=f3e2398]
+            - generic [ref=f3e2402] [cursor=pointer]:
+              - generic [ref=f3e2412]: MARICO
+              - generic [ref=f3e2413]: "857.20"
+              - generic [ref=f3e2414]: "-4.80"
+              - generic [ref=f3e2415]: "-0.56%"
+              - button "Remove from watchlist" [ref=f3e2416]
+            - generic [ref=f3e2420] [cursor=pointer]:
+              - generic [ref=f3e2430]: LUPIN
+              - generic [ref=f3e2431]: "2410.60"
+              - generic [ref=f3e2432]: "39.60"
+              - generic [ref=f3e2433]: 1.67%
+              - button "Remove from watchlist" [ref=f3e2434]
+            - generic [ref=f3e2438] [cursor=pointer]:
+              - generic [ref=f3e2448]: HEROMOTOCO
+              - generic [ref=f3e2449]: "5111.00"
+              - generic [ref=f3e2450]: "61.00"
+              - generic [ref=f3e2451]: 1.21%
+              - button "Remove from watchlist" [ref=f3e2452]
+            - generic [ref=f3e2456] [cursor=pointer]:
+              - generic [ref=f3e2466]: MAXHEALTH
+              - generic [ref=f3e2467]: "1098.90"
+              - generic [ref=f3e2468]: "12.00"
+              - generic [ref=f3e2469]: 1.10%
+              - button "Remove from watchlist" [ref=f3e2470]
+            - generic [ref=f3e2474] [cursor=pointer]:
+              - generic [ref=f3e2484]: JSWENERGY
+              - generic [ref=f3e2485]: "548.20"
+              - generic [ref=f3e2486]: "-3.80"
+              - generic [ref=f3e2487]: "-0.69%"
+              - button "Remove from watchlist" [ref=f3e2488]
+            - generic [ref=f3e2492] [cursor=pointer]:
+              - generic [ref=f3e2502]: MAZDOCK
+              - generic [ref=f3e2503]: "2327.00"
+              - generic [ref=f3e2504]: "28.00"
+              - generic [ref=f3e2505]: 1.22%
+              - button "Remove from watchlist" [ref=f3e2506]
+            - generic [ref=f3e2510] [cursor=pointer]:
+              - generic [ref=f3e2520]: MANKIND
+              - generic [ref=f3e2521]: "2538.60"
+              - generic [ref=f3e2522]: "25.60"
+              - generic [ref=f3e2523]: 1.02%
+              - button "Remove from watchlist" [ref=f3e2524]
+            - generic [ref=f3e2528] [cursor=pointer]:
+              - generic [ref=f3e2538]: INDHOTEL
+              - generic [ref=f3e2539]: "733.25"
+              - generic [ref=f3e2540]: "2.90"
+              - generic [ref=f3e2541]: 0.40%
+              - button "Remove from watchlist" [ref=f3e2542]
+            - generic [ref=f3e2546] [cursor=pointer]:
+              - generic [ref=f3e2556]: BHARATFORG
+              - generic [ref=f3e2557]: "2172.70"
+              - generic [ref=f3e2558]: "4.70"
+              - generic [ref=f3e2559]: 0.22%
+              - button "Remove from watchlist" [ref=f3e2560]
+            - generic [ref=f3e2564] [cursor=pointer]:
+              - generic [ref=f3e2574]: ABCAPITAL
+              - generic [ref=f3e2575]: "398.25"
+              - generic [ref=f3e2576]: "1.50"
+              - generic [ref=f3e2577]: 0.38%
+              - button "Remove from watchlist" [ref=f3e2578]
+            - generic [ref=f3e2582] [cursor=pointer]:
+              - generic [ref=f3e2592]: RECLTD
+              - generic [ref=f3e2593]: "366.75"
+              - generic [ref=f3e2594]: "9.25"
+              - generic [ref=f3e2595]: 2.59%
+              - button "Remove from watchlist" [ref=f3e2596]
+            - generic [ref=f3e2600] [cursor=pointer]:
+              - generic [ref=f3e2610]: ASHOKLEY
+              - generic [ref=f3e2611]: "153.80"
+              - generic [ref=f3e2612]: "0.29"
+              - generic [ref=f3e2613]: 0.19%
+              - button "Remove from watchlist" [ref=f3e2614]
+            - generic [ref=f3e2618] [cursor=pointer]:
+              - generic [ref=f3e2628]: UNITDSPR
+              - generic [ref=f3e2629]: "1490.00"
+              - generic [ref=f3e2630]: "12.30"
+              - generic [ref=f3e2631]: 0.83%
+              - button "Remove from watchlist" [ref=f3e2632]
+            - generic [ref=f3e2636] [cursor=pointer]:
+              - generic [ref=f3e2646]: LODHA
+              - generic [ref=f3e2647]: "1190.20"
+              - generic [ref=f3e2648]: "35.20"
+              - generic [ref=f3e2649]: 3.05%
+              - button "Remove from watchlist" [ref=f3e2650]
+            - generic [ref=f3e2654] [cursor=pointer]:
+              - generic [ref=f3e2664]: SHREECEM
+              - generic [ref=f3e2665]: "26905.00"
+              - generic [ref=f3e2666]: "-55.00"
+              - generic [ref=f3e2667]: "-0.20%"
+              - button "Remove from watchlist" [ref=f3e2668]
+            - generic [ref=f3e2672] [cursor=pointer]:
+              - generic [ref=f3e2682]: WAAREEENER
+              - generic [ref=f3e2683]: "2739.70"
+              - generic [ref=f3e2684]: "18.70"
+              - generic [ref=f3e2685]: 0.69%
+              - button "Remove from watchlist" [ref=f3e2686]
+            - generic [ref=f3e2690] [cursor=pointer]:
+              - generic [ref=f3e2700]: ICICIGI
+              - generic [ref=f3e2701]: "1675.70"
+              - generic [ref=f3e2702]: "8.60"
+              - generic [ref=f3e2703]: 0.52%
+              - button "Remove from watchlist" [ref=f3e2704]
+            - generic [ref=f3e2708] [cursor=pointer]:
+              - generic [ref=f3e2718]: HINDPETRO
+              - generic [ref=f3e2719]: "388.45"
+              - generic [ref=f3e2720]: "-1.75"
+              - generic [ref=f3e2721]: "-0.45%"
+              - button "Remove from watchlist" [ref=f3e2722]
+            - generic [ref=f3e2726] [cursor=pointer]:
+              - generic [ref=f3e2736]: AUROPHARMA
+              - generic [ref=f3e2737]: "1559.20"
+              - generic [ref=f3e2738]: "25.70"
+              - generic [ref=f3e2739]: 1.68%
+              - button "Remove from watchlist" [ref=f3e2740]
+            - generic [ref=f3e2744] [cursor=pointer]:
+              - generic [ref=f3e2754]: OFSS
+              - generic [ref=f3e2755]: "11040.00"
+              - generic [ref=f3e2756]: "280.00"
+              - generic [ref=f3e2757]: 2.60%
+              - button "Remove from watchlist" [ref=f3e2758]
+            - generic [ref=f3e2762] [cursor=pointer]:
+              - generic [ref=f3e2772]: SRF
+              - generic [ref=f3e2773]: "2659.00"
+              - generic [ref=f3e2774]: "-35.00"
+              - generic [ref=f3e2775]: "-1.30%"
+              - button "Remove from watchlist" [ref=f3e2776]
+            - generic [ref=f3e2780] [cursor=pointer]:
+              - generic [ref=f3e2790]: FEDERALBNK
+              - generic [ref=f3e2791]: "355.30"
+              - generic [ref=f3e2792]: "0.25"
+              - generic [ref=f3e2793]: 0.07%
+              - button "Remove from watchlist" [ref=f3e2794]
+            - generic [ref=f3e2798] [cursor=pointer]:
+              - generic [ref=f3e2808]: NYKAA
+              - generic [ref=f3e2809]: "324.30"
+              - generic [ref=f3e2810]: "-0.70"
+              - generic [ref=f3e2811]: "-0.22%"
+              - button "Remove from watchlist" [ref=f3e2812]
+            - generic [ref=f3e2816] [cursor=pointer]:
+              - generic [ref=f3e2826]: NMDC
+              - generic [ref=f3e2827]: "83.73"
+              - generic [ref=f3e2828]: "-0.27"
+              - generic [ref=f3e2829]: "-0.32%"
+              - button "Remove from watchlist" [ref=f3e2830]
+            - generic [ref=f3e2834] [cursor=pointer]:
+              - generic [ref=f3e2844]: AUBANK
+              - generic [ref=f3e2845]: "1054.20"
+              - generic [ref=f3e2846]: "33.20"
+              - generic [ref=f3e2847]: 3.25%
+              - button "Remove from watchlist" [ref=f3e2848]
+            - generic [ref=f3e2852] [cursor=pointer]:
+              - generic [ref=f3e2862]: PERSISTENT
+              - generic [ref=f3e2863]: "5260.60"
+              - generic [ref=f3e2864]: "11.60"
+              - generic [ref=f3e2865]: 0.22%
+              - button "Remove from watchlist" [ref=f3e2866]
+            - generic [ref=f3e2870] [cursor=pointer]:
+              - generic [ref=f3e2880]: SUZLON
+              - generic [ref=f3e2881]: "52.93"
+              - generic [ref=f3e2882]: "0.43"
+              - generic [ref=f3e2883]: 0.82%
+              - button "Remove from watchlist" [ref=f3e2884]
+            - generic [ref=f3e2888] [cursor=pointer]:
+              - generic [ref=f3e2898]: DABUR
+              - generic [ref=f3e2899]: "427.65"
+              - generic [ref=f3e2900]: "2.05"
+              - generic [ref=f3e2901]: 0.48%
+              - button "Remove from watchlist" [ref=f3e2902]
+            - generic [ref=f3e2906] [cursor=pointer]:
+              - generic [ref=f3e2916]: SAIL
+              - generic [ref=f3e2917]: "162.47"
+              - generic [ref=f3e2918]: "-0.43"
+              - generic [ref=f3e2919]: "-0.26%"
+              - button "Remove from watchlist" [ref=f3e2920]
+            - generic [ref=f3e2924] [cursor=pointer]:
+              - generic [ref=f3e2934]: NHPC
+              - generic [ref=f3e2935]: "79.50"
+              - generic [ref=f3e2936]: "0.00"
+              - generic [ref=f3e2937]: 0.00%
+              - button "Remove from watchlist" [ref=f3e2938]
+            - generic [ref=f3e2942] [cursor=pointer]:
+              - generic [ref=f3e2952]: LAURUSLABS
+              - generic [ref=f3e2953]: "1719.90"
+              - generic [ref=f3e2954]: "95.10"
+              - generic [ref=f3e2955]: 5.85%
+              - button "Remove from watchlist" [ref=f3e2956]
+            - generic [ref=f3e2960] [cursor=pointer]:
+              - generic [ref=f3e2970]: YESBANK
+              - generic [ref=f3e2971]: "22.93"
+              - generic [ref=f3e2972]: "-0.12"
+              - generic [ref=f3e2973]: "-0.52%"
+              - button "Remove from watchlist" [ref=f3e2974]
+            - generic [ref=f3e2978] [cursor=pointer]:
+              - generic [ref=f3e2988]: FORTIS
+              - generic [ref=f3e2989]: "944.10"
+              - generic [ref=f3e2990]: "-13.90"
+              - generic [ref=f3e2991]: "-1.45%"
+              - button "Remove from watchlist" [ref=f3e2992]
+            - generic [ref=f3e2996] [cursor=pointer]:
+              - generic [ref=f3e3006]: MCX
+              - generic [ref=f3e3007]: "2754.20"
+              - generic [ref=f3e3008]: "13.80"
+              - generic [ref=f3e3009]: 0.50%
+              - button "Remove from watchlist" [ref=f3e3010]
+            - generic [ref=f3e3014] [cursor=pointer]:
+              - generic [ref=f3e3024]: HAVELLS
+              - generic [ref=f3e3025]: "1231.40"
+              - generic [ref=f3e3026]: "-3.60"
+              - generic [ref=f3e3027]: "-0.29%"
+              - button "Remove from watchlist" [ref=f3e3028]
+            - generic [ref=f3e3032] [cursor=pointer]:
+              - generic [ref=f3e3042]: LTF
+              - generic [ref=f3e3043]: "311.00"
+              - generic [ref=f3e3044]: "6.00"
+              - generic [ref=f3e3045]: 1.97%
+              - button "Remove from watchlist" [ref=f3e3046]
+            - generic [ref=f3e3050] [cursor=pointer]:
+              - generic [ref=f3e3060]: POLICYBZR
+              - generic [ref=f3e3061]: "1548.00"
+              - generic [ref=f3e3062]: "8.00"
+              - generic [ref=f3e3063]: 0.52%
+              - button "Remove from watchlist" [ref=f3e3064]
+            - generic [ref=f3e3068] [cursor=pointer]:
+              - generic [ref=f3e3078]: INDUSINDBK
+              - generic [ref=f3e3079]: "1001.45"
+              - generic [ref=f3e3080]: "-1.55"
+              - generic [ref=f3e3081]: "-0.15%"
+              - button "Remove from watchlist" [ref=f3e3082]
+            - generic [ref=f3e3086] [cursor=pointer]:
+              - generic [ref=f3e3096]: DIXON
+              - generic [ref=f3e3097]: "13833.00"
+              - generic [ref=f3e3098]: "-118.00"
+              - generic [ref=f3e3099]: "-0.85%"
+              - button "Remove from watchlist" [ref=f3e3100]
+            - generic [ref=f3e3104] [cursor=pointer]:
+              - generic [ref=f3e3114]: NAM-INDIA
+              - generic [ref=f3e3115]: "1155.00"
+              - generic [ref=f3e3116]: "31.40"
+              - generic [ref=f3e3117]: 2.79%
+              - button "Remove from watchlist" [ref=f3e3118]
+            - generic [ref=f3e3122] [cursor=pointer]:
+              - generic [ref=f3e3132]: PAYTM
+              - generic [ref=f3e3133]: "1282.50"
+              - generic [ref=f3e3134]: "-5.50"
+              - generic [ref=f3e3135]: "-0.43%"
+              - button "Remove from watchlist" [ref=f3e3136]
+            - generic [ref=f3e3140] [cursor=pointer]:
+              - generic [ref=f3e3150]: SWIGGY
+              - generic [ref=f3e3151]: "260.65"
+              - generic [ref=f3e3152]: "6.41"
+              - generic [ref=f3e3153]: 2.52%
+              - button "Remove from watchlist" [ref=f3e3154]
+            - generic [ref=f3e3158] [cursor=pointer]:
+              - generic [ref=f3e3168]: ICICIPRULI
+              - generic [ref=f3e3169]: "508.05"
+              - generic [ref=f3e3170]: "3.80"
+              - generic [ref=f3e3171]: 0.75%
+              - button "Remove from watchlist" [ref=f3e3172]
+            - generic [ref=f3e3176] [cursor=pointer]:
+              - generic [ref=f3e3186]: NATIONALUM
+              - generic [ref=f3e3187]: "341.75"
+              - generic [ref=f3e3188]: "-3.35"
+              - generic [ref=f3e3189]: "-0.97%"
+              - button "Remove from watchlist" [ref=f3e3190]
+            - generic [ref=f3e3194] [cursor=pointer]:
+              - generic [ref=f3e3204]: OIL
+              - generic [ref=f3e3205]: "444.25"
+              - generic [ref=f3e3206]: "-0.75"
+              - generic [ref=f3e3207]: "-0.17%"
+              - button "Remove from watchlist" [ref=f3e3208]
+            - generic [ref=f3e3212] [cursor=pointer]:
+              - generic [ref=f3e3222]: BIOCON
+              - generic [ref=f3e3223]: "436.40"
+              - generic [ref=f3e3224]: "-0.60"
+              - generic [ref=f3e3225]: "-0.14%"
+              - button "Remove from watchlist" [ref=f3e3226]
+            - generic [ref=f3e3230] [cursor=pointer]:
+              - generic [ref=f3e3240]: IDFCFIRSTB
+              - generic [ref=f3e3241]: "84.98"
+              - generic [ref=f3e3242]: "-1.32"
+              - generic [ref=f3e3243]: "-1.53%"
+              - button "Remove from watchlist" [ref=f3e3244]
+            - generic [ref=f3e3248] [cursor=pointer]:
+              - generic [ref=f3e3258]: BANKINDIA
+              - generic [ref=f3e3259]: "137.19"
+              - generic [ref=f3e3260]: "-7.81"
+              - generic [ref=f3e3261]: "-5.39%"
+              - button "Remove from watchlist" [ref=f3e3262]
+            - generic [ref=f3e3266] [cursor=pointer]:
+              - generic [ref=f3e3276]: PHOENIXLTD
+              - generic [ref=f3e3277]: "2014.50"
+              - generic [ref=f3e3278]: "3.10"
+              - generic [ref=f3e3279]: 0.15%
+              - button "Remove from watchlist" [ref=f3e3280]
+            - generic [ref=f3e3284] [cursor=pointer]:
+              - generic [ref=f3e3294]: UNOMINDA
+              - generic [ref=f3e3295]: "1150.00"
+              - generic [ref=f3e3296]: "10.10"
+              - generic [ref=f3e3297]: 0.89%
+              - button "Remove from watchlist" [ref=f3e3298]
+            - generic [ref=f3e3302] [cursor=pointer]:
+              - generic [ref=f3e3312]: ALKEM
+              - generic [ref=f3e3313]: "5623.50"
+              - generic [ref=f3e3314]: "-70.00"
+              - generic [ref=f3e3315]: "-1.23%"
+              - button "Remove from watchlist" [ref=f3e3316]
+            - generic [ref=f3e3320] [cursor=pointer]:
+              - generic [ref=f3e3330]: NAUKRI
+              - generic [ref=f3e3331]: "1196.85"
+              - generic [ref=f3e3332]: "25.40"
+              - generic [ref=f3e3333]: 2.17%
+              - button "Remove from watchlist" [ref=f3e3334]
+            - generic [ref=f3e3338] [cursor=pointer]:
+              - generic [ref=f3e3348]: PRESTIGE
+              - generic [ref=f3e3349]: "1632.30"
+              - generic [ref=f3e3350]: "13.30"
+              - generic [ref=f3e3351]: 0.82%
+              - button "Remove from watchlist" [ref=f3e3352]
+            - generic [ref=f3e3356] [cursor=pointer]:
+              - generic [ref=f3e3366]: TIINDIA
+              - generic [ref=f3e3367]: "2846.00"
+              - generic [ref=f3e3368]: "52.30"
+              - generic [ref=f3e3369]: 1.87%
+              - button "Remove from watchlist" [ref=f3e3370]
+            - generic [ref=f3e3374] [cursor=pointer]:
+              - generic [ref=f3e3384]: GLENMARK
+              - generic [ref=f3e3385]: "2200.00"
+              - generic [ref=f3e3386]: "-18.00"
+              - generic [ref=f3e3387]: "-0.81%"
+              - button "Remove from watchlist" [ref=f3e3388]
+            - generic [ref=f3e3392] [cursor=pointer]:
+              - generic [ref=f3e3402]: OBEROIRLTY
+              - generic [ref=f3e3403]: "1836.60"
+              - generic [ref=f3e3404]: "-15.60"
+              - generic [ref=f3e3405]: "-0.84%"
+              - button "Remove from watchlist" [ref=f3e3406]
+            - generic [ref=f3e3410] [cursor=pointer]:
+              - generic [ref=f3e3420]: SBICARD
+              - generic [ref=f3e3421]: "643.65"
+              - generic [ref=f3e3422]: "13.00"
+              - generic [ref=f3e3423]: 2.06%
+              - button "Remove from watchlist" [ref=f3e3424]
+            - generic [ref=f3e3428] [cursor=pointer]:
+              - generic [ref=f3e3438]: MOTILALOFS
+              - generic [ref=f3e3439]: "864.35"
+              - generic [ref=f3e3440]: "-7.70"
+              - generic [ref=f3e3441]: "-0.88%"
+              - button "Remove from watchlist" [ref=f3e3442]
+            - generic [ref=f3e3446] [cursor=pointer]:
+              - generic [ref=f3e3456]: VMM
+              - generic [ref=f3e3457]: "109.09"
+              - generic [ref=f3e3458]: "-0.79"
+              - generic [ref=f3e3459]: "-0.72%"
+              - button "Remove from watchlist" [ref=f3e3460]
+            - generic [ref=f3e3464] [cursor=pointer]:
+              - generic [ref=f3e3474]: MFSL
+              - generic [ref=f3e3475]: "1505.30"
+              - generic [ref=f3e3476]: "-17.50"
+              - generic [ref=f3e3477]: "-1.15%"
+              - button "Remove from watchlist" [ref=f3e3478]
+            - generic [ref=f3e3482] [cursor=pointer]:
+              - generic [ref=f3e3492]: COLPAL
+              - generic [ref=f3e3493]: "2142.00"
+              - generic [ref=f3e3494]: "53.20"
+              - generic [ref=f3e3495]: 2.55%
+              - button "Remove from watchlist" [ref=f3e3496]
+            - generic [ref=f3e3500] [cursor=pointer]:
+              - generic [ref=f3e3510]: GODREJPROP
+              - generic [ref=f3e3511]: "2063.30"
+              - generic [ref=f3e3512]: "12.70"
+              - generic [ref=f3e3513]: 0.62%
+              - button "Remove from watchlist" [ref=f3e3514]
+            - generic [ref=f3e3518] [cursor=pointer]:
+              - generic [ref=f3e3528]: KEI
+              - generic [ref=f3e3529]: "4893.00"
+              - generic [ref=f3e3530]: "-9.00"
+              - generic [ref=f3e3531]: "-0.18%"
+              - button "Remove from watchlist" [ref=f3e3532]
+            - generic [ref=f3e3536] [cursor=pointer]:
+              - generic [ref=f3e3546]: UPL
+              - generic [ref=f3e3547]: "608.70"
+              - generic [ref=f3e3548]: "3.25"
+              - generic [ref=f3e3549]: 0.54%
+              - button "Remove from watchlist" [ref=f3e3550]
+            - generic [ref=f3e3554] [cursor=pointer]:
+              - generic [ref=f3e3564]: APLAPOLLO
+              - generic [ref=f3e3565]: "1850.10"
+              - generic [ref=f3e3566]: "25.10"
+              - generic [ref=f3e3567]: 1.38%
+              - button "Remove from watchlist" [ref=f3e3568]
+            - generic [ref=f3e3572] [cursor=pointer]:
+              - generic [ref=f3e3582]: RVNL
+              - generic [ref=f3e3583]: "224.40"
+              - generic [ref=f3e3584]: "-1.63"
+              - generic [ref=f3e3585]: "-0.72%"
+              - button "Remove from watchlist" [ref=f3e3586]
+            - generic [ref=f3e3590] [cursor=pointer]:
+              - generic [ref=f3e3600]: COFORGE
+              - generic [ref=f3e3601]: "1525.00"
+              - generic [ref=f3e3602]: "29.50"
+              - generic [ref=f3e3603]: 1.97%
+              - button "Remove from watchlist" [ref=f3e3604]
+            - generic [ref=f3e3608] [cursor=pointer]:
+              - generic [ref=f3e3618]: RADICO
+              - generic [ref=f3e3619]: "4149.00"
+              - generic [ref=f3e3620]: "29.00"
+              - generic [ref=f3e3621]: 0.70%
+              - button "Remove from watchlist" [ref=f3e3622]
+            - generic [ref=f3e3626] [cursor=pointer]:
+              - generic [ref=f3e3636]: PREMIERENE
+              - generic [ref=f3e3637]: "1033.60"
+              - generic [ref=f3e3638]: "4.70"
+              - generic [ref=f3e3639]: 0.46%
+              - button "Remove from watchlist" [ref=f3e3640]
+            - generic [ref=f3e3644] [cursor=pointer]:
+              - generic [ref=f3e3654]: PATANJALI
+              - generic [ref=f3e3655]: "343.85"
+              - generic [ref=f3e3656]: "0.40"
+              - generic [ref=f3e3657]: 0.12%
+              - button "Remove from watchlist" [ref=f3e3658]
+            - generic [ref=f3e3662] [cursor=pointer]:
+              - generic [ref=f3e3672]: 360ONE
+              - generic [ref=f3e3673]: "1131.20"
+              - generic [ref=f3e3674]: "14.90"
+              - generic [ref=f3e3675]: 1.33%
+              - button "Remove from watchlist" [ref=f3e3676]
+            - generic [ref=f3e3680] [cursor=pointer]:
+              - generic [ref=f3e3690]: SUPREMEIND
+              - generic [ref=f3e3691]: "3367.30"
+              - generic [ref=f3e3692]: "-115.90"
+              - generic [ref=f3e3693]: "-3.33%"
+              - button "Remove from watchlist" [ref=f3e3694]
+            - generic [ref=f3e3698] [cursor=pointer]:
+              - generic [ref=f3e3708]: BDL
+              - generic [ref=f3e3709]: "1257.90"
+              - generic [ref=f3e3710]: "8.70"
+              - generic [ref=f3e3711]: 0.70%
+              - button "Remove from watchlist" [ref=f3e3712]
+            - generic [ref=f3e3716] [cursor=pointer]:
+              - generic [ref=f3e3726]: MPHASIS
+              - generic [ref=f3e3727]: "2326.60"
+              - generic [ref=f3e3728]: "-5.50"
+              - generic [ref=f3e3729]: "-0.24%"
+              - button "Remove from watchlist" [ref=f3e3730]
+            - generic [ref=f3e3734] [cursor=pointer]:
+              - generic [ref=f3e3744]: VOLTAS
+              - generic [ref=f3e3745]: "1319.80"
+              - generic [ref=f3e3746]: "-8.10"
+              - generic [ref=f3e3747]: "-0.61%"
+              - button "Remove from watchlist" [ref=f3e3748]
+            - generic [ref=f3e3752] [cursor=pointer]:
+              - generic [ref=f3e3762]: PAGEIND
+              - generic [ref=f3e3763]: "40070.00"
+              - generic [ref=f3e3764]: "-230.00"
+              - generic [ref=f3e3765]: "-0.57%"
+              - button "Remove from watchlist" [ref=f3e3766]
+            - generic [ref=f3e3770] [cursor=pointer]:
+              - generic [ref=f3e3780]: PIIND
+              - generic [ref=f3e3781]: "2749.50"
+              - generic [ref=f3e3782]: "-1.50"
+              - generic [ref=f3e3783]: "-0.05%"
+              - button "Remove from watchlist" [ref=f3e3784]
+            - generic [ref=f3e3788] [cursor=pointer]:
+              - generic [ref=f3e3798]: PETRONET
+              - generic [ref=f3e3799]: "273.55"
+              - generic [ref=f3e3800]: "-1.55"
+              - generic [ref=f3e3801]: "-0.56%"
+              - button "Remove from watchlist" [ref=f3e3802]
+            - generic [ref=f3e3806] [cursor=pointer]:
+              - generic [ref=f3e3816]: ASTRAL
+              - generic [ref=f3e3817]: "1471.50"
+              - generic [ref=f3e3818]: "-8.50"
+              - generic [ref=f3e3819]: "-0.57%"
+              - button "Remove from watchlist" [ref=f3e3820]
+            - generic [ref=f3e3824] [cursor=pointer]:
+              - generic [ref=f3e3834]: KALYANKJIL
+              - generic [ref=f3e3835]: "563.80"
+              - generic [ref=f3e3836]: "-11.30"
+              - generic [ref=f3e3837]: "-1.96%"
+              - button "Remove from watchlist" [ref=f3e3838]
+            - generic [ref=f3e3842] [cursor=pointer]:
+              - generic [ref=f3e3852]: COCHINSHIP
+              - generic [ref=f3e3853]: "1400.00"
+              - generic [ref=f3e3854]: "1.40"
+              - generic [ref=f3e3855]: 0.10%
+              - button "Remove from watchlist" [ref=f3e3856]
+            - generic [ref=f3e3860] [cursor=pointer]:
+              - generic [ref=f3e3870]: SONACOMS
+              - generic [ref=f3e3871]: "722.60"
+              - generic [ref=f3e3872]: "-6.20"
+              - generic [ref=f3e3873]: "-0.85%"
+              - button "Remove from watchlist" [ref=f3e3874]
+            - generic [ref=f3e3878] [cursor=pointer]:
+              - generic [ref=f3e3888]: IREDA
+              - generic [ref=f3e3889]: "120.40"
+              - generic [ref=f3e3890]: "-0.39"
+              - generic [ref=f3e3891]: "-0.32%"
+              - button "Remove from watchlist" [ref=f3e3892]
+            - generic [ref=f3e3896] [cursor=pointer]:
+              - generic [ref=f3e3906]: CONCOR
+              - generic [ref=f3e3907]: "510.80"
+              - generic [ref=f3e3908]: "40.80"
+              - generic [ref=f3e3909]: 8.68%
+              - button "Remove from watchlist" [ref=f3e3910]
+            - generic [ref=f3e3914] [cursor=pointer]:
+              - generic [ref=f3e3924]: GODFRYPHLP
+              - generic [ref=f3e3925]: "2200.00"
+              - generic [ref=f3e3926]: "55.10"
+              - generic [ref=f3e3927]: 2.57%
+              - button "Remove from watchlist" [ref=f3e3928]
+            - generic [ref=f3e3932] [cursor=pointer]:
+              - generic [ref=f3e3942]: BANDHANBNK
+              - generic [ref=f3e3943]: "169.48"
+              - generic [ref=f3e3944]: "1.98"
+              - generic [ref=f3e3945]: 1.18%
+              - button "Remove from watchlist" [ref=f3e3946]
+            - generic [ref=f3e3950] [cursor=pointer]:
+              - generic [ref=f3e3960]: DELHIVERY
+              - generic [ref=f3e3961]: "468.60"
+              - generic [ref=f3e3962]: "2.60"
+              - generic [ref=f3e3963]: 0.56%
+              - button "Remove from watchlist" [ref=f3e3964]
+            - generic [ref=f3e3968] [cursor=pointer]:
+              - generic [ref=f3e3978]: EXIDEIND
+              - generic [ref=f3e3979]: "435.10"
+              - generic [ref=f3e3980]: "-7.90"
+              - generic [ref=f3e3981]: "-1.78%"
+              - button "Remove from watchlist" [ref=f3e3982]
+            - generic [ref=f3e3986] [cursor=pointer]:
+              - generic [ref=f3e3996]: BLUESTARCO
+              - generic [ref=f3e3997]: "1650.40"
+              - generic [ref=f3e3998]: "7.90"
+              - generic [ref=f3e3999]: 0.48%
+              - button "Remove from watchlist" [ref=f3e4000]
+            - generic [ref=f3e4004] [cursor=pointer]:
+              - generic [ref=f3e4014]: DALBHARAT
+              - generic [ref=f3e4015]: "1814.80"
+              - generic [ref=f3e4016]: "84.20"
+              - generic [ref=f3e4017]: 4.87%
+              - button "Remove from watchlist" [ref=f3e4018]
+            - generic [ref=f3e4022] [cursor=pointer]:
+              - generic [ref=f3e4032]: ANGELONE
+              - generic [ref=f3e4033]: "305.00"
+              - generic [ref=f3e4034]: "-4.90"
+              - generic [ref=f3e4035]: "-1.58%"
+              - button "Remove from watchlist" [ref=f3e4036]
+            - generic [ref=f3e4040] [cursor=pointer]:
+              - generic [ref=f3e4050]: LICHSGFIN
+              - generic [ref=f3e4051]: "547.75"
+              - generic [ref=f3e4052]: "5.35"
+              - generic [ref=f3e4053]: 0.99%
+              - button "Remove from watchlist" [ref=f3e4054]
+            - generic [ref=f3e4058] [cursor=pointer]:
+              - generic [ref=f3e4068]: NUVAMA
+              - generic [ref=f3e4069]: "1976.00"
+              - generic [ref=f3e4070]: "-3.50"
+              - generic [ref=f3e4071]: "-0.18%"
+              - button "Remove from watchlist" [ref=f3e4072]
+            - generic [ref=f3e4076] [cursor=pointer]:
+              - generic [ref=f3e4086]: NBCC
+              - generic [ref=f3e4087]: "94.75"
+              - generic [ref=f3e4088]: "0.25"
+              - generic [ref=f3e4089]: 0.26%
+              - button "Remove from watchlist" [ref=f3e4090]
+            - generic [ref=f3e4094] [cursor=pointer]:
+              - generic [ref=f3e4104]: JUBLFOOD
+              - generic [ref=f3e4105]: "427.30"
+              - generic [ref=f3e4106]: "6.50"
+              - generic [ref=f3e4107]: 1.54%
+              - button "Remove from watchlist" [ref=f3e4108]
+            - generic [ref=f3e4112] [cursor=pointer]:
+              - generic [ref=f3e4122]: MANAPPURAM
+              - generic [ref=f3e4123]: "356.80"
+              - generic [ref=f3e4124]: "0.80"
+              - generic [ref=f3e4125]: 0.22%
+              - button "Remove from watchlist" [ref=f3e4126]
+            - generic [ref=f3e4130] [cursor=pointer]:
+              - generic [ref=f3e4140]: AMBER
+              - generic [ref=f3e4141]: "7288.00"
+              - generic [ref=f3e4142]: "-32.00"
+              - generic [ref=f3e4143]: "-0.44%"
+              - button "Remove from watchlist" [ref=f3e4144]
+            - generic [ref=f3e4148] [cursor=pointer]:
+              - generic [ref=f3e4158]: PNBHOUSING
+              - generic [ref=f3e4159]: "1070.00"
+              - generic [ref=f3e4160]: "2.00"
+              - generic [ref=f3e4161]: 0.19%
+              - button "Remove from watchlist" [ref=f3e4162]
+            - generic [ref=f3e4166] [cursor=pointer]:
+              - generic [ref=f3e4176]: CDSL
+              - generic [ref=f3e4177]: "1330.50"
+              - generic [ref=f3e4178]: "-14.60"
+              - generic [ref=f3e4179]: "-1.09%"
+              - button "Remove from watchlist" [ref=f3e4180]
+            - generic [ref=f3e4184] [cursor=pointer]:
+              - generic [ref=f3e4194]: TATAELXSI
+              - generic [ref=f3e4195]: "3558.00"
+              - generic [ref=f3e4196]: "2.20"
+              - generic [ref=f3e4197]: 0.06%
+              - button "Remove from watchlist" [ref=f3e4198]
+            - generic [ref=f3e4202] [cursor=pointer]:
+              - generic [ref=f3e4212]: FORCEMOT
+              - generic [ref=f3e4213]: "17313.00"
+              - generic [ref=f3e4214]: "-496.00"
+              - generic [ref=f3e4215]: "-2.79%"
+              - button "Remove from watchlist" [ref=f3e4216]
+            - generic [ref=f3e4220] [cursor=pointer]:
+              - generic [ref=f3e4230]: RBLBANK
+              - generic [ref=f3e4231]: "359.15"
+              - generic [ref=f3e4232]: "6.25"
+              - generic [ref=f3e4233]: 1.77%
+              - button "Remove from watchlist" [ref=f3e4234]
+            - generic [ref=f3e4238] [cursor=pointer]:
+              - generic [ref=f3e4248]: SAMMAANCAP
+              - generic [ref=f3e4249]: "163.53"
+              - generic [ref=f3e4250]: "1.96"
+              - generic [ref=f3e4251]: 1.21%
+              - button "Remove from watchlist" [ref=f3e4252]
+            - generic [ref=f3e4256] [cursor=pointer]:
+              - generic [ref=f3e4266]: KPITTECH
+              - generic [ref=f3e4267]: "585.50"
+              - generic [ref=f3e4268]: "-0.20"
+              - generic [ref=f3e4269]: "-0.03%"
+              - button "Remove from watchlist" [ref=f3e4270]
+            - generic [ref=f3e4274] [cursor=pointer]:
+              - generic [ref=f3e4284]: KAYNES
+              - generic [ref=f3e4285]: "3182.10"
+              - generic [ref=f3e4286]: "-28.90"
+              - generic [ref=f3e4287]: "-0.90%"
+              - button "Remove from watchlist" [ref=f3e4288]
+            - generic [ref=f3e4292] [cursor=pointer]:
+              - generic [ref=f3e4302]: CAMS
+              - generic [ref=f3e4303]: "779.00"
+              - generic [ref=f3e4304]: "16.00"
+              - generic [ref=f3e4305]: 2.10%
+              - button "Remove from watchlist" [ref=f3e4306]
+            - generic [ref=f3e4310] [cursor=pointer]:
+              - generic [ref=f3e4320]: CROMPTON
+              - generic [ref=f3e4321]: "248.65"
+              - generic [ref=f3e4322]: "-3.45"
+              - generic [ref=f3e4323]: "-1.37%"
+              - button "Remove from watchlist" [ref=f3e4324]
+            - generic [ref=f3e4328] [cursor=pointer]:
+              - generic [ref=f3e4338]: INOXWIND
+              - generic [ref=f3e4339]: "77.84"
+              - generic [ref=f3e4340]: "-0.16"
+              - generic [ref=f3e4341]: "-0.21%"
+              - button "Remove from watchlist" [ref=f3e4342]
+            - generic [ref=f3e4346] [cursor=pointer]:
+              - generic [ref=f3e4356]: KFINTECH
+              - generic [ref=f3e4357]: "935.90"
+              - generic [ref=f3e4358]: "63.55"
+              - generic [ref=f3e4359]: 7.28%
+              - button "Remove from watchlist" [ref=f3e4360]
+            - generic [ref=f3e4364] [cursor=pointer]:
+              - generic [ref=f3e4374]: PGEL
+              - generic [ref=f3e4375]: "577.80"
+              - generic [ref=f3e4376]: "-2.20"
+              - generic [ref=f3e4377]: "-0.38%"
+              - button "Remove from watchlist" [ref=f3e4378]
+            - generic [ref=f3e4382] [cursor=pointer]:
+              - generic [ref=f3e4392]: IEX
+              - generic [ref=f3e4393]: "126.27"
+              - generic [ref=f3e4394]: "1.06"
+              - generic [ref=f3e4395]: 0.85%
+              - button "Remove from watchlist" [ref=f3e4396]
+            - generic [ref=f3e4400] [cursor=pointer]:
+              - generic [ref=f3e4410]: LTM
+              - generic [ref=f3e4411]: "4193.60"
+              - generic [ref=f3e4412]: "74.10"
+              - generic [ref=f3e4413]: 1.80%
+              - button "Remove from watchlist" [ref=f3e4414]
+            - generic [ref=f3e4418] [cursor=pointer]:
+              - generic [ref=f3e4428]: TMCV
+              - generic [ref=f3e4429]: "409.85"
+              - generic [ref=f3e4430]: "-2.15"
+              - generic [ref=f3e4431]: "-0.52%"
+              - button "Remove from watchlist" [ref=f3e4432]
+      - generic [ref=f3e525]:
+        - generic "Watchlist" [ref=f3e526] [cursor=pointer]
+        - generic "Object Tree" [ref=f3e528] [cursor=pointer]
+        - generic "Market Screener" [ref=f3e533] [cursor=pointer]
+        - generic "Position Flow" [ref=f3e536] [cursor=pointer]
+        - generic "Intraday Boost" [ref=f3e540] [cursor=pointer]
+        - generic "Sector Scope" [ref=f3e543] [cursor=pointer]
+        - generic "Alerts" [ref=f3e545] [cursor=pointer]: "1"
+        - generic "Depth of Market" [ref=f3e549] [cursor=pointer]
+        - generic "Trade Panel" [ref=f3e554] [cursor=pointer]
+  - generic "Click to view chart" [ref=f3e4493] [cursor=pointer]:
+    - generic [ref=f3e4494]: 🪙
+    - generic [ref=f3e4495]:
+      - generic [ref=f3e4496]: Alert on SBILIFE
+      - generic [ref=f3e4497]: SBILIFE Crossing ↓ 1861.1
+      - generic [ref=f3e4498]:
+        - generic [ref=f3e4499]: SBILIFE →
+        - generic [ref=f3e4500]: NaN:NaN:NaN
+    - button "×" [ref=f3e4501]
