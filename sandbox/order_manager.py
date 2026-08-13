@@ -1017,6 +1017,12 @@ class OrderManager:
                     margin_blocked=Decimal("0"),  # No margin blocked for rejected orders
                     margin_source=margin_source,
                     margin_snapshot=self._serialize_margin_snapshot(margin_snapshot),
+                    # gtt_leg_id deliberately NOT set here. The column is unique
+                    # and recovery reads it as proof the GTT fired, so a
+                    # rejected attempt claiming it would both mark the GTT
+                    # triggered and permanently block that leg from ever
+                    # ordering again. Rejections are audited via the order's own
+                    # strategy/rejection_reason instead.
                     order_timestamp=datetime.now(pytz.timezone("Asia/Kolkata")),
                 )
 
@@ -1079,6 +1085,7 @@ class OrderManager:
                 margin_blocked=actual_margin_to_block,  # Store exact margin blocked
                 margin_source=margin_source,
                 margin_snapshot=self._serialize_margin_snapshot(margin_snapshot),
+                gtt_leg_id=order_data.get("gtt_leg_id"),
                 order_timestamp=datetime.now(pytz.timezone("Asia/Kolkata")),
             )
 

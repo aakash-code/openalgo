@@ -9,8 +9,11 @@ import logging
 import re
 import threading
 import time as time_module
+import weakref
 from datetime import datetime, time, timedelta
 from typing import Any, Dict, List, Optional, Tuple
+
+from sqlalchemy import and_
 
 from database.flow_db import (
     add_execution_log,
@@ -27,17 +30,51 @@ logger = logging.getLogger(__name__)
 MAX_NODE_DEPTH = 100
 MAX_NODE_VISITS = 500
 
-# Execution locks to prevent concurrent execution
-_workflow_locks: dict[int, threading.Lock] = {}
+
+def symbol_prefix_filter(column, prefix: str):
+    """Index-friendly "this column starts with `prefix`" predicate.
+
+    `column.like("NIFTY%")` reads better but is the wrong tool here: SQLite's
+    LIKE is case-insensitive by default, so it cannot seek the index and pays a
+    case-folding comparison on every candidate row - 1460ms against the NFO rows
+    of a full master contract, versus 23ms for the half-open range below, which
+    compares on the default BINARY collation and seeks. OpenAlgo symbols are
+    always upper-case, so the case-insensitivity buys nothing.
+    """
+    return and_(column >= prefix, column < prefix[:-1] + chr(ord(prefix[-1]) + 1))
+
+# Execution locks to prevent concurrent execution of the same workflow.
+#
+# WeakValueDictionary, not a plain dict: an entry disappears once no caller
+# holds the lock any more, so the registry stays proportional to workflows
+# executing right now rather than to every workflow ever executed (issue #1739).
+#
+# Do NOT replace this with a size-capped dict that evicts entries. Evicting a
+# lock a thread is currently holding hands the next caller a brand-new lock, its
+# `lock.locked()` guard in execute_workflow passes, and the same workflow runs
+# twice concurrently - placing every order in it twice. Weak references cannot
+# do that: while any caller holds the lock, it holds a strong reference, so the
+# entry is guaranteed to survive and every caller sees the same object.
+_workflow_locks: "weakref.WeakValueDictionary[int, threading.Lock]" = (
+    weakref.WeakValueDictionary()
+)
 _locks_mutex = threading.Lock()
 
 
 def get_workflow_lock(workflow_id: int) -> threading.Lock:
-    """Get or create a lock for a workflow"""
+    """Get or create a lock for a workflow.
+
+    Callers must keep the returned lock referenced for as long as they rely on
+    it (``lock = get_workflow_lock(id); with lock:``) - which is what keeps the
+    registry entry alive. Discarding the reference and re-fetching mid-critical
+    section would not be safe.
+    """
     with _locks_mutex:
-        if workflow_id not in _workflow_locks:
-            _workflow_locks[workflow_id] = threading.Lock()
-        return _workflow_locks[workflow_id]
+        lock = _workflow_locks.get(workflow_id)
+        if lock is None:
+            lock = threading.Lock()
+            _workflow_locks[workflow_id] = lock
+        return lock
 
 
 def parse_time_string(
@@ -383,6 +420,7 @@ class NodeExecutor:
             LotSizeUnavailable: the lot size cannot be established.
         """
         from database.symbol import SymToken, db_session
+        from database.token_db_enhanced import extract_underlying_from_symbol
 
         try:
             row = (
@@ -397,6 +435,33 @@ class NodeExecutor:
             )
             if row and row[0]:
                 return int(row[0])
+
+            # `name` holds the underlying root only where the broker's master
+            # contract put it there. Some ship the contract description instead
+            # ("NIFTY 11 Aug 26 24450 CE"), so `name == "NIFTY"` matches nothing
+            # and an order that should have gone through fails. Rather than
+            # correct this in each of 35+ broker plugins, fall back to the
+            # OpenAlgo symbol, which OpenAlgo normalizes itself and so reads the
+            # same on every broker - the same reason expiry_service and
+            # option_symbol_service key off it.
+            #
+            # The prefix alone is not sufficient: symbols starting "NIFTY" also
+            # include NIFTYNXT50, whose lot size differs (25 vs 65). Confirm each
+            # candidate with the same extractor the underlying dropdown uses, so
+            # the value offered and the value resolved come from one function.
+            candidates = (
+                db_session.query(SymToken.symbol, SymToken.lotsize)
+                .filter(
+                    symbol_prefix_filter(SymToken.symbol, underlying),
+                    SymToken.exchange == fo_exchange,
+                    SymToken.lotsize.isnot(None),
+                    SymToken.lotsize > 0,
+                )
+                .yield_per(200)
+            )
+            for symbol, lotsize in candidates:
+                if extract_underlying_from_symbol(symbol, fo_exchange) == underlying:
+                    return int(lotsize)
             # Distinguish "this exchange has no contracts loaded" from "this
             # underlying is not one of them". Only the former is a fallback case.
             exchange_seeded = (
@@ -3111,7 +3176,7 @@ def execute_workflow(
                 depth=0,
             )
 
-            update_execution_status(execution.id, "completed")
+            update_execution_status(execution.id, "completed", logs=logs)
             return {
                 "status": "success",
                 "message": "Workflow executed successfully",
@@ -3128,7 +3193,7 @@ def execute_workflow(
                     "level": "error",
                 }
             )
-            update_execution_status(execution.id, "failed", error=str(e))
+            update_execution_status(execution.id, "failed", error=str(e), logs=logs)
             return {
                 "status": "error",
                 "message": str(e),

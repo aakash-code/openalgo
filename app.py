@@ -113,6 +113,7 @@ from csp import apply_csp_middleware  # Import the CSP middleware
 from database.action_center_db import init_db as ensure_action_center_tables_exists
 from database.analyzer_db import init_db as ensure_analyzer_tables_exists
 from database.apilog_db import init_db as ensure_api_log_tables_exists
+from database.apscheduler_jobstore_db import ensure_jobstore_tables_exist
 from database.auth_db import init_db as ensure_auth_tables_exists
 from database.chartink_db import init_db as ensure_chartink_tables_exists
 from database.flow_db import init_db as ensure_flow_tables_exists
@@ -442,15 +443,14 @@ def create_app():
         # Exempt broker callback endpoints from CSRF protection (OAuth callbacks from external providers)
         csrf.exempt(app.view_functions["brlogin.broker_callback"])
 
-        # Exempt Samco 2FA setup endpoints from CSRF (JSON API calls from React frontend)
-        csrf.exempt(app.view_functions["brlogin.samco_generate_otp"])
-        csrf.exempt(app.view_functions["brlogin.samco_generate_secret"])
-        csrf.exempt(app.view_functions["brlogin.samco_save_secret"])
-        csrf.exempt(app.view_functions["brlogin.samco_ip_status"])
-        csrf.exempt(app.view_functions["brlogin.samco_update_ip"])
-
-        # Exempt logout endpoint from CSRF protection (safe - only destroys session)
-        csrf.exempt(app.view_functions["auth.logout"])
+        # auth.logout is deliberately NOT exempt. It is not "safe" in the CSRF
+        # sense: it revokes the broker token, publishes CACHE_INVALIDATE_ALL
+        # (tearing down the shared WebSocket feed), clears every device's
+        # session and flushes the symbol cache. SameSite=Lax alone does not
+        # cover it - ports are not part of the same-site check, so any other
+        # service on the same host could forge the POST. The GET form is
+        # covered separately by the fetch-metadata check in auth.logout, since
+        # Flask-WTF never validates safe methods.
 
         # Exempt health check endpoints from CSRF (for AWS ELB, K8s probes)
         csrf.exempt(app.view_functions["health_bp.simple_health"])
@@ -718,32 +718,50 @@ def setup_environment(app):
                 ("Scalping DB", ensure_scalping_tables_exists),
                 ("Leverage DB", ensure_leverage_tables_exists),
                 ("Strategy Portfolio DB", ensure_strategy_portfolio_tables_exists),
+                # Created here, not left to APScheduler's own CREATE TABLE in
+                # scheduler.start(). That DDL would otherwise run further down
+                # this function, after db_ready releases the rest of the boot,
+                # and has to win the write lock against it. This phase is
+                # single-threaded, so the same DDL runs uncontended. See #1750.
+                ("Scheduler Job Stores", ensure_jobstore_tables_exist),
             ]
 
             db_init_start = time.time()
-            with ThreadPoolExecutor(max_workers=15) as executor:
+            # max_workers=1 on purpose: 14 of the 20 functions above target the
+            # same file (openalgo.db), and SQLite permits one writer per file,
+            # so running them concurrently made them contend for the write lock
+            # rather than progress in parallel - the "database is locked" seen
+            # on fresh installs. The parallelism was never real; serialising is
+            # measurably faster on the restart path because it stops threads
+            # queueing behind each other. See PR #1734.
+            #
+            # The executor is kept rather than a plain loop so each function
+            # stays its own future: one database failing to initialise must not
+            # abort the other nineteen.
+            with ThreadPoolExecutor(max_workers=1) as executor:
                 futures = {executor.submit(func): name for name, func in db_init_functions}
                 for future in as_completed(futures):
                     db_name = futures[future]
                     try:
                         future.result()
-                    except Exception as e:
-                        logger.error(f"Failed to initialize {db_name}: {e}")
+                    except Exception:
+                        logger.exception(f"Failed to initialize {db_name}")
 
             db_init_time = (time.time() - db_init_start) * 1000
-            logger.debug(f"All databases initialized in parallel ({db_init_time:.0f}ms)")
+            logger.debug(f"All databases initialized ({db_init_time:.0f}ms)")
 
             # The strategy book must be listening before any order can be
             # accepted: order.placed carries the only copy of the strategy tag,
             # so an order placed before this registration loses its attribution
             # permanently. Registered ahead of db_ready for that reason.
             # Retried rather than attempted once: the failure that matters here
-            # is a transient one (the DB file briefly unavailable during a
-            # parallel init), and losing it means every order placed afterwards
-            # is unattributable. Startup still proceeds if it ultimately fails -
-            # a P&L ledger must not keep the platform from trading - but the
-            # book then reports itself unavailable instead of an innocent zero,
-            # so nothing downstream can mistake it for a flat strategy.
+            # is a transient one (the DB file briefly unavailable because the
+            # out-of-process websocket proxy holds the write lock), and losing
+            # it means every order placed afterwards is unattributable. Startup
+            # still proceeds if it ultimately fails - a P&L ledger must not keep
+            # the platform from trading - but the book then reports itself
+            # unavailable instead of an innocent zero, so nothing downstream can
+            # mistake it for a flat strategy.
             for _attempt in range(1, 4):
                 try:
                     from database.strategy_book_db import init_strategy_book_db
