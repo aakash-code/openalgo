@@ -314,9 +314,27 @@ def get_multiquotes_with_auth(
     except Exception as e:
         # Check if this is a permission error
         error_msg = str(e)
-        if "permission" in error_msg.lower() or "insufficient" in error_msg.lower():
+        lowered = error_msg.lower()
+        if "permission" in lowered or "insufficient" in lowered:
             # Log at debug level for permission errors (common with personal APIs)
             logger.debug(f"Multiquote fetch permission denied: {error_msg}")
+        elif (
+            "too many request" in lowered
+            or "rate limit" in lowered
+            or "ratelimit" in lowered
+            or "429" in lowered
+            or "throttl" in lowered
+        ):
+            # The broker throttled us — that is not a server fault. Returning 500
+            # made it indistinguishable from one, so clients retried straight
+            # back into the limit, which is how a throttle becomes a stalled
+            # feed. 429 lets a client recognise it and back off.
+            logger.warning(f"Broker rate limit on multiquotes: {error_msg}")
+            return (
+                False,
+                {"status": "error", "message": error_msg, "error_type": "rate_limit"},
+                429,
+            )
         else:
             # Log other errors normally
             logger.exception(f"Error in broker_module.get_multiquotes: {e}")
