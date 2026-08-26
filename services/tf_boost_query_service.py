@@ -15,7 +15,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta
 
 from database.auth_db import get_auth_token_broker
-from database.tf_boost_db import get_boost_symbols
+from database.tf_boost_db import get_boost_rank_timeline, get_boost_symbols
 from utils.logging import get_logger
 
 logger = get_logger(__name__)
@@ -26,6 +26,8 @@ def boost_universe_service(
     date: str,
     lookback_days: int = 1,
     list_type: str = "intraday_boost",
+    rank_as_of: str = "",
+    include_ranks: bool = False,
 ) -> tuple[bool, dict, int]:
     """Validate the API key and return the union of boost-list symbols for the
     [date - (lookback_days - 1), date] window. Returns (success, response, http)."""
@@ -39,7 +41,11 @@ def boost_universe_service(
     except (ValueError, TypeError):
         return False, {"status": "error", "message": "date must be YYYY-MM-DD"}, 400
 
-    symbols = get_boost_symbols(start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d"), list_type)
+    start_str, end_str = start.strftime("%Y-%m-%d"), end.strftime("%Y-%m-%d")
+    symbols = get_boost_symbols(start_str, end_str, list_type, rank_as_of or None)
+    # Only sent when asked for: the full rank timeline is roughly (symbols x
+    # snapshots) pairs — ~15k for one day, and it scales with lookbackDays.
+    ranks = get_boost_rank_timeline(start_str, end_str, list_type) if include_ranks else None
     return (
         True,
         {
@@ -47,8 +53,10 @@ def boost_universe_service(
             "date": end.strftime("%Y-%m-%d"),
             "start_date": start.strftime("%Y-%m-%d"),
             "list_type": list_type,
+            "rank_as_of": rank_as_of or None,
             "count": len(symbols),
             "symbols": symbols,
+            **({"ranks": ranks} if ranks is not None else {}),
         },
         200,
     )

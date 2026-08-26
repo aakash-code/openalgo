@@ -237,7 +237,27 @@ def place_order_api(data, auth):
 
     except httpx.HTTPStatusError as e:
         logger.exception(f"HTTP error placing order: {e.response.text}")
-        return e.response, e.response.json(), None
+        # Apply the same .status shim as the success path above - without it
+        # place_order_service reads .status on an httpx Response and raises
+        # AttributeError, which buried the broker's actual rejection reason
+        # (e.g. UDAPI1154 "no static IP configured") under a generic HTTP 500.
+        e.response.status = e.response.status_code
+        try:
+            error_body = e.response.json()
+        except Exception:
+            error_body = {"status": "error", "message": e.response.text}
+        # Lift the broker's own error text into "message" so it reaches the
+        # client; Upstox nests it under errors[].message, which the generic
+        # response_data.get("message") in place_order_service would miss.
+        if isinstance(error_body, dict) and not error_body.get("message"):
+            errors = error_body.get("errors")
+            if isinstance(errors, list) and errors and isinstance(errors[0], dict):
+                detail = errors[0]
+                error_body["message"] = (
+                    f"{detail.get('errorCode', 'broker error')}: "
+                    f"{detail.get('message', 'order rejected')}"
+                )
+        return e.response, error_body, None
     except Exception as e:
         logger.exception("Unexpected error in place_order_api")
         return None, {"status": "error", "message": str(e)}, None

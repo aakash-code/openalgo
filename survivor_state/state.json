@@ -1,9 +1,9 @@
 {
-  "saved_date": "2026-05-26",
-  "saved_time": "15:29:59",
-  "pe_last_value": 0.0,
-  "ce_last_value": 0.0,
-  "pe_reset_flag": 0,
+  "saved_date": "2026-08-13",
+  "saved_time": "09:36:22",
+  "pe_last_value": 24356.4,
+  "ce_last_value": 24283.45,
+  "pe_reset_flag": 1,
   "ce_reset_flag": 0,
   "total_margin_used": 0.0
 }

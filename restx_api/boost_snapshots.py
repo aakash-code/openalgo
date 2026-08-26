@@ -34,6 +34,8 @@ class BoostSnapshots(Resource):
                 date=data["date"],
                 lookback_days=data.get("lookbackDays", 1),
                 list_type=data.get("list_type", "intraday_boost"),
+                rank_as_of=data.get("rankAsOf", ""),
+                include_ranks=data.get("includeRanks", False),
             )
 
             return make_response(jsonify(response_data), status_code)

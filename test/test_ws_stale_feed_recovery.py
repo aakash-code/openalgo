@@ -49,12 +49,18 @@ def proxy():
     # Build the object without running __init__'s full ZMQ/network setup.
     p = WebSocketProxy.__new__(WebSocketProxy)
     p.last_tick_time = {}
+    p._subscription_started_at = {}
+    p._disconnected_since = {}
     p._last_stale_warn = {}
     p._stale_tick_warn_seconds = 120
     p._last_stale_check = 0.0
     p._stale_check_interval = 30
     p._stale_recover_seconds = 300
     p._recover_state = {}
+    p._symbol_stale_seconds = 120
+    p._symbol_stale_fraction = 0.5
+    p._symbol_stale_min_symbols = 10
+    p._majority_stale_since = {}
     p.broker_adapters = {}
     p.user_broker_mapping = {}
     p.user_mapping = {}

@@ -114,6 +114,34 @@ def validate_order_data(data: dict[str, Any]) -> tuple[bool, dict[str, Any] | No
         return False, None, str(err)
 
 
+def broker_response_status(res: Any) -> int | None:
+    """
+    HTTP status from a broker adapter's response object, or None if it can't
+    be determined.
+
+    Broker adapters are expected to expose `.status` (most of them monkey-patch
+    `response.status = response.status_code` for exactly this reason), but that
+    shim is easy to forget on error paths - upstox applied it on its success
+    path and not in its `except httpx.HTTPStatusError` branch. Reading `.status`
+    directly then raised AttributeError on every rejected order, which masked
+    the broker's real message behind a generic HTTP 500 and made genuine
+    rejections (e.g. Upstox UDAPI1154 "no static IP configured") undiagnosable
+    from the client side.
+
+    Falls back to `.status_code`, and tolerates adapters that return None on an
+    unexpected failure.
+    """
+    if res is None:
+        return None
+    status = getattr(res, "status", None)
+    if status is None:
+        status = getattr(res, "status_code", None)
+    try:
+        return int(status) if status is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def place_order_with_auth(
     order_data: dict[str, Any],
     auth_token: str,
@@ -216,7 +244,9 @@ def place_order_with_auth(
         ))
         return False, error_response, 500
 
-    if res.status == 200:
+    res_status = broker_response_status(res)
+
+    if res_status == 200:
         order_response_data = {"status": "success", "orderid": order_id}
 
         if emit_event:
@@ -254,7 +284,10 @@ def place_order_with_auth(
             exchange=order_data.get("exchange", ""),
             error_message=message,
         ))
-        return False, error_response, res.status if res.status != 200 else 500
+        # Surface the broker's own HTTP status when we have one (403 for the
+        # SEBI static-IP block, 400 for a bad order, etc.) so the caller sees a
+        # real reason instead of a blanket 500.
+        return False, error_response, res_status if res_status not in (None, 200) else 500
 
 
 def place_order(

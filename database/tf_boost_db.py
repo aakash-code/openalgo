@@ -94,27 +94,116 @@ def get_boost_symbols(
     start_date: str,
     end_date: str | None = None,
     list_type: str = "intraday_boost",
+    rank_as_of: str | None = None,
 ) -> list[str]:
     """Return the UNION of distinct symbols that appeared in `list_type` across
     the [start_date, end_date] window (inclusive, YYYY-MM-DD). This is the whole
     day's boost universe — including symbols that entered the list early and left
     before now — for point-in-time-honest backtesting. Returns [] if the table
     doesn't exist yet or has no rows for the window (never raises for the caller).
+
+    Ordered by each symbol's BEST (lowest) rank, so callers can take the first N
+    as "top N of the boost list" (the ISI backtest's Top-N cap).
+
+    `rank_as_of` ("HH:MM" IST, e.g. "09:20") removes the whole-day hindsight in
+    that ranking: only the last snapshot at or before that time on each day is
+    considered, so the universe is what the list actually looked like at the
+    cutoff. Symbols that had not entered the list by then are excluded entirely —
+    a "top 20" chosen from a whole day's ranks is not knowable at 09:20 and made
+    the backtest read better than live. On a day whose first snapshot is already
+    after the cutoff (a late scraper start), that first snapshot is used instead
+    of dropping the day.
+    """
+    end_date = end_date or start_date
+    cutoff_min: int | None = None
+    if rank_as_of:
+        try:
+            hh, mm = rank_as_of.split(":")
+            cutoff_min = int(hh) * 60 + int(mm)
+        except (ValueError, AttributeError):
+            logger.warning(f"get_boost_symbols: bad rank_as_of {rank_as_of!r}, ignoring")
+    try:
+        with get_connection() as conn:
+            if cutoff_min is None:
+                rows = conn.execute(
+                    """
+                    SELECT symbol
+                    FROM tf_boost_snapshots
+                    WHERE snapshot_date BETWEEN ? AND ?
+                      AND list_type = ?
+                    GROUP BY symbol
+                    ORDER BY MIN(rank), symbol
+                    """,
+                    [start_date, end_date, list_type],
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    """
+                    WITH win AS (
+                        SELECT * FROM tf_boost_snapshots
+                        WHERE snapshot_date BETWEEN ? AND ?
+                          AND list_type = ?
+                    ),
+                    cut AS (
+                        SELECT snapshot_date,
+                               COALESCE(
+                                   MAX(snapshot_time) FILTER (
+                                       WHERE snapshot_time
+                                             <= snapshot_date::TIMESTAMP + (? * INTERVAL 1 MINUTE)
+                                   ),
+                                   MIN(snapshot_time)
+                               ) AS t
+                        FROM win
+                        GROUP BY snapshot_date
+                    )
+                    SELECT w.symbol
+                    FROM win w JOIN cut c ON w.snapshot_time = c.t
+                    GROUP BY w.symbol
+                    ORDER BY MIN(w.rank), w.symbol
+                    """,
+                    [start_date, end_date, list_type, cutoff_min],
+                ).fetchall()
+        return [r[0] for r in rows]
+    except Exception as e:
+        logger.warning(f"get_boost_symbols({start_date}..{end_date}, {list_type}): {e}")
+        return []
+
+
+def get_boost_rank_timeline(
+    start_date: str,
+    end_date: str | None = None,
+    list_type: str = "intraday_boost",
+) -> dict[str, dict[str, list[list[int]]]]:
+    """Return every symbol's rank over time: {symbol: {day: [[minute_of_day, rank], ...]}},
+    each day's pairs sorted by time. Backs the ISI backtest's "top N at signal time"
+    gate — a signal is tradable only if its symbol was inside the top N at the last
+    snapshot before that bar, which is what the live list would have shown.
+
+    Minute-of-day (not a timestamp) because the consumer compares against IST bar
+    times it already derives that way. Returns {} on any failure, like
+    get_boost_symbols — the caller then falls back to a fixed universe.
     """
     end_date = end_date or start_date
     try:
         with get_connection() as conn:
             rows = conn.execute(
                 """
-                SELECT DISTINCT symbol
+                SELECT symbol,
+                       strftime(snapshot_date, '%Y-%m-%d') AS day,
+                       hour(snapshot_time) * 60 + minute(snapshot_time) AS min_of_day,
+                       rank
                 FROM tf_boost_snapshots
                 WHERE snapshot_date BETWEEN ? AND ?
                   AND list_type = ?
-                ORDER BY symbol
+                ORDER BY symbol, snapshot_time
                 """,
                 [start_date, end_date, list_type],
             ).fetchall()
-        return [r[0] for r in rows]
     except Exception as e:
-        logger.warning(f"get_boost_symbols({start_date}..{end_date}, {list_type}): {e}")
-        return []
+        logger.warning(f"get_boost_rank_timeline({start_date}..{end_date}, {list_type}): {e}")
+        return {}
+
+    timeline: dict[str, dict[str, list[list[int]]]] = {}
+    for symbol, day, min_of_day, rank in rows:
+        timeline.setdefault(symbol, {}).setdefault(day, []).append([int(min_of_day), int(rank)])
+    return timeline
