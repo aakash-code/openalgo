@@ -13,6 +13,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { IndicatorField, IndicatorSettingsRequest } from '@/lib/trading/terminal'
 import { cn } from '@/lib/utils'
 import { PlotStyleRow } from './PlotStyleRow'
+import { TickBox } from './TickBox'
 
 interface Props {
   req: IndicatorSettingsRequest | null
@@ -23,6 +24,28 @@ interface Props {
 
 const SOURCES = ['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4']
 const LINE_STYLES = ['solid', 'dashed', 'dotted']
+
+/**
+ * Input types the engine defines as strings. The indicator parses the value,
+ * so the dialog's job is a text box and a hint of the shape, not a widget per
+ * type: a session picker or a symbol search would be a different control that
+ * still has to hand back the same string.
+ */
+const TEXT_TYPES = new Set(['text', 'session', 'timeframe', 'symbol'])
+const TEXT_PLACEHOLDER: Record<string, string | undefined> = {
+  session: '0915-1015 or 0930-1600:23456',
+  timeframe: '5m, 1h, D',
+  symbol: 'RELIANCE',
+}
+
+/**
+ * 'price' and 'time' are numbers, so the number control already fits. The
+ * engine can resolve them from a chart click (`chart.beginPick`), but this
+ * dialog is modal: offering that here means dismissing the dialog to reach the
+ * chart and restoring it afterwards, which is a flow worth designing rather
+ * than bolting on. Typing the value works today.
+ */
+const NUMERIC_PICKABLE = new Set(['price', 'time'])
 
 /** Shared control chrome — compact, flat, dark-first. */
 export const CONTROL =
@@ -84,7 +107,15 @@ export function IndicatorSettingsDialog({ req, onApply, onDefaults, onClose }: P
             aria-label="Close"
             className="-mr-1 rounded p-1 text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
           >
-            <svg viewBox="0 0 24 24" className="h-4 w-4" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" aria-hidden="true">
+            <svg
+              viewBox="0 0 24 24"
+              className="h-4 w-4"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth={1.8}
+              strokeLinecap="round"
+              aria-hidden="true"
+            >
               <path d="M6 6l12 12M18 6L6 18" />
             </svg>
           </button>
@@ -219,23 +250,7 @@ export function SettingsField({
     return (
       <>
         {label}
-        <input
-          id={id}
-          type="checkbox"
-          checked={value === true}
-          onChange={(e) => onChange(e.target.checked)}
-          // accent-color only tints the CHECKED state, so a native checkbox
-          // still renders a white box when unchecked and reads as a hole in a
-          // dark panel. Draw the whole control instead: the tick is a CSS mask
-          // so it inherits the foreground colour and needs no icon font.
-          className={cn(
-            'h-4 w-4 shrink-0 cursor-pointer appearance-none rounded border border-border bg-background',
-            'transition-colors hover:border-muted-foreground',
-            'checked:border-primary checked:bg-primary',
-            "checked:after:block checked:after:h-full checked:after:w-full checked:after:bg-[hsl(var(--primary-foreground))] checked:after:content-['']",
-            'checked:after:[mask:url("data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 16 16%27%3E%3Cpath fill=%27none%27 stroke=%27%23000%27 stroke-width=%272.5%27 stroke-linecap=%27round%27 stroke-linejoin=%27round%27 d=%27M3.5 8.5l3 3 6-6%27/%3E%3C/svg%3E") center/100% no-repeat]',
-          )}
-        />
+        <TickBox id={id} checked={value === true} onChange={onChange} />
       </>
     )
   }
@@ -285,7 +300,11 @@ export function SettingsField({
               </option>
             ))}
           </select>
-          <svg viewBox="0 0 10 10" className="pointer-events-none absolute right-2 top-1/2 h-2.5 w-2.5 -translate-y-1/2 text-muted-foreground" aria-hidden="true">
+          <svg
+            viewBox="0 0 10 10"
+            className="pointer-events-none absolute right-2 top-1/2 h-2.5 w-2.5 -translate-y-1/2 text-muted-foreground"
+            aria-hidden="true"
+          >
             <path d="M2 3.5 5 6.5 8 3.5" fill="none" stroke="currentColor" strokeWidth={1.5} />
           </svg>
         </div>
@@ -293,11 +312,40 @@ export function SettingsField({
     )
   }
 
-  const step = field.step ?? 1
+  // Everything below falls through to the number control, so a string-valued
+  // input needs its own branch: `<input type="number">` rejects a value like
+  // '0915-1015' outright and renders an empty box with spinner arrows.
+  //
+  // 'session', 'timeframe' and 'symbol' are the semantic string types the
+  // library added: the indicator parses them itself, so the control is a text
+  // box with a hint of the shape expected rather than a bespoke widget.
+  if (TEXT_TYPES.has(field.type)) {
+    return (
+      <>
+        {label}
+        <input
+          id={id}
+          type="text"
+          value={typeof value === 'string' ? value : ''}
+          onChange={(e) => onChange(e.target.value)}
+          placeholder={TEXT_PLACEHOLDER[field.type]}
+          className={cn(CONTROL, 'w-full')}
+        />
+      </>
+    )
+  }
+
+  // 'price' and 'time' land here deliberately: both are numbers, so the stepper
+  // control is already the right one. See NUMERIC_PICKABLE for why there is no
+  // click-the-chart affordance in this modal yet.
+  const step = field.step ?? (NUMERIC_PICKABLE.has(field.type) ? 0.05 : 1)
   const nudge = (dir: 1 | -1) => {
     const cur = Number(value)
     const next = (Number.isFinite(cur) ? cur : 0) + dir * step
-    const clamped = Math.min(field.max ?? Number.POSITIVE_INFINITY, Math.max(field.min ?? -Number.POSITIVE_INFINITY, next))
+    const clamped = Math.min(
+      field.max ?? Number.POSITIVE_INFINITY,
+      Math.max(field.min ?? -Number.POSITIVE_INFINITY, next)
+    )
     // Step can be fractional (0.5 thickness); round to its precision so the
     // value never drifts into 1.4000000000000001.
     onChange(Number(clamped.toFixed(String(step).split('.')[1]?.length ?? 0)))
@@ -319,11 +367,25 @@ export function SettingsField({
           className="w-full min-w-0 bg-transparent text-[13px] outline-none [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none"
         />
         <span className="flex h-full flex-col justify-center border-l border-border">
-          <button type="button" aria-label="Increase" onClick={() => nudge(1)} className="flex h-3 w-5 items-center justify-center text-muted-foreground hover:text-foreground">
-            <svg viewBox="0 0 10 6" className="h-1.5 w-2.5" aria-hidden="true"><path d="M1 5 5 1.5 9 5" fill="none" stroke="currentColor" strokeWidth={1.6} /></svg>
+          <button
+            type="button"
+            aria-label="Increase"
+            onClick={() => nudge(1)}
+            className="flex h-3 w-5 items-center justify-center text-muted-foreground hover:text-foreground"
+          >
+            <svg viewBox="0 0 10 6" className="h-1.5 w-2.5" aria-hidden="true">
+              <path d="M1 5 5 1.5 9 5" fill="none" stroke="currentColor" strokeWidth={1.6} />
+            </svg>
           </button>
-          <button type="button" aria-label="Decrease" onClick={() => nudge(-1)} className="flex h-3 w-5 items-center justify-center text-muted-foreground hover:text-foreground">
-            <svg viewBox="0 0 10 6" className="h-1.5 w-2.5" aria-hidden="true"><path d="M1 1 5 4.5 9 1" fill="none" stroke="currentColor" strokeWidth={1.6} /></svg>
+          <button
+            type="button"
+            aria-label="Decrease"
+            onClick={() => nudge(-1)}
+            className="flex h-3 w-5 items-center justify-center text-muted-foreground hover:text-foreground"
+          >
+            <svg viewBox="0 0 10 6" className="h-1.5 w-2.5" aria-hidden="true">
+              <path d="M1 1 5 4.5 9 1" fill="none" stroke="currentColor" strokeWidth={1.6} />
+            </svg>
           </button>
         </span>
       </div>

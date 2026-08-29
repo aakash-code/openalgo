@@ -6,6 +6,7 @@ Executes workflow nodes using internal OpenAlgo services (synchronous Flask vers
 
 import json
 import logging
+import math
 import re
 import threading
 import time as time_module
@@ -22,7 +23,21 @@ from database.flow_db import (
     get_workflow,
     update_execution_status,
 )
+from services.flow_node_contracts import (
+    EXPIRY_DATE_PATTERN as _EXPIRY_DATE_PATTERN,
+)
+from services.flow_node_contracts import (
+    OPTION_OFFSET_PATTERN as _OPTION_OFFSET_PATTERN,
+)
+from services.flow_node_contracts import (
+    VALID_EXPIRY_TYPES,
+    VALID_LEG_STRIKE_MODES,
+    default_product_for_exchange,
+    select_expiry,
+)
 from services.flow_openalgo_client import FlowOpenAlgoClient, get_flow_client
+from utils import real_threading as _real_threading
+from utils.constants import VALID_ACTIONS, VALID_EXCHANGES, VALID_PRICE_TYPES, VALID_PRODUCT_TYPES
 
 logger = logging.getLogger(__name__)
 
@@ -33,6 +48,16 @@ MAX_NODE_VISITS = 500
 # Logic gates combine the boolean results of their inputs. Wires into these
 # nodes are data edges, not control edges — see the edge filter below.
 GATE_NODE_TYPES = ("andGate", "orGate", "notGate")
+# Nodes that fan out into a TRUE and a FALSE branch. Like a gate, each is
+# combinational: one result per run, however many paths reach it.
+BRANCHING_NODE_TYPES = (
+    "priceCondition",
+    "timeCondition",
+    "timeWindow",
+    "positionCheck",
+    "fundCheck",
+    "varCondition",
+)
 
 # Nodes that place, change or cancel something at the broker. An unresolved
 # {{variable}} in one of their order-defining fields is treated as a failure
@@ -51,6 +76,8 @@ ORDER_NODE_TYPES = frozenset(
         "closePositions",
     }
 )
+
+OPTION_EXPIRY_NODE_TYPES = frozenset({"optionSymbol", "optionChain", "syntheticFuture"})
 
 # Fields on those nodes that decide what actually reaches the broker. Label-ish
 # fields (strategy, strategyTag, outputVariable) are deliberately absent: an
@@ -84,6 +111,83 @@ ORDER_CRITICAL_FIELDS = frozenset(
 # What an unresolved reference looks like after interpolation: WorkflowContext
 # returns the original {{...}} text when a path does not resolve.
 _UNRESOLVED_PATTERN = re.compile(r"\{\{[^}]*\}\}")
+_MISSING_ORDER_VALUE = object()
+
+
+#: MCX products that list options in the master contract.
+#:
+#: MCX has no spot instrument, so an option's ATM reference is the near-month
+#: future rather than an index level, and there is no separate derivatives
+#: segment the way NFO is to NSE -- the future, the option and the quote all
+#: live on MCX. option_symbol_service resolves that future itself for every
+#: exchange in its NO_SPOT_EXCHANGES set.
+MCX_OPTION_UNDERLYINGS = (
+    "GOLD",
+    "GOLDM",
+    "SILVER",
+    "SILVERM",
+    "CRUDEOIL",
+    "CRUDEOILM",
+    "NATURALGAS",
+    "NATGASMINI",
+    "COPPER",
+    "ZINC",
+    "MCXBULLDEX",
+)
+
+#: underlying -> (exchange to quote for the ATM reference, exchange the option
+#: trades on). Anything absent is an NSE underlying, which is the overwhelming
+#: majority and keeps this table to the exceptions.
+OPTION_UNDERLYING_EXCHANGES: dict[str, tuple[str, str]] = {
+    "SENSEX": ("BSE_INDEX", "BFO"),
+    "BANKEX": ("BSE_INDEX", "BFO"),
+    "SENSEX50": ("BSE_INDEX", "BFO"),
+    **dict.fromkeys(MCX_OPTION_UNDERLYINGS, ("MCX", "MCX")),
+}
+
+DEFAULT_OPTION_EXCHANGES = ("NSE_INDEX", "NFO")
+
+#: Exchange the author may have declared on the node -> the same pair. Only
+#: consulted for an underlying the table above does not name, so a stored
+#: workflow whose `exchange` still holds the node default cannot reroute a
+#: known index.
+DECLARED_OPTION_EXCHANGES: dict[str, tuple[str, str]] = {
+    "BFO": ("BSE_INDEX", "BFO"),
+    "BSE": ("BSE_INDEX", "BFO"),
+    "BSE_INDEX": ("BSE_INDEX", "BFO"),
+    "NFO": ("NSE_INDEX", "NFO"),
+    "NSE": ("NSE_INDEX", "NFO"),
+    "NSE_INDEX": ("NSE_INDEX", "NFO"),
+    # No-spot exchanges quote and trade on themselves.
+    "MCX": ("MCX", "MCX"),
+    "CDS": ("CDS", "CDS"),
+    "BCD": ("BCD", "BCD"),
+    "NCDEX": ("NCDEX", "NCDEX"),
+    "NCO": ("NCO", "NCO"),
+}
+
+
+def resolve_option_exchanges(underlying: str, declared: str = "") -> tuple[str, str]:
+    """The quote exchange and the option exchange for an options underlying.
+
+    Both options nodes need this pair, and keeping it in one place is what
+    stops them drifting apart -- they already carried two copies of a hardcoded
+    BSE list, and adding MCX to only one of them would have left the multi-leg
+    node placing commodity legs on NFO.
+
+    A named underlying decides on its own. `declared` -- the node's `exchange`
+    field -- is the fallback for anything unnamed, which is how an imported
+    workflow reaches a commodity or a stock option this table does not list.
+    Name first, because the node default ships "NSE_INDEX" and is left untouched
+    unless the author changes the dropdown: trusting it would have sent every
+    imported SENSEX order to NFO.
+    """
+    name = (underlying or "").strip().upper()
+    if name in OPTION_UNDERLYING_EXCHANGES:
+        return OPTION_UNDERLYING_EXCHANGES[name]
+    return DECLARED_OPTION_EXCHANGES.get(
+        (declared or "").strip().upper(), DEFAULT_OPTION_EXCHANGES
+    )
 
 
 def symbol_prefix_filter(column, prefix: str):
@@ -114,6 +218,84 @@ _workflow_locks: "weakref.WeakValueDictionary[int, threading.Lock]" = (
     weakref.WeakValueDictionary()
 )
 _locks_mutex = threading.Lock()
+
+
+# Symbols each workflow has an open market-data subscription for, as
+# {workflow_id: {(symbol, exchange, mode), ...}}.
+#
+# The subscribe nodes open a broker-side subscription and nothing ever closed
+# it: the websocket client is a process-wide singleton whose subscription set
+# outlives every run, so a workflow reading `{{webhook.symbol}}` accumulated one
+# per distinct symbol until the adapter ceiling (1000 x 3) was reached, after
+# which new subscriptions from /trading, the sandbox engine and the API began
+# failing. Deactivating or deleting the workflow now gives them back.
+_workflow_subscriptions: dict[int, set[tuple[str, str, str]]] = {}
+_workflow_subscriptions_lock = threading.Lock()
+
+
+def record_workflow_subscription(
+    workflow_id: int | None, symbol: str, exchange: str, mode: str
+) -> None:
+    """Remember a subscription so it can be released with the workflow."""
+    if workflow_id is None:
+        return
+    with _workflow_subscriptions_lock:
+        _workflow_subscriptions.setdefault(workflow_id, set()).add((symbol, exchange, mode))
+
+
+def release_workflow_subscriptions(workflow_id: int) -> int:
+    """Drop every subscription a workflow opened. Returns how many were released.
+
+    Called when a workflow is deactivated or deleted. Safe to call for a
+    workflow that never subscribed, and safe to call twice.
+    """
+    with _workflow_subscriptions_lock:
+        entries = _workflow_subscriptions.pop(workflow_id, set())
+    if not entries:
+        return 0
+
+    try:
+        from services.websocket_service import unsubscribe_from_symbols
+    except Exception:
+        logger.exception("Cannot release subscriptions: websocket service unavailable")
+        return 0
+
+    # Resolved once, not per symbol: it is a database read.
+    username, broker = _subscription_owner(workflow_id)
+    if not username:
+        logger.warning(
+            f"Workflow {workflow_id} has {len(entries)} subscription(s) but no "
+            f"resolvable session to release them from"
+        )
+        return 0
+
+    released = 0
+    for symbol, exchange, mode in entries:
+        try:
+            ok, _result, _ = unsubscribe_from_symbols(
+                username, broker, [{"symbol": symbol, "exchange": exchange}], mode
+            )
+            released += 1 if ok else 0
+        except Exception:
+            # One symbol failing must not strand the rest.
+            logger.exception(f"Failed to release {mode} on {exchange}:{symbol}")
+    logger.info(f"Released {released}/{len(entries)} subscription(s) for workflow {workflow_id}")
+    return released
+
+
+def _subscription_owner(workflow_id: int) -> tuple[str | None, str]:
+    """The username and broker whose session holds this workflow's subscriptions."""
+    from database.auth_db import get_broker_name, get_username_by_apikey
+    from database.flow_db import get_workflow_api_key
+
+    try:
+        api_key = get_workflow_api_key(workflow_id)
+        if not api_key:
+            return None, "unknown"
+        return get_username_by_apikey(api_key), get_broker_name(api_key) or "unknown"
+    except Exception:
+        logger.exception(f"Cannot resolve subscription owner for workflow {workflow_id}")
+        return None, "unknown"
 
 
 def get_workflow_lock(workflow_id: int) -> threading.Lock:
@@ -160,9 +342,12 @@ def parse_time_string(
 class WorkflowContext:
     """Context for storing variables during workflow execution"""
 
-    def __init__(self):
+    def __init__(self, workflow_id: int | None = None):
         self.variables: dict[str, Any] = {}
         self.condition_results: dict[str, bool] = {}
+        # Which workflow this run belongs to, so a subscription it opens can be
+        # released when that workflow is deactivated or deleted.
+        self.workflow_id = workflow_id
 
     def set_variable(self, name: str, value: Any):
         """Store a variable"""
@@ -303,6 +488,121 @@ class WorkflowContext:
         return re.sub(r"\{\{([^}]+)\}\}", replacer, text)
 
 
+class RuntimeOrderResolver:
+    """Resolve one order payload without turning supplied bad data into defaults.
+
+    Flow's general accessors are deliberately forgiving because display and
+    data nodes often have useful legacy defaults.  That behavior is unsafe at
+    an order boundary: an interpolated typo must not become quantity ``1`` or a
+    broker mapper's MARKET fallback.  This resolver uses a default only when no
+    supported key is present; once a value is supplied, it must resolve and
+    validate on its own merits.
+    """
+
+    def __init__(self, context: WorkflowContext, data: dict, label: str):
+        self.context = context
+        self.data = data
+        self.label = label
+
+    def value(
+        self,
+        key: str,
+        *,
+        default: Any = _MISSING_ORDER_VALUE,
+        aliases: tuple[str, ...] = (),
+    ) -> Any:
+        for candidate in (key, *aliases):
+            if candidate not in self.data:
+                continue
+            raw = self.data[candidate]
+            resolved = self.context.resolve_raw(raw) if isinstance(raw, str) else raw
+            if isinstance(resolved, str) and _UNRESOLVED_PATTERN.search(resolved):
+                raise ValueError(f"{candidate} has unresolved value {resolved!r}")
+            return resolved
+        if default is _MISSING_ORDER_VALUE:
+            raise ValueError(f"{key} is required")
+        return default
+
+    def text(
+        self,
+        key: str,
+        *,
+        default: Any = _MISSING_ORDER_VALUE,
+        aliases: tuple[str, ...] = (),
+    ) -> str:
+        value = self.value(key, default=default, aliases=aliases)
+        if not isinstance(value, str):
+            raise ValueError(f"{key} must resolve to text, got {value!r}")
+        text = value.strip()
+        if not text:
+            raise ValueError(f"{key} must not be blank")
+        return text
+
+    def enum(
+        self,
+        key: str,
+        allowed: list[str] | frozenset[str],
+        *,
+        default: Any = _MISSING_ORDER_VALUE,
+        aliases: tuple[str, ...] = (),
+    ) -> str:
+        canonical = self.text(key, default=default, aliases=aliases).upper()
+        if canonical not in allowed:
+            raise ValueError(
+                f"{key} must be one of {', '.join(sorted(allowed))}, got {canonical!r}"
+            )
+        return canonical
+
+    def number(
+        self,
+        key: str,
+        *,
+        default: Any = _MISSING_ORDER_VALUE,
+        aliases: tuple[str, ...] = (),
+    ) -> float:
+        value = self.value(key, default=default, aliases=aliases)
+        if isinstance(value, bool):
+            raise ValueError(f"{key} must be numeric, got boolean {value!r}")
+        if isinstance(value, str) and not value.strip():
+            raise ValueError(f"{key} must not be blank")
+        try:
+            number = float(value)
+        except (OverflowError, TypeError, ValueError) as exc:
+            raise ValueError(f"{key} must be numeric, got {value!r}") from exc
+        if not math.isfinite(number):
+            raise ValueError(f"{key} must be finite, got {value!r}")
+        return number
+
+    def integer(
+        self,
+        key: str,
+        *,
+        default: Any = _MISSING_ORDER_VALUE,
+        aliases: tuple[str, ...] = (),
+        minimum: int | None = None,
+    ) -> int:
+        number = self.number(key, default=default, aliases=aliases)
+        if minimum is not None and number < minimum:
+            qualifier = "non-negative" if minimum == 0 else f"at least {minimum}"
+            raise ValueError(f"{key} must be {qualifier}, got {number}")
+        return int(number)
+
+
+def _optional_leg_text(resolver: RuntimeOrderResolver, key: str) -> str:
+    """Read a leg field that may be absent or blank, but must be text if given.
+
+    ``RuntimeOrderResolver.text`` rejects a blank value, which is right for a
+    required field and wrong for an optional override - an omitted per-leg
+    expiry has to mean "inherit the node's", not "reject the leg".
+    """
+    value = resolver.value(key, default="")
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        raise ValueError(f"{key} must resolve to text, got {value!r}")
+    return value.strip()
+
+
 class NodeExecutor:
     """Executes individual workflow nodes"""
 
@@ -370,9 +670,9 @@ class NodeExecutor:
             raw = node_data.get(key)
             if not isinstance(raw, str) or "{{" not in raw:
                 continue
-            text = self.context.interpolate(raw)
-            if _UNRESOLVED_PATTERN.search(text):
-                found.append((key, text))
+            resolved = self.context.resolve_raw(raw)
+            if isinstance(resolved, str) and _UNRESOLVED_PATTERN.search(resolved):
+                found.append((key, resolved))
         return sorted(found)
 
     def unresolved_error(self, node_type: str, fields: list[tuple[str, str]]) -> dict:
@@ -385,6 +685,36 @@ class NodeExecutor:
         self.log(message, "error")
         return {"status": "error", "message": message, "unresolved": [f for f, _ in fields]}
 
+    def option_expiry_error(self, node_type: str, node_data: dict) -> dict | None:
+        """Reject unresolved or invalid option expiry inputs before a client call."""
+        unresolved = []
+        for field in ("underlying", "expiryDate"):
+            raw = node_data.get(field)
+            if isinstance(raw, str) and "{{" in raw:
+                resolved = self.context.interpolate(raw)
+                if _UNRESOLVED_PATTERN.search(resolved):
+                    unresolved.append((field, resolved))
+        if unresolved:
+            return self.unresolved_error(node_type, unresolved)
+
+        underlying = self.get_str(node_data, "underlying", "").strip()
+        expiry_date = self.get_str(node_data, "expiryDate", "").strip()
+        if not underlying:
+            message = f"{node_type} needs a resolved underlying before it can request option data."
+            self.log(message, "error")
+            return {"status": "error", "message": message}
+
+        from services.option_symbol_service import parse_underlying_symbol
+
+        _, embedded_expiry = parse_underlying_symbol(underlying)
+        has_explicit_expiry = bool(expiry_date)
+        needs_expiry = node_type == "syntheticFuture" or has_explicit_expiry or embedded_expiry is None
+        if needs_expiry and not _EXPIRY_DATE_PATTERN.fullmatch(expiry_date.upper()):
+            message = f"{node_type} needs a resolved expiryDate in DDMMMYY format before it can run."
+            self.log(message, "error")
+            return {"status": "error", "message": message}
+        return None
+
     def get_str(self, node_data: dict, key: str, default: str = "") -> str:
         """Get interpolated string value from node data"""
         value = node_data.get(key, default)
@@ -392,49 +722,98 @@ class NodeExecutor:
 
     def get_int(self, node_data: dict, key: str, default: int = 0) -> int:
         """Get interpolated integer value from node data"""
-        value = node_data.get(key, default)
+        value = node_data.get(key)
+        if value is None or value == "":
+            return default
         if isinstance(value, str):
             interpolated = self.context.interpolate(value)
             try:
                 return int(float(interpolated))
             except (ValueError, TypeError):
                 return default
-        return int(value) if value else default
+        return int(value)
 
     def get_float(self, node_data: dict, key: str, default: float = 0.0) -> float:
         """Get interpolated float value from node data"""
-        value = node_data.get(key, default)
+        value = node_data.get(key)
+        if value is None or value == "":
+            return default
         if isinstance(value, str):
             interpolated = self.context.interpolate(value)
             try:
                 return float(interpolated)
             except (ValueError, TypeError):
                 return default
-        return float(value) if value else default
+        return float(value)
+
+    def runtime_order_error(self, label: str, error: ValueError) -> dict:
+        """Return one consistent fail-closed result for an unusable order value."""
+        message = f"{label} has invalid runtime order data: {error}"
+        self.log(message, "error")
+        return {"status": "error", "message": message}
+
+    def resolve_standard_order(
+        self,
+        node_data: dict,
+        label: str,
+        *,
+        allow_zero_quantity: bool = False,
+    ) -> dict[str, Any]:
+        """Resolve the fields shared by regular, smart, and split orders."""
+        values = RuntimeOrderResolver(self.context, node_data, label)
+        quantity_minimum = 0 if allow_zero_quantity else 1
+        # The exchange decides the product default, so it is read out before the
+        # dict is built -- a node whose author never touched Product sends NRML
+        # on a derivative segment and MIS on cash. Symbol is still resolved
+        # first, so a node with several problems reports the same one it always
+        # did.
+        # Upper-cased for the same reason every enum field is: an alert does not
+        # control its own casing. TradingView sends whatever the chart's ticker
+        # carries, and the symbol lookup is exact, so 'reliance' fails with
+        # "Symbol not found" while 'RELIANCE' resolves. Every OpenAlgo symbol is
+        # upper case, so this cannot collide with a real one.
+        symbol = values.text("symbol").upper()
+        exchange = values.enum("exchange", VALID_EXCHANGES, default="NSE")
+        resolved = {
+            "symbol": symbol,
+            "exchange": exchange,
+            "action": values.enum("action", VALID_ACTIONS, default="BUY"),
+            "quantity": values.integer("quantity", default=1, minimum=quantity_minimum),
+            "price_type": values.enum("priceType", VALID_PRICE_TYPES, default="MARKET"),
+            "product": values.enum(
+                "product", VALID_PRODUCT_TYPES, default=default_product_for_exchange(exchange)
+            ),
+            "price": values.number("price", default=0.0),
+            "trigger_price": values.number("triggerPrice", default=0.0),
+        }
+        invalid = self._invalid_price_reason(
+            resolved["price_type"], resolved["price"], resolved["trigger_price"]
+        )
+        if invalid:
+            raise ValueError(invalid)
+        return resolved
 
     # === Order Nodes ===
 
     def execute_place_order(self, node_data: dict) -> dict:
         """Execute Place Order node"""
-        symbol = self.get_str(node_data, "symbol", "")
-        exchange = self.get_str(node_data, "exchange", "NSE")
-        action = self.get_str(node_data, "action", "BUY")
-        quantity = self.get_int(node_data, "quantity", 1)
-        price_type = self.get_str(node_data, "priceType", "MARKET")
-        product = self.get_str(node_data, "product", "MIS")
-        price = self.get_float(node_data, "price", 0)
-        trigger_price = self.get_float(node_data, "triggerPrice", 0)
+        try:
+            order = self.resolve_standard_order(node_data, "Place order")
+        except ValueError as exc:
+            return self.runtime_order_error("Place order", exc)
 
-        self.log(f"Placing order: {symbol} {action} qty={quantity}")
+        self.log(
+            f"Placing order: {order['symbol']} {order['action']} qty={order['quantity']}"
+        )
         result = self.client.place_order(
-            symbol=symbol,
-            exchange=exchange,
-            action=action,
-            quantity=quantity,
-            price_type=price_type,
-            product_type=product,
-            price=price,
-            trigger_price=trigger_price,
+            symbol=order["symbol"],
+            exchange=order["exchange"],
+            action=order["action"],
+            quantity=order["quantity"],
+            price_type=order["price_type"],
+            product_type=order["product"],
+            price=order["price"],
+            trigger_price=order["trigger_price"],
             strategy=self.strategy_tag(node_data),
         )
         self.log(
@@ -445,23 +824,26 @@ class NodeExecutor:
 
     def execute_smart_order(self, node_data: dict) -> dict:
         """Execute Smart Order node"""
-        symbol = self.get_str(node_data, "symbol", "")
-        exchange = self.get_str(node_data, "exchange", "NSE")
-        action = self.get_str(node_data, "action", "BUY")
-        quantity = self.get_int(node_data, "quantity", 1)
-        position_size = self.get_int(node_data, "positionSize", 0)
-        price_type = self.get_str(node_data, "priceType", "MARKET")
-        product = self.get_str(node_data, "product", "MIS")
+        try:
+            order = self.resolve_standard_order(
+                node_data, "Smart order", allow_zero_quantity=True
+            )
+            values = RuntimeOrderResolver(self.context, node_data, "Smart order")
+            position_size = values.integer("positionSize", default=0)
+        except ValueError as exc:
+            return self.runtime_order_error("Smart order", exc)
 
-        self.log(f"Placing smart order: {symbol} {action}")
+        self.log(f"Placing smart order: {order['symbol']} {order['action']}")
         result = self.client.place_smart_order(
-            symbol=symbol,
-            exchange=exchange,
-            action=action,
-            quantity=quantity,
+            symbol=order["symbol"],
+            exchange=order["exchange"],
+            action=order["action"],
+            quantity=order["quantity"],
             position_size=position_size,
-            price_type=price_type,
-            product_type=product,
+            price_type=order["price_type"],
+            product_type=order["product"],
+            price=order["price"],
+            trigger_price=order["trigger_price"],
             strategy=self.strategy_tag(node_data),
         )
         self.log(
@@ -494,6 +876,10 @@ class NodeExecutor:
         unintended level, so it is refused rather than sent with a zero.
         """
         price_type = (price_type or "MARKET").upper()
+        if not math.isfinite(price):
+            return f"{price_type} order needs a finite price, got {price}"
+        if not math.isfinite(trigger_price):
+            return f"{price_type} order needs a finite trigger price, got {trigger_price}"
         if price_type in ("LIMIT", "SL") and price <= 0:
             return f"{price_type} order needs a positive price, got {price}"
         if price_type in ("SL", "SL-M") and trigger_price <= 0:
@@ -596,33 +982,62 @@ class NodeExecutor:
 
     def execute_options_order(self, node_data: dict) -> dict:
         """Execute Options Order node"""
-        underlying = self.get_str(node_data, "underlying", "NIFTY")
-        expiry_type = self.get_str(node_data, "expiryType", "current_week")
-        quantity = self.get_int(node_data, "quantity", 1)
-        offset = self.get_str(node_data, "offset", "ATM")
-        option_type = self.get_str(node_data, "optionType", "CE")
-        action = self.get_str(node_data, "action", "BUY")
-        price_type = self.get_str(node_data, "priceType", "MARKET").upper()
-        product = self.get_str(node_data, "product", "NRML")
-        split_size = self.get_int(node_data, "splitSize", 0)
-        price = self.get_float(node_data, "price", 0.0)
-        trigger_price = self.get_float(node_data, "triggerPrice", 0.0)
-
-        invalid = self._invalid_price_reason(price_type, price, trigger_price)
-        if invalid:
-            error_result = {"status": "error", "message": invalid}
-            self.log(f"Options order failed: {invalid}", "error")
-            return error_result
+        try:
+            values = RuntimeOrderResolver(self.context, node_data, "Options order")
+            underlying = values.text("underlying", default="NIFTY").upper()
+            expiry_type = values.text("expiryType", default="current_week").lower()
+            # A leg has always been able to name its own date; the node could
+            # only pick one of the four relative types, so a webhook naming a
+            # far contract had no way to say so. An explicit date wins, and the
+            # relative type stays the default for the common case.
+            # `_optional_leg_text`, not `text`: `text` rejects a blank value, which
+            # is right for a required field and wrong for an optional override. It
+            # raises on its own default, so `text("expiryDate", default="")` failed
+            # every options order whose author had not set one -- which is all of
+            # them, since neither the panel nor the node defaults write the key.
+            expiry_date_input = _optional_leg_text(values, "expiryDate").upper()
+            # The editor offers a single Expiry control that holds either form,
+            # so a DDMMMYY value arriving under expiryType is an explicit date
+            # rather than a relative type. The separate expiryDate key stays
+            # available for callers that would rather send the two apart.
+            if not expiry_date_input and _EXPIRY_DATE_PATTERN.fullmatch(expiry_type.upper()):
+                expiry_date_input = expiry_type.upper()
+            if expiry_date_input and not _EXPIRY_DATE_PATTERN.fullmatch(expiry_date_input):
+                raise ValueError(
+                    "expiryDate must be in DDMMMYY format such as 28OCT25, "
+                    f"got {expiry_date_input!r}"
+                )
+            if not expiry_date_input and expiry_type not in VALID_EXPIRY_TYPES:
+                raise ValueError(
+                    "expiryType must be one of "
+                    f"{', '.join(sorted(VALID_EXPIRY_TYPES))}, got {expiry_type!r}"
+                )
+            quantity = values.integer("quantity", default=1, minimum=1)
+            offset = values.text("offset", default="ATM").upper()
+            if not _OPTION_OFFSET_PATTERN.fullmatch(offset):
+                raise ValueError(
+                    f"offset must be ATM, ITM1-ITM50, or OTM1-OTM50, got {offset!r}"
+                )
+            option_type = values.enum("optionType", frozenset({"CE", "PE"}), default="CE")
+            action = values.enum("action", VALID_ACTIONS, default="BUY")
+            price_type = values.enum("priceType", VALID_PRICE_TYPES, default="MARKET")
+            product = values.enum("product", VALID_PRODUCT_TYPES, default="NRML")
+            split_size = values.integer("splitSize", default=0, minimum=0)
+            price = values.number("price", default=0.0)
+            trigger_price = values.number("triggerPrice", default=0.0)
+            if "exchange" in node_data:
+                values.enum("exchange", VALID_EXCHANGES)
+            invalid = self._invalid_price_reason(price_type, price, trigger_price)
+            if invalid:
+                raise ValueError(invalid)
+        except ValueError as exc:
+            return self.runtime_order_error("Options order", exc)
 
         self.log(f"Placing options order: {underlying} {option_type} {offset}")
 
-        # Get the underlying exchange for index
-        if underlying in ["SENSEX", "BANKEX", "SENSEX50"]:
-            underlying_exchange = "BSE_INDEX"
-            fo_exchange = "BFO"
-        else:
-            underlying_exchange = "NSE_INDEX"
-            fo_exchange = "NFO"
+        underlying_exchange, fo_exchange = resolve_option_exchanges(
+            underlying, self.get_str(node_data, "exchange", "")
+        )
 
         try:
             lot_size = self._resolve_lot_size(underlying, fo_exchange)
@@ -633,8 +1048,10 @@ class NodeExecutor:
         total_quantity = quantity * lot_size
         self.log(f"Lot size for {underlying}: {lot_size} -> {quantity} lot(s) = {total_quantity}")
 
-        # Resolve expiry date from expiry type
-        expiry_date = self._resolve_expiry_date(underlying, fo_exchange, expiry_type)
+        # An explicit date is used as given; only a relative type is looked up.
+        expiry_date = expiry_date_input or self._resolve_expiry_date(
+            underlying, fo_exchange, expiry_type
+        )
         if not expiry_date:
             error_result = {
                 "status": "error",
@@ -643,7 +1060,9 @@ class NodeExecutor:
             self.log(f"Options order failed: {error_result['message']}", "error")
             return error_result
 
-        self.log(f"Resolved expiry: {expiry_type} -> {expiry_date}")
+        self.log(
+            f"Resolved expiry: {expiry_date_input or expiry_type} -> {expiry_date}"
+        )
 
         result = self.client.options_order(
             underlying=underlying,
@@ -672,35 +1091,184 @@ class NodeExecutor:
         # Debug: log node_data keys to understand structure
         self.log(f"Options multi-order node_data keys: {list(node_data.keys())}")
 
-        underlying = self.get_str(node_data, "underlying", "NIFTY")
-        expiry_type = self.get_str(node_data, "expiryType", "current_week")
-        # Frontend uses "strategy" field, not "strategyType"
-        strategy_type = self.get_str(node_data, "strategy", "") or self.get_str(
-            node_data, "strategyType", "custom"
-        )
-        action = self.get_str(node_data, "action", "SELL")  # BUY or SELL for the strategy direction
-        quantity_lots = self.get_int(node_data, "quantity", 1)  # Number of lots per leg
-        product = self.get_str(node_data, "product", "MIS")
-        strangle_width = self.get_str(node_data, "strangleWidth", "OTM2")  # For strangle strategy
-        # Documented as a top-level field; previously read for custom legs only,
-        # so a predefined strategy silently executed MARKET legs.
-        multi_price_type = self.get_str(node_data, "priceType", "MARKET").upper()
-        multi_price = self.get_float(node_data, "price", 0.0)
+        try:
+            values = RuntimeOrderResolver(self.context, node_data, "Options multi-order")
+            underlying = values.text("underlying", default="NIFTY").upper()
+            expiry_type = values.text("expiryType", default="current_week").lower()
+            # As on the single-leg node: an explicit DDMMMYY date wins, the
+            # relative type remains the default. A leg may still override both.
+            # `_optional_leg_text`, not `text`: `text` rejects a blank value, which
+            # is right for a required field and wrong for an optional override. It
+            # raises on its own default, so `text("expiryDate", default="")` failed
+            # every options order whose author had not set one -- which is all of
+            # them, since neither the panel nor the node defaults write the key.
+            expiry_date_input = _optional_leg_text(values, "expiryDate").upper()
+            # The editor offers a single Expiry control that holds either form,
+            # so a DDMMMYY value arriving under expiryType is an explicit date
+            # rather than a relative type. The separate expiryDate key stays
+            # available for callers that would rather send the two apart.
+            if not expiry_date_input and _EXPIRY_DATE_PATTERN.fullmatch(expiry_type.upper()):
+                expiry_date_input = expiry_type.upper()
+            if expiry_date_input and not _EXPIRY_DATE_PATTERN.fullmatch(expiry_date_input):
+                raise ValueError(
+                    "expiryDate must be in DDMMMYY format such as 28OCT25, "
+                    f"got {expiry_date_input!r}"
+                )
+            if not expiry_date_input and expiry_type not in VALID_EXPIRY_TYPES:
+                raise ValueError(
+                    "expiryType must be one of "
+                    f"{', '.join(sorted(VALID_EXPIRY_TYPES))}, got {expiry_type!r}"
+                )
+            # Frontend uses ``strategy``; ``strategyType`` is a legacy alias.
+            strategy_type = values.text(
+                "strategy", default="custom", aliases=("strategyType",)
+            ).lower()
+            action = values.enum("action", VALID_ACTIONS, default="SELL")
+            quantity_lots = values.integer("quantity", default=1, minimum=1)
+            product = values.enum("product", VALID_PRODUCT_TYPES, default="NRML")
+            strangle_width = values.text("strangleWidth", default="OTM2").upper()
+            if not _OPTION_OFFSET_PATTERN.fullmatch(strangle_width):
+                raise ValueError(
+                    "strangleWidth must be ATM, ITM1-ITM50, or OTM1-OTM50, "
+                    f"got {strangle_width!r}"
+                )
+            multi_price_type = values.enum(
+                "priceType", VALID_PRICE_TYPES, default="MARKET"
+            )
+            multi_price = values.number("price", default=0.0)
+            multi_trigger_price = values.number("triggerPrice", default=0.0)
+            if "exchange" in node_data:
+                values.enum("exchange", VALID_EXCHANGES)
+            if strategy_type != "custom":
+                if multi_price_type not in {"MARKET", "LIMIT"}:
+                    raise ValueError(
+                        "generated option strategies support only MARKET and LIMIT price types"
+                    )
+                invalid = self._invalid_price_reason(
+                    multi_price_type, multi_price, multi_trigger_price
+                )
+                if invalid:
+                    raise ValueError(invalid)
+        except ValueError as exc:
+            return self.runtime_order_error("Options multi-order", exc)
 
-        # Check for custom legs data
-        legs_data = node_data.get("legs", []) or node_data.get("orderLegs", [])
+        normalized_custom_legs: list[dict[str, Any]] | None = None
+        if strategy_type == "custom":
+            try:
+                raw_legs = values.value("legs", aliases=("orderLegs",))
+                if not isinstance(raw_legs, list) or not raw_legs:
+                    raise ValueError("legs must resolve to a non-empty list of objects")
+                if any(not isinstance(leg, dict) for leg in raw_legs):
+                    raise ValueError("every resolved leg must be an object")
+
+                normalized_custom_legs = []
+                for index, leg in enumerate(raw_legs, start=1):
+                    leg_values = RuntimeOrderResolver(
+                        self.context, leg, f"Options multi-order leg {index}"
+                    )
+                    try:
+                        # A leg picks its strike one of two ways. An offset is
+                        # re-resolved against the live underlying on every run,
+                        # which is what a repeating workflow wants. An absolute
+                        # strike names one contract and is used as given, which
+                        # suits a one-shot or manually built spread.
+                        strike_mode = leg_values.enum(
+                            "strikeMode",
+                            VALID_LEG_STRIKE_MODES,
+                            default="OFFSET",
+                        )
+                        offset: str | None = None
+                        strike: float | None = None
+                        if strike_mode == "STRIKE":
+                            strike = leg_values.number("strike")
+                            if strike <= 0:
+                                raise ValueError(
+                                    f"strike must be a positive number, got {strike}"
+                                )
+                        else:
+                            offset = leg_values.text("offset").upper()
+                            if not _OPTION_OFFSET_PATTERN.fullmatch(offset):
+                                raise ValueError(
+                                    "offset must be ATM, ITM1-ITM50, or "
+                                    f"OTM1-OTM50, got {offset!r}"
+                                )
+                        # A leg may override the node expiry, which is what
+                        # makes a calendar or diagonal spread expressible.
+                        # Either an explicit DDMMMYY date or a relative type;
+                        # the date is resolved once the exchange is known.
+                        leg_expiry_date = _optional_leg_text(leg_values, "expiry").upper()
+                        if leg_expiry_date and not _EXPIRY_DATE_PATTERN.fullmatch(
+                            leg_expiry_date
+                        ):
+                            raise ValueError(
+                                "expiry must be in DDMMMYY format such as 28OCT25, "
+                                f"got {leg_expiry_date!r}"
+                            )
+                        leg_expiry_type = _optional_leg_text(
+                            leg_values, "expiryType"
+                        ).lower()
+                        if leg_expiry_type and leg_expiry_type not in VALID_EXPIRY_TYPES:
+                            raise ValueError(
+                                "expiryType must be one of "
+                                f"{', '.join(sorted(VALID_EXPIRY_TYPES))}, "
+                                f"got {leg_expiry_type!r}"
+                            )
+                        option_type = leg_values.enum(
+                            "optionType", frozenset({"CE", "PE"})
+                        )
+                        leg_action = leg_values.enum("action", VALID_ACTIONS)
+                        leg_quantity = leg_values.integer("quantity", minimum=1)
+                        leg_product = leg_values.enum(
+                            "product", VALID_PRODUCT_TYPES, default=product
+                        )
+                        leg_price_type = leg_values.enum(
+                            "priceType",
+                            VALID_PRICE_TYPES,
+                            default=multi_price_type,
+                            aliases=("pricetype",),
+                        )
+                        leg_price = leg_values.number("price", default=multi_price)
+                        leg_trigger = leg_values.number(
+                            "triggerPrice",
+                            default=multi_trigger_price,
+                            aliases=("trigger_price",),
+                        )
+                        leg_split_size = leg_values.integer(
+                            "splitSize", default=0, aliases=("splitsize",), minimum=0
+                        )
+                        invalid = self._invalid_price_reason(
+                            leg_price_type, leg_price, leg_trigger
+                        )
+                        if invalid:
+                            raise ValueError(invalid)
+                    except ValueError as exc:
+                        raise ValueError(f"leg {index}: {exc}") from exc
+                    normalized_custom_legs.append(
+                        {
+                            "offset": offset,
+                            "strike": strike,
+                            "expiry_date": leg_expiry_date,
+                            "expiry_type": leg_expiry_type,
+                            "option_type": option_type,
+                            "action": leg_action,
+                            "quantity_lots": leg_quantity,
+                            "pricetype": leg_price_type,
+                            "product": leg_product,
+                            "price": leg_price,
+                            "trigger_price": leg_trigger,
+                            "splitsize": leg_split_size,
+                        }
+                    )
+            except ValueError as exc:
+                return self.runtime_order_error("Options multi-order", exc)
 
         self.log(
             f"Strategy: {strategy_type}, Action: {action}, Quantity: {quantity_lots} lots, Product: {product}"
         )
 
-        # Get the underlying exchange for index
-        if underlying in ["SENSEX", "BANKEX", "SENSEX50"]:
-            underlying_exchange = "BSE_INDEX"
-            fo_exchange = "BFO"
-        else:
-            underlying_exchange = "NSE_INDEX"
-            fo_exchange = "NFO"
+        underlying_exchange, fo_exchange = resolve_option_exchanges(
+            underlying, self.get_str(node_data, "exchange", "")
+        )
 
         # Same master-contract lookup the single-leg options node uses. A second
         # hardcoded table here drifted the same way the first one had: it still
@@ -717,7 +1285,10 @@ class NodeExecutor:
         )
 
         # Resolve expiry date
-        expiry_date = self._resolve_expiry_date(underlying, fo_exchange, expiry_type)
+        # An explicit date is used as given; only a relative type is looked up.
+        expiry_date = expiry_date_input or self._resolve_expiry_date(
+            underlying, fo_exchange, expiry_type
+        )
         if not expiry_date:
             error_result = {
                 "status": "error",
@@ -726,37 +1297,52 @@ class NodeExecutor:
             self.log(f"Options multi-order failed: {error_result['message']}", "error")
             return error_result
 
-        self.log(f"Resolved expiry: {expiry_type} -> {expiry_date}")
+        self.log(
+            f"Resolved expiry: {expiry_date_input or expiry_type} -> {expiry_date}"
+        )
 
         # Generate legs based on strategy type if no custom legs provided
         legs = []
-        if legs_data:
-            # Use custom legs from node data
-            for leg in legs_data:
-                leg_qty = self.get_int(leg, "quantity", 1)
-                leg_price_type = self.get_str(leg, "priceType", multi_price_type).upper()
-                leg_price = self.get_float(leg, "price", multi_price)
-                leg_trigger = self.get_float(leg, "triggerPrice", 0.0)
-                leg_entry = {
-                    "offset": self.get_str(leg, "offset", "ATM"),
-                    "option_type": self.get_str(leg, "optionType", "CE"),
-                    "action": self.get_str(leg, "action", "BUY"),
-                    "quantity": leg_qty * lot_size,
-                    "pricetype": leg_price_type,
-                    "product": self.get_str(leg, "product", product),
-                    "price": leg_price,
-                    "trigger_price": leg_trigger,
-                    "splitsize": self.get_int(leg, "splitSize", 0),
+        if normalized_custom_legs is not None:
+            # A relative per-leg expiry costs a master-contract lookup, so legs
+            # sharing one expiry type resolve it once.
+            leg_expiry_cache: dict[str, str] = {}
+            for index, leg in enumerate(normalized_custom_legs, start=1):
+                leg_expiry = leg["expiry_date"]
+                expiry_type_override = leg["expiry_type"]
+                if not leg_expiry and expiry_type_override:
+                    leg_expiry = leg_expiry_cache.get(expiry_type_override, "")
+                    if not leg_expiry:
+                        resolved = self._resolve_expiry_date(
+                            underlying, fo_exchange, expiry_type_override
+                        )
+                        if not resolved:
+                            message = (
+                                f"leg {index}: could not resolve expiry for "
+                                f"{expiry_type_override}"
+                            )
+                            self.log(f"Options multi-order failed: {message}", "error")
+                            return {"status": "error", "message": message}
+                        leg_expiry_cache[expiry_type_override] = resolved
+                        leg_expiry = resolved
+
+                prepared = {
+                    key: value
+                    for key, value in leg.items()
+                    if key not in ("quantity_lots", "expiry_date", "expiry_type")
                 }
-                invalid = self._invalid_price_reason(leg_price_type, leg_price, leg_trigger)
-                if invalid:
-                    error_result = {
-                        "status": "error",
-                        "message": f"Leg {len(legs) + 1}: {invalid}",
-                    }
-                    self.log(f"Options multi-order failed: {error_result['message']}", "error")
-                    return error_result
-                legs.append(leg_entry)
+                prepared["quantity"] = leg["quantity_lots"] * lot_size
+                # Only send an expiry that differs from the node's; the service
+                # falls back to the common expiry when the key is absent.
+                if leg_expiry:
+                    prepared["expiry_date"] = leg_expiry
+                # Send exactly one strike selector so the service's branch is
+                # unambiguous rather than relying on precedence.
+                if prepared.get("strike") is None:
+                    prepared.pop("strike", None)
+                else:
+                    prepared.pop("offset", None)
+                legs.append(prepared)
         else:
             # Generate legs from predefined strategy type
             # A generated strategy shares one price type across its legs. Its
@@ -798,8 +1384,15 @@ class NodeExecutor:
 
         self.log(f"Placing options multi-order: {underlying} {strategy_type} with {len(legs)} legs")
         for i, leg in enumerate(legs):
+            # A manually built leg carries a strike instead of an offset, and
+            # may carry its own expiry.
+            selector = (
+                f"{leg['strike']:g}" if leg.get("strike") is not None else leg.get("offset")
+            )
+            expiry_note = f" {leg['expiry_date']}" if leg.get("expiry_date") else ""
             self.log(
-                f"  Leg {i + 1}: {leg['offset']} {leg['option_type']} {leg['action']} qty={leg['quantity']}"
+                f"  Leg {i + 1}: {selector}{expiry_note} {leg['option_type']} "
+                f"{leg['action']} qty={leg['quantity']}"
             )
 
         result = self.client.options_multi_order(
@@ -886,7 +1479,13 @@ class NodeExecutor:
         return legs
 
     def _resolve_expiry_date(self, symbol: str, exchange: str, expiry_type: str) -> str | None:
-        """Resolve expiry type to actual expiry date"""
+        """The date a relative expiry type resolves to, in DDMMMYY.
+
+        The selection rule itself lives in flow_node_contracts.select_expiry so
+        the editor's expiry picker resolves it identically -- the panel shows
+        the author which date a leg will actually use, and a second copy of the
+        rule here would let that promise drift out of date.
+        """
         try:
             response = self.client.get_expiry(
                 symbol=symbol, exchange=exchange, instrumenttype="options"
@@ -900,69 +1499,14 @@ class NodeExecutor:
                 self.log(f"No expiry dates found for {symbol} on {exchange}", "error")
                 return None
 
-            # Parse and sort expiry dates
-            def parse_expiry(exp_str: str) -> datetime | None:
-                """Parse expiry date string"""
-                if not exp_str or not isinstance(exp_str, str):
-                    return None
-                for fmt in ["%d-%b-%y", "%d%b%y", "%d-%B-%Y", "%d%B%Y"]:
-                    try:
-                        return datetime.strptime(exp_str.upper(), fmt)
-                    except ValueError:
-                        continue
-                return None
-
-            # Filter and sort expiries
-            valid_expiries = []
-            for exp_str in expiry_list:
-                parsed = parse_expiry(exp_str)
-                if parsed is not None:
-                    valid_expiries.append((exp_str, parsed))
-
-            if not valid_expiries:
-                self.log(f"No valid expiry dates found for {symbol}", "error")
-                return None
-
-            # Sort by parsed date
-            valid_expiries.sort(key=lambda x: x[1])
-            sorted_expiries = [exp[0] for exp in valid_expiries]
-            now = datetime.now()
-            current_month = now.month
-            current_year = now.year
-
-            # Calculate next month
-            if current_month == 12:
-                next_month, next_year = 1, current_year + 1
-            else:
-                next_month, next_year = current_month + 1, current_year
-
-            if expiry_type == "current_week":
-                if sorted_expiries:
-                    return self._format_expiry_for_api(sorted_expiries[0])
-                return None
-            elif expiry_type == "next_week":
-                if len(sorted_expiries) > 1:
-                    return self._format_expiry_for_api(sorted_expiries[1])
-                return None
-            elif expiry_type == "current_month":
-                result = None
-                for exp_str, exp_date in valid_expiries:
-                    if exp_date.month == current_month and exp_date.year == current_year:
-                        result = exp_str
-                if result:
-                    return self._format_expiry_for_api(result)
-                return None
-            elif expiry_type == "next_month":
-                result = None
-                for exp_str, exp_date in valid_expiries:
-                    if exp_date.month == next_month and exp_date.year == next_year:
-                        result = exp_str
-                if result:
-                    return self._format_expiry_for_api(result)
-                return None
-
-            self.log(f"Unknown expiry type: {expiry_type}", "error")
-            return None
+            selected = select_expiry(expiry_list, expiry_type)
+            if not selected:
+                self.log(
+                    f"No expiry matches {expiry_type} for {symbol} on {exchange} "
+                    f"among {len(expiry_list)} listed contract(s)",
+                    "error",
+                )
+            return selected
         except Exception as e:
             self.log(f"Error resolving expiry: {e}", "error")
             return None
@@ -1007,7 +1551,7 @@ class NodeExecutor:
         if existing.get("status") != "success" or not existing.get("data"):
             message = (
                 f"Could not read order {order_id} to modify it: "
-                f"{existing.get('message', 'order not found')}"
+                f"{existing.get('message') or existing.get('error') or 'order not found'}"
             )
             self.log(f"Modify order aborted: {message}", "error")
             return {"status": "error", "message": message}
@@ -1137,7 +1681,7 @@ class NodeExecutor:
             return result
 
         exchange = self._supplied(node_data, "exchange") or "NSE"
-        product = self._supplied(node_data, "product") or "MIS"
+        product = self._supplied(node_data, "product") or default_product_for_exchange(exchange)
         self.log(f"Closing position: {symbol}@{exchange} ({product})")
         result = self.client.close_position(
             symbol=symbol,
@@ -1155,44 +1699,169 @@ class NodeExecutor:
     def execute_basket_order(self, node_data: dict) -> dict:
         """Execute Basket Order node - places multiple orders in batch"""
         orders_raw = node_data.get("orders", "")
-        product = self.get_str(node_data, "product", "MIS")
-        price_type = self.get_str(node_data, "priceType", "MARKET")
+        if isinstance(orders_raw, str):
+            orders_raw = self.context.resolve_raw(orders_raw)
         basket_name = self.get_str(node_data, "basketName", "flow_basket")
 
-        orders = []
+        def resolve(value: Any, field: str) -> Any:
+            if isinstance(value, str):
+                value = self.context.resolve_raw(value)
+            if isinstance(value, str) and _UNRESOLVED_PATTERN.search(value):
+                raise ValueError(f"{field} has unresolved value {value!r}")
+            return value
+
+        def common_value(key: str, default: Any) -> Any:
+            if key not in node_data:
+                return default
+            return resolve(node_data[key], key)
+
+        def number(value: Any, field: str) -> float:
+            value = resolve(value, field)
+            if isinstance(value, bool):
+                raise ValueError(f"{field} must be numeric, got boolean {value!r}")
+            if isinstance(value, str) and not value.strip():
+                raise ValueError(f"{field} must not be blank")
+            try:
+                numeric = float(value)
+            except (OverflowError, TypeError, ValueError) as exc:
+                raise ValueError(f"{field} must be numeric, got {value!r}") from exc
+            if not math.isfinite(numeric):
+                raise ValueError(f"{field} must be finite, got {value!r}")
+            return numeric
+
+        def required_text(value: Any, field: str) -> str:
+            value = resolve(value, field)
+            if value is None:
+                raise ValueError(f"{field} is required")
+            text = str(value).strip()
+            if not text:
+                raise ValueError(f"{field} is required")
+            return text
+
+        def basket_error(index: int, detail: str) -> dict:
+            message = f"Basket order row {index}: {detail}"
+            self.log(f"Basket order failed: {message}", "error")
+            return {"status": "error", "message": message}
+
+        try:
+            # One basket can mix segments, so a node that names no product lets
+            # every row fall back to its own exchange's default -- NSE rows MIS,
+            # NFO rows NRML -- instead of one blanket choice. A product that is
+            # present but blank stays an error, as before.
+            unset = object()
+            common_product_raw = common_value("product", unset)
+            common_product = (
+                ""
+                if common_product_raw is unset
+                else required_text(common_product_raw, "product").upper()
+            )
+            common_price_type = required_text(
+                common_value("priceType", "MARKET"), "priceType"
+            ).upper()
+            if common_product and common_product not in VALID_PRODUCT_TYPES:
+                raise ValueError(f"invalid product {common_product!r}")
+            if common_price_type not in VALID_PRICE_TYPES:
+                raise ValueError(f"invalid pricetype {common_price_type!r}")
+            common_price = number(common_value("price", 0.0), "price")
+            common_trigger_price = number(common_value("triggerPrice", 0.0), "triggerPrice")
+        except ValueError as exc:
+            return basket_error(1, str(exc))
+
+        raw_rows: list[tuple[int, dict, bool]] = []
         if isinstance(orders_raw, str):
             # Parse orders from CSV-like format: SYMBOL,EXCHANGE,ACTION,QTY per line
-            for line in orders_raw.strip().split("\n"):
+            for index, line in enumerate(orders_raw.strip().split("\n"), start=1):
                 line = line.strip()
                 if not line:
                     continue
                 parts = [p.strip() for p in line.split(",")]
-                if len(parts) >= 4:
-                    try:
-                        order = {
-                            "symbol": self.context.interpolate(parts[0]),
-                            "exchange": self.context.interpolate(parts[1]),
-                            "action": self.context.interpolate(parts[2]).upper(),
-                            "quantity": int(self.context.interpolate(parts[3])),
-                            "pricetype": price_type,
-                            "product": product,
-                        }
-                        orders.append(order)
-                    except (ValueError, IndexError) as e:
-                        self.log(f"Skipping invalid order line '{line}': {e}", "warning")
-                else:
-                    self.log(
-                        f"Skipping invalid order line '{line}': expected SYMBOL,EXCHANGE,ACTION,QTY",
-                        "warning",
+                if len(parts) < 4:
+                    return basket_error(index, "expected SYMBOL,EXCHANGE,ACTION,QTY")
+                raw_rows.append(
+                    (
+                        index,
+                        {
+                            "symbol": parts[0],
+                            "exchange": parts[1],
+                            "action": parts[2],
+                            "quantity": parts[3],
+                        },
+                        True,
                     )
+                )
         elif isinstance(orders_raw, list):
-            # Already a list of order dicts
-            orders = orders_raw
+            for index, order in enumerate(orders_raw, start=1):
+                if not isinstance(order, dict):
+                    return basket_error(index, "must be an order object")
+                raw_rows.append((index, order, False))
 
-        if not orders:
+        if not raw_rows:
             error_result = {"status": "error", "message": "No valid orders to place"}
             self.log("Basket order failed: No valid orders", "error")
             return error_result
+
+        orders = []
+        for index, raw_order, csv_row in raw_rows:
+            def row_value(
+                key: str,
+                default: Any,
+                *aliases: str,
+                is_csv_row: bool = csv_row,
+                source_order: dict = raw_order,
+            ) -> Any:
+                if is_csv_row:
+                    return default
+                for candidate in (key, *aliases):
+                    if candidate in source_order:
+                        return resolve(source_order[candidate], candidate)
+                return default
+
+            try:
+                symbol = required_text(raw_order.get("symbol"), "symbol")
+                exchange = required_text(raw_order.get("exchange"), "exchange").upper()
+                action = required_text(raw_order.get("action"), "action").upper()
+                quantity_value = resolve(raw_order.get("quantity"), "quantity")
+                quantity = int(number(quantity_value, "quantity"))
+                if quantity <= 0:
+                    raise ValueError(f"quantity must be positive, got {quantity}")
+
+                product = required_text(
+                    row_value("product", common_product or default_product_for_exchange(exchange)),
+                    "product",
+                ).upper()
+                price_type = required_text(
+                    row_value("pricetype", common_price_type, "priceType"), "pricetype"
+                ).upper()
+                if exchange not in VALID_EXCHANGES:
+                    raise ValueError(f"invalid exchange {exchange!r}")
+                if action not in VALID_ACTIONS:
+                    raise ValueError(f"invalid action {action!r}")
+                if product not in VALID_PRODUCT_TYPES:
+                    raise ValueError(f"invalid product {product!r}")
+                if price_type not in VALID_PRICE_TYPES:
+                    raise ValueError(f"invalid pricetype {price_type!r}")
+                price = number(row_value("price", common_price), "price")
+                trigger_price = number(
+                    row_value("triggerprice", common_trigger_price, "triggerPrice"), "triggerprice"
+                )
+                invalid = self._invalid_price_reason(str(price_type), price, trigger_price)
+                if invalid:
+                    raise ValueError(invalid)
+            except (ValueError, TypeError) as exc:
+                return basket_error(index, str(exc))
+
+            orders.append(
+                {
+                    "symbol": symbol,
+                    "exchange": exchange,
+                    "action": action,
+                    "quantity": quantity,
+                    "product": product,
+                    "pricetype": price_type,
+                    "price": price,
+                    "triggerprice": trigger_price,
+                }
+            )
 
         self.log(f"Placing basket order '{basket_name}' with {len(orders)} orders")
         for i, order in enumerate(orders):
@@ -1210,23 +1879,26 @@ class NodeExecutor:
 
     def execute_split_order(self, node_data: dict) -> dict:
         """Execute Split Order node"""
-        symbol = self.get_str(node_data, "symbol", "")
-        exchange = self.get_str(node_data, "exchange", "NSE")
-        action = self.get_str(node_data, "action", "BUY")
-        quantity = self.get_int(node_data, "quantity", 1)
-        split_size = self.get_int(node_data, "splitSize", 10)
-        price_type = self.get_str(node_data, "priceType", "MARKET")
-        product = self.get_str(node_data, "product", "MIS")
+        try:
+            order = self.resolve_standard_order(node_data, "Split order")
+            values = RuntimeOrderResolver(self.context, node_data, "Split order")
+            split_size = values.integer("splitSize", default=10, minimum=1)
+        except ValueError as exc:
+            return self.runtime_order_error("Split order", exc)
 
-        self.log(f"Placing split order: {symbol} qty={quantity} split={split_size}")
+        self.log(
+            f"Placing split order: {order['symbol']} qty={order['quantity']} split={split_size}"
+        )
         result = self.client.split_order(
-            symbol=symbol,
-            exchange=exchange,
-            action=action,
-            quantity=quantity,
+            symbol=order["symbol"],
+            exchange=order["exchange"],
+            action=order["action"],
+            quantity=order["quantity"],
             split_size=split_size,
-            price_type=price_type,
-            product_type=product,
+            price_type=order["price_type"],
+            product_type=order["product"],
+            price=order["price"],
+            trigger_price=order["trigger_price"],
             strategy=self.strategy_tag(node_data),
         )
         self.log(
@@ -1271,7 +1943,7 @@ class NodeExecutor:
         """Execute Open Position node"""
         symbol = self.get_str(node_data, "symbol", "")
         exchange = self.get_str(node_data, "exchange", "NSE")
-        product = self.get_str(node_data, "product", "MIS")
+        product = self.get_str(node_data, "product", default_product_for_exchange(exchange))
         self.log(f"Getting open position for: {symbol}")
         result = self.client.get_open_position(
             symbol=symbol, exchange=exchange, product_type=product
@@ -1749,7 +2421,10 @@ class NodeExecutor:
 
     def execute_multi_quotes(self, node_data: dict) -> dict:
         """Execute Multi Quotes node - get quotes for multiple symbols"""
-        raw_symbols = node_data.get("symbols", "")
+        # Interpolated like every sibling field. Left raw, `symbols` sent the
+        # literal "{{sym.symbol}}" to the symbol validator, which failed with a
+        # "not found" naming the brace text.
+        raw_symbols = self.get_str(node_data, "symbols", "")
         exchange = self.get_str(node_data, "exchange", "NSE")
         # Convert comma-separated string to list of dicts expected by service
         if isinstance(raw_symbols, str):
@@ -1854,11 +2529,23 @@ class NodeExecutor:
 
     def _parse_margin_positions(self, node_data: dict) -> list[dict] | None:
         """Read the panel's positionsJson basket, if present and usable."""
-        raw = node_data.get("positionsJson") or node_data.get("positions")
-        if not raw:
+        raw_key = next(
+            (
+                key
+                for key in ("positionsJson", "positions")
+                if key in node_data and node_data[key] is not None
+            ),
+            None,
+        )
+        if raw_key is None:
             return None
+        raw = node_data[raw_key]
         if isinstance(raw, str):
-            raw = self.context.interpolate(raw).strip()
+            raw = self.context.resolve_raw(raw)
+        if isinstance(raw, str):
+            if _UNRESOLVED_PATTERN.search(raw):
+                raise ValueError(f"Margin positions has unresolved value {raw!r}.")
+            raw = raw.strip()
             # A basket was configured, so an empty result means interpolation
             # dropped it - an unset {{variable}}, not a request to price the
             # single position instead.
@@ -1890,7 +2577,48 @@ class NodeExecutor:
                 "Margin positions must all be objects; the basket contains a "
                 "non-object entry."
             )
-        return raw or None
+
+        normalized: list[dict[str, Any]] = []
+        for index, position in enumerate(raw, start=1):
+            values = RuntimeOrderResolver(self.context, position, f"Margin position {index}")
+            try:
+                symbol = values.text("symbol").upper()
+                exchange = values.enum("exchange", VALID_EXCHANGES)
+                action = values.enum("action", VALID_ACTIONS)
+                quantity = values.integer("quantity", minimum=1)
+                product = values.enum("product", VALID_PRODUCT_TYPES)
+                price_type = values.enum("pricetype", VALID_PRICE_TYPES)
+                price = values.number("price", default=0.0)
+                trigger_price = values.number(
+                    "trigger_price", default=0.0, aliases=("triggerPrice",)
+                )
+                invalid = self._invalid_price_reason(price_type, price, trigger_price)
+                if invalid:
+                    raise ValueError(invalid)
+            except ValueError as exc:
+                raise ValueError(f"Margin position {index}: {exc}") from exc
+
+            def numeric_text(number: float) -> str:
+                return str(int(number)) if number.is_integer() else str(number)
+
+            resolved_position = dict(position)
+            resolved_position.update(
+                {
+                    "symbol": symbol,
+                    "exchange": exchange,
+                    "action": action,
+                    "quantity": str(quantity),
+                    "product": product,
+                    "pricetype": price_type,
+                }
+            )
+            if "price" in position:
+                resolved_position["price"] = numeric_text(price)
+            if "trigger_price" in position or "triggerPrice" in position:
+                resolved_position.pop("triggerPrice", None)
+                resolved_position["trigger_price"] = numeric_text(trigger_price)
+            normalized.append(resolved_position)
+        return normalized
 
     def execute_margin(self, node_data: dict) -> dict:
         """Execute Margin node - calculate margin requirements"""
@@ -1907,7 +2635,7 @@ class NodeExecutor:
         exchange = self.get_str(node_data, "exchange", "NSE")
         quantity = self.get_int(node_data, "quantity", 1)
         price = self.get_float(node_data, "price", 0)
-        product_type = self.get_str(node_data, "product", "MIS")
+        product_type = self.get_str(node_data, "product", default_product_for_exchange(exchange))
         action = self.get_str(node_data, "action", "BUY")
         price_type = self.get_str(node_data, "priceType", "MARKET")
         if positions:
@@ -1986,6 +2714,7 @@ class NodeExecutor:
         Prevents arbitrary code execution.
         """
         import ast
+        import math
         import operator as op
 
         # Supported operators
@@ -2002,9 +2731,18 @@ class NodeExecutor:
 
         def _eval(node):
             if isinstance(node, ast.Constant):
-                if isinstance(node.value, (int, float)):
+                if isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
                     return node.value
                 raise ValueError(f"Unsupported constant: {node.value}")
+            elif isinstance(node, ast.Call):
+                if not (
+                    isinstance(node.func, ast.Name)
+                    and node.func.id == "floor"
+                    and len(node.args) == 1
+                    and not node.keywords
+                ):
+                    raise ValueError("Only floor(expression) is supported")
+                return math.floor(_eval(node.args[0]))
             elif isinstance(node, ast.BinOp):
                 left = _eval(node.left)
                 right = _eval(node.right)
@@ -2040,6 +2778,13 @@ class NodeExecutor:
 
     # Longest a delay node may block. Anything longer belongs in a schedule.
     DELAY_MAX_SECONDS = 300
+    # Wait Until sleeps inside the per-workflow lock and inside the HTTP request
+    # that triggered the run, exactly as Delay does, so it needs the same kind
+    # of bound. It is looser because waiting a few minutes for a square-off is
+    # the point of the node; a wait measured in hours is a schedule, and saying
+    # so is more useful than pinning a worker until the afternoon and answering
+    # `already_running` to every trigger in between.
+    WAIT_UNTIL_MAX_SECONDS = 1800
 
     def execute_delay(self, node_data: dict) -> dict:
         """Execute Delay node"""
@@ -2089,6 +2834,18 @@ class NodeExecutor:
             return {"status": "success", "waited": False}
 
         wait_seconds = target_seconds - now_seconds
+        if wait_seconds > self.WAIT_UNTIL_MAX_SECONDS:
+            message = (
+                f"Wait Until {target_time_str} is {wait_seconds}s away, over the "
+                f"{self.WAIT_UNTIL_MAX_SECONDS}s limit. The wait holds this workflow's "
+                f"lock and the request that triggered it, so every trigger in between "
+                f"is answered 'already running'. Use a schedule trigger at "
+                f"{target_time_str} instead, or split the square-off into its own "
+                f"workflow."
+            )
+            self.log(f"Wait Until aborted: {message}", "error")
+            return {"status": "error", "message": message}
+
         self.log(f"Waiting until {target_time_str} (~{wait_seconds}s)")
         time_module.sleep(wait_seconds)
         return {"status": "success", "waited": True}
@@ -2100,8 +2857,69 @@ class NodeExecutor:
         self.log(f"[LOG] {message}", log_level)
         return {"status": "success", "message": message}
 
+    @staticmethod
+    def _walk_variable_json_path(value: Any, json_path: str) -> Any:
+        """Traverse dotted dict keys and bracketed list indexes without eval."""
+        if not isinstance(json_path, str):
+            raise ValueError("jsonPath must be a string")
+
+        path = json_path.strip()
+        if not path:
+            return value
+
+        position = 0
+        while position < len(path):
+            if path[position] == "[":
+                closing = path.find("]", position + 1)
+                if closing < 0:
+                    raise ValueError(f"Invalid jsonPath: {json_path}")
+                index_text = path[position + 1 : closing]
+                if not index_text.isdigit():
+                    raise ValueError(f"Invalid jsonPath index: {index_text}")
+                if not isinstance(value, (list, tuple)):
+                    raise TypeError("jsonPath index requires a list or tuple")
+                value = value[int(index_text)]
+                position = closing + 1
+                if position < len(path) and path[position] not in ".[":
+                    raise ValueError(f"Invalid jsonPath: {json_path}")
+                continue
+
+            if position:
+                if path[position] != ".":
+                    raise ValueError(f"Invalid jsonPath: {json_path}")
+                position += 1
+
+            key_start = position
+            while position < len(path) and path[position] not in ".[]":
+                position += 1
+            key = path[key_start:position]
+            if not key:
+                raise ValueError(f"Invalid jsonPath: {json_path}")
+            if not isinstance(value, dict):
+                raise TypeError("jsonPath key requires an object")
+            value = value[key]
+
+            if position < len(path) and path[position] == "]":
+                raise ValueError(f"Invalid jsonPath: {json_path}")
+
+        return value
+
+    def _lookup_variable_source(self, source_variable: Any, json_path: Any = None) -> Any:
+        """Return a raw source variable, distinguishing missing values from None."""
+        if not isinstance(source_variable, str) or not source_variable.strip():
+            raise ValueError("sourceVariable is required")
+
+        source_name = source_variable.strip()
+        if source_name not in self.context.variables:
+            raise KeyError(f"Source variable not found: {source_name}")
+
+        source = self.context.variables[source_name]
+        if json_path is None or json_path == "":
+            return source
+        return self._walk_variable_json_path(source, json_path)
+
     def execute_variable(self, node_data: dict) -> dict:
-        """Execute Variable node"""
+        """Execute Variable node, storing a result only after it fully succeeds."""
         var_name = node_data.get("variableName") or node_data.get("name", "")
         operation = node_data.get("operation", "set")
         var_value = node_data.get("value", "")
@@ -2109,32 +2927,52 @@ class NodeExecutor:
         if isinstance(var_value, str):
             var_value = self.context.interpolate(var_value)
 
-        if operation == "set":
-            if isinstance(var_value, str):
-                if var_value.startswith("{") or var_value.startswith("["):
+        try:
+            if operation == "set":
+                result = var_value
+                if isinstance(result, str) and (result.startswith("{") or result.startswith("[")):
                     try:
-                        var_value = json.loads(var_value)
+                        result = json.loads(result)
                     except json.JSONDecodeError:
                         pass
-            self.context.set_variable(var_name, var_value)
-            self.log(f"Set variable {var_name} = {var_value}")
-        elif operation == "add":
-            current = float(self.context.get_variable(var_name, 0) or 0)
-            result = current + float(var_value or 0)
-            self.context.set_variable(var_name, result)
-            var_value = result
-        elif operation == "increment":
-            current = float(self.context.get_variable(var_name, 0) or 0)
-            result = current + 1
-            self.context.set_variable(var_name, result)
-            var_value = result
-        elif operation == "decrement":
-            current = float(self.context.get_variable(var_name, 0) or 0)
-            result = current - 1
-            self.context.set_variable(var_name, result)
-            var_value = result
+            elif operation == "get":
+                result = self._lookup_variable_source(
+                    node_data.get("sourceVariable"), node_data.get("jsonPath")
+                )
+            elif operation in {"add", "subtract", "multiply", "divide"}:
+                current = float(self.context.get_variable(var_name, 0))
+                value = float(var_value)
+                if operation == "add":
+                    result = current + value
+                elif operation == "subtract":
+                    result = current - value
+                elif operation == "multiply":
+                    result = current * value
+                else:
+                    if value == 0:
+                        raise ValueError("Cannot divide by zero")
+                    result = current / value
+            elif operation == "increment":
+                result = float(self.context.get_variable(var_name, 0)) + 1
+            elif operation == "decrement":
+                result = float(self.context.get_variable(var_name, 0)) - 1
+            elif operation == "parse_json":
+                result = json.loads(var_value)
+            elif operation == "stringify":
+                result = json.dumps(self._lookup_variable_source(node_data.get("sourceVariable")))
+            elif operation == "append":
+                current = self.context.get_variable(var_name, "")
+                result = f"{current}{var_value}" if var_name in self.context.variables else str(var_value)
+            else:
+                raise ValueError(f"Unknown variable operation: {operation}")
+        except (ValueError, TypeError, KeyError, IndexError, json.JSONDecodeError) as exc:
+            message = f"Variable operation {operation!r} failed: {exc}"
+            self.log(message, "error")
+            return {"status": "error", "message": message}
 
-        return {"status": "success", "variable": var_name, "value": var_value}
+        self.context.set_variable(var_name, result)
+        self.log(f"Set variable {var_name} = {result}")
+        return {"status": "success", "variable": var_name, "value": result}
 
     def execute_whatsapp_alert(self, node_data: dict) -> dict:
         """Execute WhatsApp Alert node"""
@@ -2235,7 +3073,15 @@ class NodeExecutor:
         import httpx
 
         method = self.get_str(node_data, "method", "GET").upper()
-        url = self.get_str(node_data, "url", "")
+        # Read raw and interpolate exactly once, below. `get_str` interpolates,
+        # and the second pass that used to follow it expanded any `{{...}}` a
+        # payload had substituted into the first: an author writing
+        # `/report/{{webhook.path}}` let the caller send
+        # `{{funds.data.availablecash}}` and read a workflow variable back out
+        # through the outbound URL.
+        url = node_data.get("url", "")
+        if not isinstance(url, str):
+            url = str(url)
         headers_raw = node_data.get("headers", {})
         body = node_data.get("body", "")
 
@@ -2250,9 +3096,14 @@ class NodeExecutor:
         # The editor writes this field as a JSON string; only a dict was ever
         # read, so every header a user typed was silently dropped and requests
         # meant to be authenticated went out bare.
+        # Parsed before its values are interpolated, never after. Interpolating
+        # the JSON text first let a substituted value carry a quote and become
+        # structure: `x", "X-Injected": "yes` closed the string and added a
+        # header the author never wrote, sent to their authenticated endpoint.
+        # A payload holding a bare quote also broke the parse outright.
         headers = {}
         if isinstance(headers_raw, str):
-            text = self.context.interpolate(headers_raw).strip()
+            text = headers_raw.strip()
             if text:
                 try:
                     headers_raw = json.loads(text)
@@ -2342,7 +3193,7 @@ class NodeExecutor:
         """
         symbol = self.get_str(node_data, "symbol", "")
         exchange = self.get_str(node_data, "exchange", "NSE")
-        product = self.get_str(node_data, "product", "MIS")
+        product = self.get_str(node_data, "product", default_product_for_exchange(exchange))
         condition = self.get_str(node_data, "condition", "exists")
         threshold = self.get_float(node_data, "threshold", 0.0)
 
@@ -2358,7 +3209,16 @@ class NodeExecutor:
         self.log(f"Checking position for: {symbol}")
         result = self.client.get_open_position(
             symbol=symbol, exchange=exchange, product_type=product
-        )
+)
+        # A failed read is not an answer. The client returns its failure under
+        # "error" with no "data", so reading straight through gave 0 and the
+        # node reported success: a broker session that had expired made
+        # "the position" evaluate on zeroes and route a branch on nothing.
+        # `priceAlert` has always checked this; these did not.
+        if result.get("status") != "success":
+            message = result.get("error") or result.get("message") or "the position lookup failed"
+            self.log(f"Position check aborted: {message}", "error")
+            return {"status": "error", "condition": False, "message": message}
         quantity = int(result.get("quantity", 0) or 0)
         pnl = float(result.get("pnl", 0) or 0)
 
@@ -2443,6 +3303,15 @@ class NodeExecutor:
 
         self.log("Checking funds")
         result = self.client.funds()
+        # A failed read is not an answer. The client returns its failure under
+        # "error" with no "data", so reading straight through gave 0 and the
+        # node reported success: a broker session that had expired made
+        # "the funds" evaluate on zeroes and route a branch on nothing.
+        # `priceAlert` has always checked this; these did not.
+        if result.get("status") != "success":
+            message = result.get("error") or result.get("message") or "the funds lookup failed"
+            self.log(f"Fund check aborted: {message}", "error")
+            return {"status": "error", "condition": False, "message": message}
         data = result.get("data", {}) or {}
         available = float(data.get("availablecash", 0) or 0)
         condition_met = available >= min_available
@@ -2496,6 +3365,15 @@ class NodeExecutor:
 
         self.log(f"Checking price for: {symbol}")
         result = self.client.get_quotes(symbol=symbol, exchange=exchange)
+        # A failed read is not an answer. The client returns its failure under
+        # "error" with no "data", so reading straight through gave 0 and the
+        # node reported success: a broker session that had expired made
+        # "the price" evaluate on zeroes and route a branch on nothing.
+        # `priceAlert` has always checked this; these did not.
+        if result.get("status") != "success":
+            message = result.get("error") or result.get("message") or "the price lookup failed"
+            self.log(f"Price check aborted: {message}", "error")
+            return {"status": "error", "condition": False, "message": message}
         data = result.get("data", {}) or {}
 
         if field == "change_percent":
@@ -2642,7 +3520,15 @@ class NodeExecutor:
         start_time = time(start_h, start_m)
         end_time = time(end_h, end_m)
 
-        in_window = start_time <= now <= end_time
+        # A window whose end is before its start crosses midnight, so the two
+        # halves are tested separately. The single chained comparison made
+        # 22:00-02:00 unsatisfiable: always False, and always True once the
+        # "trigger outside window" toggle inverted it, turning an overnight
+        # MCX or crypto guard into an always-on gate.
+        if start_time <= end_time:
+            in_window = start_time <= now <= end_time
+        else:
+            in_window = now >= start_time or now <= end_time
         condition_met = (not in_window) if invert else in_window
         self.log(
             f"Time window: {start_time_str}-{end_time_str}, in_window={in_window}, "
@@ -2831,7 +3717,12 @@ class NodeExecutor:
 
             # Thread-safe container for captured data
             captured_data = {"data": None}
-            data_event = threading.Event()
+            # Real, not green: on_market_data() sets this from the websocket
+            # client's asyncio loop thread while this greenlet waits on it.
+            # A green Event set from a real thread never wakes its waiter,
+            # so the node sat out its whole timeout. See
+            # utils/real_threading.
+            data_event = _real_threading.Event()
 
             def on_market_data(data):
                 """Callback to capture data with matching mode and symbol"""
@@ -2874,13 +3765,17 @@ class NodeExecutor:
                 # Subscribe to symbol
                 symbols = [{"symbol": symbol, "exchange": exchange}]
                 sub_success, sub_result, _ = subscribe_to_symbols(username, broker, symbols, mode)
+                if sub_success:
+                    record_workflow_subscription(
+                        self.context.workflow_id, symbol, exchange, mode
+                    )
 
                 if not sub_success:
                     self.log(f"WebSocket subscribe failed: {sub_result.get('message')}", "warning")
                     return None
 
                 # Wait for data with the correct mode (using event instead of polling)
-                if data_event.wait(timeout=timeout):
+                if _real_threading.wait_for(data_event, timeout):
                     return captured_data["data"]
                 else:
                     return None  # Timeout
@@ -3284,10 +4179,23 @@ class NodeExecutor:
             # Map stream_type to mode
             mode_map = {"ltp": "LTP", "quote": "Quote", "depth": "Depth"}
 
-            if stream_type.lower() == "all" or not symbol:
-                # Unsubscribe from all
+            # `unsubscribe_all` clears the process-wide client's entire
+            # subscription set, which the Sandbox engine shares: it is what
+            # feeds pending SL and LIMIT triggers. Reaching it because a
+            # specific mode happened to have no symbol tore that down on a node
+            # whose author had asked only for LTP. Only an explicit "all" gets
+            # there now; an under-specified request is refused instead.
+            if stream_type.lower() == "all":
                 unsub_success, unsub_result, _ = unsubscribe_all(username, broker)
                 self.log("Unsubscribed from all streams")
+            elif not symbol:
+                message = (
+                    f"Unsubscribe is set to '{stream_type}' with no symbol. Name a "
+                    f"symbol, or set Stream Type to 'all' if you really mean every "
+                    f"subscription on this instance, including the Sandbox engine's."
+                )
+                self.log(f"Unsubscribe aborted: {message}", "error")
+                return {"status": "error", "type": "unsubscribe", "message": message}
             else:
                 # Unsubscribe from specific symbol/mode
                 mode = mode_map.get(stream_type.lower(), "Quote")
@@ -3296,6 +4204,18 @@ class NodeExecutor:
                     username, broker, symbols, mode
                 )
                 self.log(f"Unsubscribed from {stream_type} for {symbol}")
+
+            # `unsub_success` was assigned by both branches and then never read,
+            # so a rejected unsubscribe still returned success and a run that
+            # had leaked its subscriptions was recorded as clean.
+            if not unsub_success:
+                message = (
+                    unsub_result.get("message")
+                    if isinstance(unsub_result, dict)
+                    else str(unsub_result)
+                ) or "unsubscribe was rejected"
+                self.log(f"Unsubscribe failed: {message}", "error")
+                return {"status": "error", "type": "unsubscribe", "message": message}
 
             return {
                 "status": "success",
@@ -3371,15 +4291,31 @@ def execute_node_chain(
     node_data = node.get("data", {})
     result = None
 
+    # A condition reachable by more than one path evaluated once per path, and
+    # each evaluation followed its branch again: a diamond where two upstream
+    # nodes both lead to one condition placed two orders from a single trigger.
+    # Gates already carried this guard; conditions did not, though they are
+    # combinational in exactly the same way. The first traversal has already
+    # followed the branch, so returning here is not a skipped step.
+    if node_type in BRANCHING_NODE_TYPES and context.get_condition_result(node_id) is not None:
+        return
+
     # An order node whose order-defining fields still contain {{...}} must not
     # reach the broker with those references replaced by field defaults.
     blocked_fields = (
         executor.unresolved_order_fields(node_data) if node_type in ORDER_NODE_TYPES else []
     )
+    option_expiry_error = (
+        executor.option_expiry_error(node_type, node_data)
+        if node_type in OPTION_EXPIRY_NODE_TYPES
+        else None
+    )
 
     # Execute node based on type
     if blocked_fields:
         result = executor.unresolved_error(node_type, blocked_fields)
+    elif option_expiry_error:
+        result = option_expiry_error
     elif node_type == "start":
         executor.log("Workflow started")
     elif node_type == "placeOrder":
@@ -3526,6 +4462,21 @@ def execute_node_chain(
         if pending:
             executor.log(f"{node_type}: waiting for {pending} more input(s) before evaluating")
             return
+        # `inputCount` is what the author configured and what the node renders
+        # slots for; the wiring is what they actually connected. Firing on the
+        # wires alone meant a deleted third edge silently downgraded
+        # "A AND B AND in-window" to "A AND B", with the graph still showing
+        # three slots and import validation raising nothing.
+        declared = node_data.get("inputCount")
+        if isinstance(declared, int) and declared > len(incoming_edges):
+            message = (
+                f"{node_type} is configured for {declared} inputs but only "
+                f"{len(incoming_edges)} are wired. Wire the rest, or lower the "
+                f"input count, rather than evaluating on part of the condition."
+            )
+            executor.log(message, "error")
+            executor.errors.append({"node": node_id, "type": node_type, "message": message})
+            return
         if node_type == "andGate":
             result = executor.execute_and_gate(node_data, input_results)
         elif node_type == "orGate":
@@ -3539,7 +4490,12 @@ def execute_node_chain(
     # this, a rejected entry order still let the hedge leg place and the "trade
     # placed" alert fire, leaving a naked position and a run marked completed.
     if isinstance(result, dict) and result.get("status") == "error":
-        message = result.get("message", "node failed")
+        # `FlowOpenAlgoClient._handle_response` reports a broker or service
+        # failure under "error"; nodes that build their own failure dict use
+        # "message". Reading only one of them turned every broker rejection --
+        # insufficient funds, RMS block, market closed -- into the literal
+        # string "node failed", in the run record and in the webhook reply.
+        message = result.get("message") or result.get("error") or "node failed"
         executor.errors.append({"node": node_id, "type": node_type, "message": message})
         if "condition" in result:
             # A condition that could not be evaluated takes neither branch, so
@@ -3563,7 +4519,16 @@ def execute_node_chain(
     # so all condition forks are honored regardless of which node produced them.
     if result and "condition" in result:
         condition_met = result.get("condition", False)
-        context.set_condition_result(node_id, condition_met)
+        # Only a condition that actually evaluated is recorded. A gate treats
+        # `get_condition_result(source) is not None` as "this input is settled",
+        # so storing the placeholder False of an errored condition made the gate
+        # fire on it: an AND gate whose other input was True computed
+        # [False, True] -> False and drove its FALSE branch to a real order. The
+        # run was marked failed afterwards, by which point the order had been
+        # sent. Leaving it unset keeps the gate pending, which is what the
+        # branch-suppression below already assumes.
+        if result.get("status") != "error":
+            context.set_condition_result(node_id, condition_met)
         TRUE_HANDLES = {"yes", "true"}
         FALSE_HANDLES = {"no", "false"}
         # A condition that could not be evaluated (e.g. an operand that did
@@ -3680,7 +4645,7 @@ def execute_workflow(
             return {"status": "error", "message": "Failed to create execution record"}
 
         logs = []
-        context = WorkflowContext()
+        context = WorkflowContext(workflow_id=workflow_id)
 
         if webhook_data:
             context.set_variable("webhook", webhook_data)

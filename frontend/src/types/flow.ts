@@ -83,10 +83,11 @@ export interface OptionsOrderNodeData {
   optionType: 'CE' | 'PE'
   action: 'BUY' | 'SELL'
   quantity: number
-  priceType: 'MARKET' | 'LIMIT'
+  priceType: 'MARKET' | 'LIMIT' | 'SL' | 'SL-M'
   product: 'MIS' | 'NRML'
   splitSize?: number
   price?: number
+  triggerPrice?: number
   ltp?: number
 }
 
@@ -104,14 +105,42 @@ export interface OptionsMultiOrderNodeData {
   exchange: 'NSE_INDEX' | 'BSE_INDEX'
   expiryDate: string
   legs: Array<{
-    offset: string
+    /** How the leg picks its strike. Absent means OFFSET, for legacy legs. */
+    strikeMode?: 'OFFSET' | 'STRIKE'
+    /** Required unless the leg names an absolute `strike`. */
+    offset?: string | number
+    /** An absolute strike, used as given rather than resolved from the LTP. */
+    strike?: string | number
+    /** Overrides the node expiry with an exact date, in DDMMMYY. */
+    expiry?: string
+    /** Overrides the node expiry with a relative type, e.g. `next_month`. */
+    expiryType?: string
     optionType: 'CE' | 'PE'
     action: 'BUY' | 'SELL'
-    quantity: number
-    expiryDate?: string // For calendar spreads
+    quantity: number | string
+    product?: 'MIS' | 'NRML'
+    priceType?: 'MARKET' | 'LIMIT' | 'SL' | 'SL-M'
+    price?: number | string
+    triggerPrice?: number | string
+    splitSize?: number | string
   }>
-  priceType: 'MARKET' | 'LIMIT'
+  priceType: 'MARKET' | 'LIMIT' | 'SL' | 'SL-M'
   product: 'MIS' | 'NRML'
+  price?: number
+  triggerPrice?: number
+}
+
+export interface BasketOrderItem {
+  symbol: string
+  exchange: string
+  action: 'BUY' | 'SELL'
+  quantity: number | string
+  product?: 'MIS' | 'CNC' | 'NRML'
+  pricetype?: 'MARKET' | 'LIMIT' | 'SL' | 'SL-M'
+  priceType?: 'MARKET' | 'LIMIT' | 'SL' | 'SL-M'
+  price?: number | string
+  triggerprice?: number | string
+  triggerPrice?: number | string
 }
 
 /** Basket Order - Multiple orders at once */
@@ -120,14 +149,15 @@ export interface BasketOrderNodeData {
   /** Basket label. The node used to render `strategy`, which nothing writes. */
   basketName?: string
   /**
-   * Newline-delimited `SYMBOL,EXCHANGE,ACTION,QTY` rows, as the config panel
-   * textarea and the executor's parser both treat it. This was declared as an
-   * array of objects, which is why the canvas badge counting `orders.length`
-   * silently read 0 for every basket without the compiler objecting.
+   * Editor-authored baskets use newline-delimited
+   * `SYMBOL,EXCHANGE,ACTION,QTY` rows. Imported workflows may retain a richer
+   * per-order list with product and price overrides.
    */
-  orders: string
+  orders: string | BasketOrderItem[]
   product?: 'MIS' | 'CNC' | 'NRML'
-  priceType?: 'MARKET' | 'LIMIT'
+  priceType?: 'MARKET' | 'LIMIT' | 'SL' | 'SL-M'
+  price?: number
+  triggerPrice?: number
 }
 
 /** Split Order - Large order splitting */
@@ -138,9 +168,10 @@ export interface SplitOrderNodeData {
   action: 'BUY' | 'SELL'
   quantity: number
   splitSize: number
-  priceType: 'MARKET' | 'LIMIT'
+  priceType: 'MARKET' | 'LIMIT' | 'SL' | 'SL-M'
   product: 'MIS' | 'CNC' | 'NRML'
   price?: number
+  triggerPrice?: number
   delayMs?: number
 }
 
@@ -528,7 +559,6 @@ export interface MarginNodeData {
 export interface TelegramAlertNodeData {
   label?: string
   message: string
-  username?: string
 }
 
 /** WhatsApp Alert - Send a WhatsApp text message via the paired bot device */

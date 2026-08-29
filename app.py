@@ -59,6 +59,7 @@ from blueprints.broker_credentials import (
 from blueprints.chart_test import chart_test_bp  # Standalone chart test page (dev/testing only)
 from blueprints.chartink import chartink_bp  # Import the chartink blueprint
 from blueprints.core import core_bp
+from blueprints.custom_indicators import custom_indicators_bp  # User chart indicators
 from blueprints.custom_straddle import custom_straddle_bp  # Import custom straddle blueprint
 from blueprints.dashboard import dashboard_bp
 from blueprints.flow import flow_bp  # Import the flow blueprint
@@ -108,7 +109,7 @@ from blueprints.tv_json import tv_json_bp
 from blueprints.vol_surface import vol_surface_bp  # Import the vol surface blueprint
 from blueprints.websocket_example import websocket_bp  # Import the websocket example blueprint
 from blueprints.whatsapp import whatsapp_bp  # Import the WhatsApp blueprint
-from cors import cors  # Import the CORS instance
+from cors import init_cors
 from csp import apply_csp_middleware  # Import the CSP middleware
 from database.action_center_db import init_db as ensure_action_center_tables_exists
 from database.analyzer_db import init_db as ensure_analyzer_tables_exists
@@ -180,10 +181,8 @@ def create_app():
     # Initialize Flask-Limiter with the app object
     limiter.init_app(app)
 
-    # Initialize Flask-CORS with the app object using configuration from environment variables
-    from cors import get_cors_config
-
-    cors.init_app(app, **get_cors_config())
+    # Initialize Flask-CORS only when explicitly enabled.
+    init_cors(app)
 
     # Apply Content Security Policy middleware
     apply_csp_middleware(app)
@@ -317,6 +316,7 @@ def create_app():
     app.register_blueprint(master_contract_status_bp)
     app.register_blueprint(websocket_bp)  # Register WebSocket example blueprint
     app.register_blueprint(chart_test_bp)  # Register standalone chart test page (dev/testing only)
+    app.register_blueprint(custom_indicators_bp)  # Register user chart indicators blueprint
     app.register_blueprint(pnltracker_bp)  # Register PnL tracker blueprint
     app.register_blueprint(python_strategy_bp)  # Register Python strategy blueprint
     app.register_blueprint(telegram_bp)  # Register Telegram blueprint
@@ -678,6 +678,21 @@ def setup_environment(app):
         # load broker plugins (lazy - no actual imports until login)
         app.broker_auth_functions = load_broker_auth_functions()
         load_broker_capabilities()  # cache plugin.json data in memory
+
+    # Regenerate the gzip variants of the built frontend assets. These are no
+    # longer committed with frontend/dist/ (they bloated the repository history
+    # badly - see utils/precompress_assets), so they are rebuilt here from the
+    # tracked originals whenever a `git pull` brings a new build.
+    #
+    # Deliberately synchronous, ahead of the background DB thread. Under
+    # eventlet a threading.Thread is a green thread, so running ~3s of gzip
+    # there would stall the entire worker mid-request; run at boot, before the
+    # first request is served, it costs nothing anyone can observe. Subsequent
+    # boots find every variant current and finish in ~30ms.
+    from blueprints.react_app import FRONTEND_DIST
+    from utils.precompress_assets import ensure_precompressed_assets
+
+    ensure_precompressed_assets(FRONTEND_DIST)
 
     # Setup ngrok cleanup handlers (always register, regardless of ngrok being enabled)
     # This ensures proper cleanup on shutdown even if ngrok is enabled/disabled via UI

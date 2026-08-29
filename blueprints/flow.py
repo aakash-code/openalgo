@@ -4,6 +4,7 @@ Flow Blueprint - Visual Workflow Automation
 Provides routes for managing and executing workflows
 """
 
+import json
 import logging
 from datetime import datetime
 
@@ -328,6 +329,7 @@ def update_workflow(workflow_id):
 def delete_workflow(workflow_id):
     """Delete a workflow"""
     from database.flow_db import delete_workflow, get_workflow
+    from services.flow_executor_service import release_workflow_subscriptions
     from services.flow_order_update_monitor_service import get_flow_order_update_monitor
     from services.flow_price_monitor_service import get_flow_price_monitor
     from services.flow_scheduler_service import get_flow_scheduler
@@ -345,6 +347,11 @@ def delete_workflow(workflow_id):
         scheduler.remove_workflow_job(workflow_id)
         get_flow_price_monitor().remove_alert(workflow_id)
         get_flow_order_update_monitor().remove_watch(workflow_id)
+
+    # Unconditionally, not only when active: a workflow deactivated and then
+    # deleted has already been released, and this is a no-op, but one that
+    # subscribed while active and was never deactivated still holds them.
+    release_workflow_subscriptions(workflow_id)
 
     if delete_workflow(workflow_id):
         return jsonify({"status": "success", "message": "Workflow deleted"})
@@ -573,6 +580,7 @@ def deactivate_workflow(workflow_id):
     """Deactivate a workflow"""
     from database.flow_db import deactivate_workflow as db_deactivate
     from database.flow_db import get_workflow, set_schedule_job_id
+    from services.flow_executor_service import release_workflow_subscriptions
     from services.flow_order_update_monitor_service import get_flow_order_update_monitor
     from services.flow_price_monitor_service import get_flow_price_monitor
     from services.flow_scheduler_service import get_flow_scheduler
@@ -604,6 +612,12 @@ def deactivate_workflow(workflow_id):
         # Remove order-update watch if any
         order_monitor = get_flow_order_update_monitor()
         order_monitor.remove_watch(workflow_id)
+
+        # Give back any market-data subscription the workflow opened. The
+        # websocket client is a process-wide singleton, so a subscription left
+        # behind is held for the life of the worker and counts against the
+        # per-broker symbol ceiling that /trading and the sandbox engine share.
+        release_workflow_subscriptions(workflow_id)
 
         # Update workflow as inactive
         if not db_deactivate(workflow_id):
@@ -885,6 +899,44 @@ def set_webhook_auth(workflow_id):
 # === Webhook Trigger Routes (CSRF Exempt) ===
 
 
+def _read_webhook_payload():
+    """Read a webhook body whatever shape the sender used.
+
+    `request.get_json()` refuses anything not declared `application/json` and
+    Flask answers 415 before the handler runs. External platforms are exactly
+    the callers that cannot set a header: a TradingView alert left on its
+    default plain-text message never reached the workflow at all, and neither
+    did a form-encoded post.
+
+    Order matters. The body is parsed as JSON first regardless of what the
+    sender declared, because a sender that cannot set a Content-Type still
+    posts JSON far more often than not. Only a body that is not JSON falls
+    through to form fields, then to raw text under `message`.
+    """
+    raw = request.get_data(as_text=True) or ""
+    text = raw.strip()
+
+    if text:
+        try:
+            parsed = json.loads(text)
+        except ValueError:
+            parsed = None
+        if isinstance(parsed, dict):
+            return parsed
+        if parsed is not None:
+            # Valid JSON that is not an object: a list, a bare string or number.
+            # Keep the decoded value, and the raw text so a template can read
+            # either without the workflow having to know which arrived.
+            return {"message": text, "payload": parsed}
+
+    # Form-encoded (ChartInk and friends). `request.form` is empty for the
+    # content types handled above, so this cannot shadow a JSON body.
+    if request.form:
+        return dict(request.form)
+
+    return {"message": text} if text else {}
+
+
 def _execute_webhook(token, webhook_data=None, url_secret=None):
     """Internal function to execute webhook"""
     import hmac
@@ -919,9 +971,20 @@ def _execute_webhook(token, webhook_data=None, url_secret=None):
         else:
             # Secret expected in payload (default)
             provided_secret = data.pop("secret", "") or ""
+            # A secret carried in the payload requires a payload with fields,
+            # so plain text is not accepted on this path. It is not that the
+            # text could not be parsed: it is that an unauthenticated body must
+            # not reach the workflow, and text has nowhere to put the secret.
+            # Send JSON, or switch the workflow to URL auth.
             if not provided_secret:
                 return jsonify(
-                    {"error": "Missing webhook secret in payload. Add 'secret' field to JSON body"}
+                    {
+                        "error": (
+                            "Missing webhook secret in payload. Send JSON with a 'secret' "
+                            "field. Plain text cannot carry one: switch the webhook to URL "
+                            "auth to authenticate with ?secret=... instead."
+                        )
+                    }
                 ), 401
             if not hmac.compare_digest(provided_secret, workflow.webhook_secret):
                 return jsonify({"error": "Invalid webhook secret"}), 401
@@ -985,7 +1048,7 @@ def trigger_webhook(token):
     2. Payload field: {"secret": "your_secret", ...} (for TradingView, etc.)
     """
     url_secret = request.args.get("secret")
-    payload = request.get_json() or {}
+    payload = _read_webhook_payload()
     return _execute_webhook(token, webhook_data=payload, url_secret=url_secret)
 
 
@@ -997,7 +1060,7 @@ def trigger_webhook_with_symbol(token, symbol):
     The symbol is automatically injected into the webhook data.
     """
     url_secret = request.args.get("secret")
-    payload = request.get_json() or {}
+    payload = _read_webhook_payload()
     payload["symbol"] = symbol
     return _execute_webhook(token, webhook_data=payload, url_secret=url_secret)
 
@@ -1220,13 +1283,20 @@ def replace_workflow(workflow_id):
 @flow_bp.route("/api/index-symbols", methods=["GET"])
 @check_session_validity
 def get_index_symbols_lot_sizes():
-    """
-    Get lot sizes for index symbols from master contract database.
-    Returns lot sizes for NSE and BSE index options (NIFTY, BANKNIFTY, etc.)
+    """Lot sizes for every underlying the options nodes offer.
+
+    Named for the index options it originally covered; it now also answers for
+    the MCX commodities, which the Options Order and Multi-Leg nodes list
+    alongside them. The route name is left alone because the frontend caches
+    against it.
+
+    An underlying with no usable lot size is omitted rather than returned with a
+    null, so the dropdown never offers something the executor would then refuse
+    to size.
     """
     from database.symbol import SymToken, db_session
     from database.token_db_enhanced import extract_underlying_from_symbol
-    from services.flow_executor_service import symbol_prefix_filter
+    from services.flow_executor_service import MCX_OPTION_UNDERLYINGS, symbol_prefix_filter
 
     # Define index symbols to look up
     nse_indices = ["NIFTY", "BANKNIFTY", "FINNIFTY", "MIDCPNIFTY", "NIFTYNXT50"]
@@ -1278,9 +1348,13 @@ def get_index_symbols_lot_sizes():
     results = []
 
     try:
-        for index_name, exchange in [(n, "NFO") for n in nse_indices] + [
-            (n, "BFO") for n in bse_indices
-        ]:
+        for index_name, exchange in (
+            [(n, "NFO") for n in nse_indices]
+            + [(n, "BFO") for n in bse_indices]
+            # MCX options trade on MCX itself, so the lot size is read from the
+            # same exchange the option is listed on.
+            + [(n, "MCX") for n in MCX_OPTION_UNDERLYINGS]
+        ):
             lot_size = _lot_size(index_name, exchange)
             if lot_size:
                 results.append(
@@ -1384,3 +1458,180 @@ def get_symbol_lot_sizes():
     except Exception as e:
         logger.exception(f"Error fetching lot sizes for {len(pairs)} pair(s): {e}")
         return jsonify({"status": "error", "message": "Failed to fetch lot sizes"}), 500
+
+
+def _sorted_expiry_codes(raw_dates: list) -> list[str]:
+    """Normalize broker expiry strings to DDMMMYY and sort them chronologically.
+
+    Brokers return expiries in several formats and in no guaranteed order, but
+    a symbol is built from the DDMMMYY code and the builder offers "nearest
+    first". An unparseable entry is kept, sorted last, rather than dropped -
+    hiding a listed expiry is worse than showing one out of order.
+    """
+    codes: list[str] = []
+    for raw in raw_dates:
+        if not isinstance(raw, str) or not raw.strip():
+            continue
+        text = raw.strip().upper()
+        parsed = None
+        for fmt in ("%d-%b-%y", "%d-%b-%Y", "%d%b%y", "%d%b%Y"):
+            try:
+                parsed = datetime.strptime(text, fmt)
+                break
+            except ValueError:
+                continue
+        codes.append(parsed.strftime("%d%b%y").upper() if parsed else text)
+
+    def sort_key(code: str):
+        try:
+            return (0, datetime.strptime(code, "%d%b%y"))
+        except ValueError:
+            return (1, datetime.max)
+
+    # dict.fromkeys dedupes while keeping first-seen order for unparseable codes.
+    return sorted(dict.fromkeys(codes), key=sort_key)
+
+
+#: Strikes returned either side of ATM. Enough to reach a deep-ITM or far-OTM
+#: leg without shipping a whole chain into a sidebar dropdown.
+OPTION_STRIKE_WINDOW = 25
+
+
+@flow_bp.route("/api/option-strikes", methods=["GET"])
+@check_session_validity
+def get_option_strikes():
+    """Listed expiries and strikes for one underlying, for the manual leg builder.
+
+    A manually built leg can name an absolute strike and its own expiry. The
+    editor should offer contracts the exchange actually lists rather than a free
+    number and a typed date, so this answers with the master contract's own
+    list: every strike carries the symbol it resolves to and its moneyness, and
+    every relative expiry type carries the date it currently picks.
+
+    Both halves come back in one response because the builder needs them
+    together: pick an expiry, then a strike within it.
+
+    Structure only - no per-strike broker quotes - because the builder needs the
+    contract, not its price, and a quoted chain costs a multiquote round trip
+    every time a dropdown opens.
+    """
+    from services.expiry_service import get_expiry_dates
+    from services.flow_executor_service import resolve_option_exchanges
+    from services.flow_node_contracts import (
+        VALID_EXPIRY_TYPES,
+        format_expiry_for_api,
+        select_expiry,
+    )
+    from services.option_chain_service import get_option_chain
+    from services.option_symbol_service import parse_underlying_symbol
+
+    underlying = (request.args.get("underlying") or "").strip().upper()
+    if not underlying:
+        return jsonify({"status": "error", "message": "underlying is required"}), 400
+
+    option_type = (request.args.get("optionType") or "CE").strip().upper()
+    if option_type not in ("CE", "PE"):
+        return jsonify({"status": "error", "message": "optionType must be CE or PE"}), 400
+
+    requested_expiry = format_expiry_for_api(request.args.get("expiry") or "")
+    requested_expiry_type = (request.args.get("expiryType") or "").strip().lower()
+
+    api_key = get_current_api_key()
+    if not api_key:
+        return (
+            jsonify(
+                {"status": "error", "message": "API key not configured. Generate one at /apikey"}
+            ),
+            401,
+        )
+
+    try:
+        _, fo_exchange = resolve_option_exchanges(
+            underlying, (request.args.get("exchange") or "").strip().upper()
+        )
+        base_symbol, _embedded_expiry = parse_underlying_symbol(underlying)
+
+        success, response, status_code = get_expiry_dates(
+            symbol=base_symbol,
+            exchange=fo_exchange,
+            instrumenttype="options",
+            api_key=api_key,
+        )
+        if not success:
+            return jsonify(response), status_code
+
+        listed = response.get("data") or []
+        expiries = _sorted_expiry_codes(listed)
+        if not expiries:
+            return (
+                jsonify(
+                    {
+                        "status": "error",
+                        "message": f"No option expiries found for {base_symbol} on {fo_exchange}",
+                    }
+                ),
+                404,
+            )
+
+        # Resolved once here with the executor's own selector, so the panel can
+        # show which contract "current_week" means instead of leaving the author
+        # to find out at run time.
+        resolved = {
+            expiry_type: select_expiry(listed, expiry_type)
+            for expiry_type in sorted(VALID_EXPIRY_TYPES)
+        }
+
+        # Precedence matches the executor's: an explicit date wins over a
+        # relative type, and an expiry the contract does not list falls back to
+        # the nearest rather than answering with an empty strike list.
+        expiry = ""
+        if requested_expiry in expiries:
+            expiry = requested_expiry
+        elif requested_expiry_type:
+            expiry = resolved.get(requested_expiry_type) or ""
+        if expiry not in expiries:
+            expiry = expiries[0]
+
+        chain_ok, chain, chain_code = get_option_chain(
+            underlying=base_symbol,
+            exchange=fo_exchange,
+            expiry_date=expiry,
+            strike_count=OPTION_STRIKE_WINDOW,
+            api_key=api_key,
+            with_quotes=False,
+        )
+        if not chain_ok:
+            return jsonify(chain), chain_code
+
+        side = option_type.lower()
+        strikes = [
+            {
+                "strike": row.get("strike"),
+                "symbol": (row.get(side) or {}).get("symbol"),
+                # ATM / ITMn / OTMn, which differ per side at the same strike.
+                "label": (row.get(side) or {}).get("label"),
+            }
+            for row in chain.get("chain", []) or []
+            if row.get("strike") is not None
+        ]
+
+        return jsonify(
+            {
+                "status": "success",
+                "data": {
+                    "underlying": underlying,
+                    "exchange": fo_exchange,
+                    "expiry": chain.get("expiry_date", expiry),
+                    "expiries": expiries,
+                    "resolved": resolved,
+                    "optionType": option_type,
+                    "strikes": strikes,
+                    "atm": chain.get("atm_strike"),
+                    "underlyingLtp": chain.get("underlying_ltp"),
+                    "underlyingSymbol": chain.get("underlying_symbol"),
+                },
+            }
+        )
+    except Exception as e:
+        logger.exception(f"Error fetching option strikes for {underlying}: {e}")
+        return jsonify({"status": "error", "message": "Failed to fetch option strikes"}), 500
