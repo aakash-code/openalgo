@@ -170,6 +170,8 @@ export interface TerminalCallbacks {
    * chart is live again, which is the transport bar's cue to hide itself.
    */
   onReplayChange?(state: ReplayState | null): void
+  /** The volume histogram was switched from the legend readout. */
+  onVolumeChange?(on: boolean): void
   /**
    * A text-bearing drawing needs its content. The engine renders `style.text`
    * but has no DOM to collect it with, so the host prompts.
@@ -548,6 +550,7 @@ export class TradingTerminal {
     this.wsUrl = opts.wsUrl
     this.container = opts.container
     this.legendEl = opts.legendEl
+    this.wireLegendActions()
     this.getTheme = opts.getTheme
     this.cb = opts.callbacks
     this.sk = opts.storageKey || 'oa-trading'
@@ -756,6 +759,29 @@ export class TradingTerminal {
   }
 
   /**
+   * The legend is rewritten on every crosshair move, so its controls are bound
+   * by delegation on the container that survives. Binding per render would leak
+   * a listener a frame.
+   */
+  private wireLegendActions(): void {
+    const act = (e: Event): void => {
+      const el = (e.target as HTMLElement | null)?.closest?.("[data-legend-action]")
+      if (!el) return
+      if (el.getAttribute("data-legend-action") !== "volume") return
+      e.preventDefault()
+      e.stopPropagation()
+      this.setVolumeVisible(!this.volumeOn)
+      this.setLegend(this.legendBar)
+      this.cb.onVolumeChange?.(this.volumeOn)
+    }
+    this.legendEl.addEventListener("click", act)
+    this.legendEl.addEventListener("keydown", (e) => {
+      const k = (e as KeyboardEvent).key
+      if (k === "Enter" || k === " ") act(e)
+    })
+  }
+
+  /**
    * The readout's content, independent of how it is drawn. The DOM overlay and
    * the PNG export both render this, which is what stops the saved image from
    * quoting different numbers than the screen it was taken from.
@@ -772,6 +798,7 @@ export class TradingTerminal {
       prevClose: this.closeBefore(bar),
       fmt: (n) => this.fmt(n),
       fmtVolume: compactVolume,
+      volumeHidden: !this.volumeOn,
     })
   }
 
@@ -899,6 +926,7 @@ export class TradingTerminal {
   }
 
   private async placeFromMenu(side: OrderSide, type: OrderType) {
+    if (this.refuseWhileReplaying()) return
     if (!this.sym || !this.trade) {
       this.toast('search a symbol first')
       return
@@ -943,6 +971,7 @@ export class TradingTerminal {
   }
 
   async exitPosition() {
+    if (this.refuseWhileReplaying()) return
     if (!this.trade || !this.position || !this.sym) return
     const qty = Math.abs(this.position.net)
     const side: OrderSide = this.position.net > 0 ? 'SELL' : 'BUY'
@@ -1148,6 +1177,8 @@ export class TradingTerminal {
     this.chart.subscribeDrag(
       (id, p) => {
         if (!id.startsWith('order:') || id.endsWith('::close')) return
+        // Silent: a refusal toast on every pointer sample would be a wall of them.
+        if (this.tradingLocked()) return
         const rec = this.orderLines.get(id.slice(6))
         if (!rec) return
         if (rec.dragFrom == null) {
@@ -1158,6 +1189,8 @@ export class TradingTerminal {
       },
       (id, p) => {
         if (!id.startsWith('order:') || id.endsWith('::close')) return
+        // The release is the modify, so this is the one that must refuse.
+        if (this.refuseWhileReplaying()) return
         const oid = id.slice(6)
         const rec = this.orderLines.get(oid)
         if (!rec) return
@@ -1186,6 +1219,7 @@ export class TradingTerminal {
       if (id === 'trade:sell') return void this.placeFromMenu('SELL', 'MARKET')
       if (id === 'position::close') return void this.exitPosition()
       if (id.startsWith('order:') && id.endsWith('::close')) {
+        if (this.refuseWhileReplaying()) return
         const oid = id.slice(6, -7)
         this.trade!.cancel(oid)
           .then(() => {
@@ -2035,6 +2069,33 @@ export class TradingTerminal {
     return this.replay !== null
   }
 
+  /**
+   * Order entry is closed while the chart is replaying, or while a start bar is
+   * being picked.
+   *
+   * A replayed chart is a simulation, and an order placed from one is not: it
+   * goes to the broker, at the live price, against a chart showing a session
+   * that finished weeks ago. The two things a trader reads before pressing Buy,
+   * the candles and the button's own price, disagree by however far back the
+   * playhead is, and neither of them says so.
+   *
+   * Guarded here rather than only on the buttons, because every route into an
+   * order has to close: the on-chart Buy and Sell, the context menu, a bracket,
+   * dragging an order line to a new price, cancelling one, and closing a
+   * position. A guard on the visible control is a guard on the route somebody
+   * did not use.
+   */
+  private tradingLocked(): boolean {
+    return this.replay !== null || this.replayPicking
+  }
+
+  /** Says no once, in the words of the reason, rather than doing nothing. */
+  private refuseWhileReplaying(): boolean {
+    if (!this.tradingLocked()) return false
+    this.toast('Replay is a simulation. Leave replay to trade.', 'err')
+    return true
+  }
+
   replayState(): ReplayState | null {
     return this.replay?.state() ?? null
   }
@@ -2068,6 +2129,7 @@ export class TradingTerminal {
     this.replayPicking = true
     this.replayPickIndex = Math.floor(this.shownBars.length / 4)
     this.setReplayShade(this.replayPickIndex)
+    this.showTradeButtons(false)
     this.cb.onReplayChange?.(null)
   }
 
@@ -2099,6 +2161,7 @@ export class TradingTerminal {
     this.replayPicking = false
     this.replayPickIndex = null
     this.setReplayShade(null)
+    this.showTradeButtons(true)
     this.cb.onReplayChange?.(null)
   }
 
@@ -2153,6 +2216,7 @@ export class TradingTerminal {
       onFrame: (state) => this.cb.onReplayChange?.(state),
     })
     this.showReplayMark(true)
+    this.showTradeButtons(false)
     // Entering replay truncates the series to a prefix, but leaves the viewport
     // and the price range where the user had them -- which is at the right edge
     // on the newest bars, hundreds of bars past the end of that prefix and at a
@@ -2212,6 +2276,20 @@ export class TradingTerminal {
    * today, and reading a live decision off history is the mistake this prevents,
    * so it goes on with replay and comes off with it.
    */
+  /**
+   * Take the Buy and Sell buttons off the chart, or put them back.
+   *
+   * Removing rather than grey-ing: the panel quotes a live price, and a live
+   * price sitting over a replayed session is the confusion this exists to
+   * remove, whether or not it can be pressed. `removePrimitive` only marks the
+   * pane dirty, so the chart repaints them away on the next frame.
+   */
+  private showTradeButtons(on: boolean): void {
+    if (!this.chart || !this.tradeBtns) return
+    if (on) this.chart.addPrimitive(this.tradeBtns, 0)
+    else this.chart.removePrimitive(this.tradeBtns)
+  }
+
   private showReplayMark(on: boolean): void {
     if (!this.chart) return
     if (on) {
@@ -2233,6 +2311,7 @@ export class TradingTerminal {
     this.replay.stop()
     this.replay = null
     this.showReplayMark(false)
+    this.showTradeButtons(true)
     if (!this.replayAutoScale) this.chart?.setAutoScale(false)
     // The session kept accumulating in rawBars while replay held the series, so
     // the live chart comes back caught up rather than frozen at the moment
@@ -2722,18 +2801,51 @@ export class TradingTerminal {
    * detach the interaction-only overlays, take the composite, paint the readout
    * onto it, restore. Filename convention and canvas theme are unchanged.
    */
+  /** `SYMBOL-interval-timestamp.png`, so a folder of these sorts usefully. */
+  private screenshotName(): string {
+    const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-')
+    return `${this.sym?.symbol ?? 'chart'}-${this.interval}-${stamp}.png`
+  }
+
+  /** Save the chart as a PNG. */
   async screenshot(): Promise<void> {
     const chart = this.chart
     if (!chart || !this.sym) return
-    const stamp = new Date().toISOString().slice(0, 16).replace(/[T:]/g, '-')
-    const filename = `${this.sym.symbol}-${this.interval}-${stamp}.png`
     try {
       const canvas = await this.captureCanvas(chart)
       if (!canvas) return
       const a = document.createElement('a')
       a.href = canvas.toDataURL('image/png')
-      a.download = filename
+      a.download = this.screenshotName()
       a.click()
+      this.toast('Chart saved', 'ok')
+    } catch (e) {
+      this.toast(this.cleanError(e), 'err')
+    }
+  }
+
+  /**
+   * Put the chart on the clipboard as an image, ready to paste.
+   *
+   * The image clipboard is the only form that pastes into a post composer or a
+   * chat, which is what people do with a chart far more often than they file it.
+   * It needs a secure context and a user gesture: a click on the menu item is
+   * the gesture, and 127.0.0.1 counts as secure alongside https, so a local
+   * OpenAlgo qualifies. Anything else is reported rather than failing silently.
+   */
+  async copyScreenshot(): Promise<void> {
+    const chart = this.chart
+    if (!chart || !this.sym) return
+    try {
+      if (!navigator.clipboard || typeof ClipboardItem === 'undefined') {
+        throw new Error('Copying images needs https or localhost')
+      }
+      const canvas = await this.captureCanvas(chart)
+      if (!canvas) return
+      const blob = await new Promise<Blob | null>((r) => canvas.toBlob(r, 'image/png'))
+      if (!blob) throw new Error('The chart produced no image')
+      await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })])
+      this.toast('Chart copied, paste it anywhere', 'ok')
     } catch (e) {
       this.toast(this.cleanError(e), 'err')
     }
