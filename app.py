@@ -735,6 +735,9 @@ def setup_environment(app):
             from concurrent.futures import ThreadPoolExecutor, as_completed
 
             from database.chart_prefs_db import ensure_chart_prefs_tables_exists
+            from database.index_constituents_db import (
+                ensure_index_constituent_tables_exists,
+            )
             from database.market_calendar_db import ensure_market_calendar_tables_exists
             from database.qty_freeze_db import ensure_qty_freeze_tables_exists
             from database.signal_db import init_db as ensure_signal_tables_exists
@@ -756,6 +759,7 @@ def setup_environment(app):
                 ("Strategy Module DB", ensure_strategy_module_tables_exists),
                 ("Action Center DB", ensure_action_center_tables_exists),
                 ("Chart Prefs DB", ensure_chart_prefs_tables_exists),
+                ("Index Constituents DB", ensure_index_constituent_tables_exists),
                 ("Signal DB", ensure_signal_tables_exists),
                 ("Market Calendar DB", ensure_market_calendar_tables_exists),
                 ("Qty Freeze DB", ensure_qty_freeze_tables_exists),
@@ -880,6 +884,16 @@ def setup_environment(app):
                 logger.debug("Historify scheduler initialized")
             except Exception as e:
                 logger.error(f"Failed to initialize Historify scheduler: {e}")
+
+            try:
+                from services.index_constituents_service import (
+                    init_index_constituents_scheduler,
+                )
+
+                init_index_constituents_scheduler()
+                logger.debug("Index Constituents scheduler initialized")
+            except Exception as e:
+                logger.error(f"Failed to initialize Index Constituents scheduler: {e}")
 
             if os.getenv("ORDERFLOW_UNIVERSE_ENABLED", "false").lower() == "true":
                 try:

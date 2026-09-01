@@ -20,6 +20,7 @@ from __future__ import annotations
 import importlib.util
 import os
 import threading
+import time
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.interval import IntervalTrigger
@@ -38,6 +39,11 @@ _refreshing = False
 _scheduler: BackgroundScheduler | None = None
 _scheduler_lock = threading.Lock()
 _KEEPALIVE_JOB_ID = "tf_jwt_keepalive_tick"
+
+# A refresh takes up to ~60s of browser work, so keep attempts few and the
+# gap short — the whole retry budget must stay well inside the 20-min tick.
+_MAX_REFRESH_ATTEMPTS = 3
+_RETRY_BACKOFF_SECONDS = 20
 
 
 def _load_tf_auth():
@@ -87,13 +93,33 @@ def trigger_refresh_if_needed(min_seconds: int = 1800) -> dict:
                         # service logged nothing and a dead refresh looked
                         # identical to a healthy one — the token simply expired
                         # with no trace in log/errors.jsonl.
-                        if not ta.refresh_tf_jwt():
-                            logger.error(
-                                "tf_jwt_keepalive: refresh produced no token. Check the "
-                                "browser profile is still logged in (uv run python "
-                                "strategies/tf_login_setup.py) and that the Playwright "
-                                "chromium build is installed (uv run playwright install chromium)."
-                            )
+                        #
+                        # Retry rather than give up: a single miss (TF slow to
+                        # mint, cold Chromium losing the race against the rest
+                        # of app startup) used to leave the token dead until
+                        # the next 20-min tick. Both the boot call and the
+                        # scheduled tick land here, so one retry loop covers
+                        # every caller.
+                        for attempt in range(1, _MAX_REFRESH_ATTEMPTS + 1):
+                            if ta.refresh_tf_jwt():
+                                if attempt > 1:
+                                    logger.info(
+                                        f"tf_jwt_keepalive: refresh succeeded on attempt {attempt}"
+                                    )
+                                return
+                            if attempt < _MAX_REFRESH_ATTEMPTS:
+                                logger.warning(
+                                    f"tf_jwt_keepalive: refresh attempt {attempt} produced no "
+                                    f"token, retrying in {_RETRY_BACKOFF_SECONDS}s"
+                                )
+                                time.sleep(_RETRY_BACKOFF_SECONDS)
+                        logger.error(
+                            f"tf_jwt_keepalive: refresh produced no token after "
+                            f"{_MAX_REFRESH_ATTEMPTS} attempts. Check the browser profile is "
+                            "still logged in (uv run python strategies/tf_login_setup.py) and "
+                            "that the Playwright chromium build is installed "
+                            "(uv run playwright install chromium)."
+                        )
                     except Exception as e:
                         logger.warning(f"tf_jwt_keepalive: background refresh failed: {e}")
                     finally:

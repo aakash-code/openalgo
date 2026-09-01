@@ -147,7 +147,6 @@ def refresh_tf_jwt(headless: bool = True, timeout_s: int = 60) -> str | None:
               f"          run: uv run python strategies/tf_login_setup.py  (one-time Google login)")
         return None
 
-    deadline = time.time() + timeout_s
     try:
         with sync_playwright() as p:
             ctx = p.chromium.launch_persistent_context(
@@ -175,6 +174,11 @@ def refresh_tf_jwt(headless: bool = True, timeout_s: int = 60) -> str | None:
                 except Exception:
                     pass
 
+            # Budget starts HERE, not before launch. Cold Chromium start +
+            # goto (30s) + the login-modal flow (up to ~33s of waits) used to
+            # eat the whole timeout, so on a busy boot this loop ran zero
+            # times and a perfectly healthy profile returned None.
+            deadline = time.time() + timeout_s
             while time.time() < deadline:
                 jwt = _read_lt_from_page(page)
                 if jwt and jwt_expiry_seconds(jwt) > _FRESH_ENOUGH_SECONDS:

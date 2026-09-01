@@ -25,6 +25,7 @@ from .funds import api as funds_ns
 from .gtt_orderbook import api as gtt_orderbook_ns
 from .history import api as history_ns
 from .holdings import api as holdings_ns
+from .index_constituents import api as index_constituents_ns
 from .instruments import api as instruments_ns
 from .intervals import api as intervals_ns
 from .margin import api as margin_ns
@@ -106,6 +107,7 @@ api.add_namespace(telegram_ns, path="/telegram")
 api.add_namespace(whatsapp_ns, path="/whatsapp")
 api.add_namespace(margin_ns, path="/margin")
 api.add_namespace(instruments_ns, path="/instruments")
+api.add_namespace(index_constituents_ns, path="/indexconstituents")
 api.add_namespace(chart_ns, path="/chart")
 api.add_namespace(market_holidays_ns, path="/market/holidays")
 api.add_namespace(market_timings_ns, path="/market/timings")

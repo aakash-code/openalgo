@@ -81,6 +81,27 @@ class TfSectorScopeSchema(Schema):
     apikey = fields.Str(required=True, validate=validate.Length(min=1, max=256))
 
 
+class IndexConstituentsSchema(Schema):
+    apikey = fields.Str(required=True, validate=validate.Length(min=1, max=256))
+    # Omit to return every supported index; set to fetch just one.
+    index = fields.Str(required=False, load_default=None, validate=validate.Length(max=50))
+
+
+class IndexConstituentEntrySchema(Schema):
+    symbol = fields.Str(required=True, validate=validate.Length(min=1, max=50))
+    exchange = fields.Str(required=False, load_default="NSE", validate=validate.Length(max=20))
+    weight = fields.Float(required=True, validate=validate.Range(min=0, max=100))
+
+
+class IndexConstituentsRefreshSchema(Schema):
+    apikey = fields.Str(required=True, validate=validate.Length(min=1, max=256))
+    # Omit to trigger the normal CSV+seed sync for every index. Provide both
+    # index + constituents to bypass the scrape and write a manual override
+    # for just that one index (the escape hatch if niftyindices.com is blocked).
+    index = fields.Str(required=False, load_default=None, validate=validate.Length(max=50))
+    constituents = fields.List(fields.Nested(IndexConstituentEntrySchema), required=False, load_default=None)
+
+
 class NseEventsSchema(Schema):
     apikey = fields.Str(required=True, validate=validate.Length(min=1, max=256))
     # Symbols to look up. Empty means "return the whole calendar", which is

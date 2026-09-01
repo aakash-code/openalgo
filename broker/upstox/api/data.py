@@ -87,6 +87,40 @@ def _rate_guard() -> None:
         time.sleep(min(max(wait, 0.05), 5.0))
 
 
+def _previous_close(v2_quote: dict | None, prev_ohlc: dict | None) -> float:
+    """Previous session's close, for change% = (ltp - prev_close) / prev_close.
+
+    Upstox makes this awkward:
+      * v2 `ohlc.close` is TODAY's running close during market hours - it tracks
+        LTP, so using it makes every change% collapse to ~0 (or, once a client
+        caches it, measures the move from whenever the app was opened).
+      * v3 `prev_ohlc` is the right field but is frequently absent/None, and the
+        v3 quotes endpoint 404s for some instrument keys.
+      * v2 `net_change` IS the broker's own change against the previous close -
+        the number the terminal shows - so last_price - net_change recovers the
+        previous close exactly.
+
+    Order: v3 prev_ohlc, then v2 net_change, then v2 ohlc.close as a last resort
+    (before the open it really is the previous close).
+    """
+    prev_ohlc = prev_ohlc or {}
+    close = prev_ohlc.get("close")
+    if close:
+        return float(close)
+
+    v2_quote = v2_quote or {}
+    last_price = v2_quote.get("last_price")
+    net_change = v2_quote.get("net_change")
+    if last_price is not None and net_change is not None:
+        try:
+            return float(last_price) - float(net_change)
+        except (TypeError, ValueError):
+            pass
+
+    ohlc_close = (v2_quote.get("ohlc") or {}).get("close")
+    return float(ohlc_close) if ohlc_close else 0.0
+
+
 def get_api_response(endpoint, auth, method="GET", payload=""):
     """Common function to make API calls to Upstox v3 using httpx with connection pooling"""
     _rate_guard()
@@ -293,7 +327,7 @@ class BrokerData:
             bid_price = 0
             ask_price = 0
             oi_value = 0
-            prev_close_v2 = 0
+            v2_quote_matched: dict = {}
             try:
                 # Use v2 quotes endpoint for bid/ask, OI and prev_close data
                 v2_url = f"/v2/market-quote/quotes?instrument_key={encoded_symbol}"
@@ -318,22 +352,15 @@ class BrokerData:
                                 bid_price = best_bid.get("price", 0)
                                 ask_price = best_ask.get("price", 0)
                             oi_value = value.get("oi", 0)
-                            # Get prev_close from v2 ohlc.close (previous day's close)
-                            ohlc = value.get("ohlc", {})
-                            if ohlc:
-                                prev_close_v2 = ohlc.get("close", 0)
-                                logger.info(f"Got prev_close from v2 ohlc: {prev_close_v2}")
+                            v2_quote_matched = value
                             break
             except Exception as e:
                 logger.debug(f"Could not get bid/ask/OI/prev_close from v2 endpoint: {e}")
 
-            # Return standard quote data format using live_ohlc for current data
-            # Use prev_close from v2 ohlc.close, fallback to v3 prev_ohlc.close
-            prev_close_final = (
-                prev_close_v2
-                if prev_close_v2
-                else (prev_ohlc.get("close", 0) if prev_ohlc.get("close") else 0)
-            )
+            # Return standard quote data format using live_ohlc for current data.
+            # prev_close deliberately does NOT come from v2 ohlc.close - see
+            # _previous_close for why that field is today's running close.
+            prev_close_final = _previous_close(v2_quote_matched, prev_ohlc)
 
             return {
                 "ask": float(ask_price) if ask_price else 0,
@@ -595,7 +622,7 @@ class BrokerData:
                     "low": float(live_ohlc.get("low", 0)) if live_ohlc.get("low") else 0,
                     "ltp": float(quote.get("last_price", 0)) if quote.get("last_price") else 0,
                     "open": float(live_ohlc.get("open", 0)) if live_ohlc.get("open") else 0,
-                    "prev_close": float(prev_ohlc.get("close", 0)) if prev_ohlc.get("close") else 0,
+                    "prev_close": _previous_close(v2_quote, prev_ohlc),
                     "volume": int(live_ohlc.get("volume", 0)) if live_ohlc.get("volume") else 0,
                     "oi": int(v2_quote.get("oi", 0)) if v2_quote.get("oi") else 0,
                 },
@@ -1221,7 +1248,7 @@ class BrokerData:
                                 "high": live_ohlc.get("high", 0),
                                 "low": live_ohlc.get("low", 0),
                                 "open": live_ohlc.get("open", 0),
-                                "prev_close": prev_ohlc.get("close", 0),
+                                "prev_close": _previous_close(quote, prev_ohlc),
                                 "volume": live_ohlc.get("volume", 0),
                                 "ltp": value.get("last_price", 0),
                             }
@@ -1245,7 +1272,7 @@ class BrokerData:
                 "ltq": quote.get("last_quantity", 0),
                 "oi": quote.get("oi", 0),
                 "open": ohlc_data.get("open", quote.get("ohlc", {}).get("open", 0)),
-                "prev_close": ohlc_data.get("prev_close", quote.get("ohlc", {}).get("close", 0)),
+                "prev_close": ohlc_data.get("prev_close") or _previous_close(quote, None),
                 "totalbuyqty": quote.get("total_buy_quantity", 0),
                 "totalsellqty": quote.get("total_sell_quantity", 0),
                 "volume": ohlc_data.get("volume", quote.get("volume", 0)),
