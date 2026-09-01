@@ -1,0 +1,62 @@
+{
+  "as_of": "2026-07-31",
+  "source": "NSE official factsheet PDFs (niftyindices.com), manually transcribed",
+  "notes": "Factsheets list only the 'Top constituents by weightage' table, which for indices with more constituents than rows shown covers less than 100% of weight. Any constituent from the membership CSV not present here gets weight_source='equal' (remaining weight split evenly) at sync time. All index_symbol keys and all 108 constituent symbols were verified 2026-08-22 against the live db/openalgo.db symtoken table (real Upstox-sourced NSE/NSE_INDEX data) -- two constituent symbols initially guessed wrong were corrected (MCDOWELL-N -> UNITDSPR, LTIM -> LTM) and the Oil & Gas index_symbol was corrected from the guessed 'NIFTYOILGAS' to the real 'NIFTY OIL AND GAS' (with spaces). NIFTY POWER was removed entirely: no NSE_INDEX symbol for it exists in the live broker data, so it cannot be subscribed to in real time regardless of constituent data. NIFTY 50, NIFTY NEXT 50 (real symbol NIFTYNXT50), NIFTY ENERGY (real symbol NIFTYENERGY, confirmed live) and NIFTY FINANCIAL SERVICES (real symbol 'NIFTY FINSRV25 50', with spaces) are confirmed to exist live but have no factsheet weight data transcribed yet -- intentionally left out rather than guessing weights.",
+  "weights": {
+    "BANKNIFTY": {
+      "HDFCBANK": 18.20, "ICICIBANK": 14.86, "SBIN": 10.09, "KOTAKBANK": 9.32,
+      "AXISBANK": 8.81, "FEDERALBNK": 7.29, "INDUSINDBK": 5.50, "AUBANK": 4.71,
+      "IDFCFIRSTB": 4.67, "BANKBARODA": 3.58
+    },
+    "NIFTYIT": {
+      "INFY": 29.23, "TCS": 20.29, "HCLTECH": 11.93, "TECHM": 10.84,
+      "PERSISTENT": 6.23, "COFORGE": 6.19, "WIPRO": 5.14, "LTM": 4.19,
+      "MPHASIS": 3.21, "OFSS": 2.76
+    },
+    "NIFTYAUTO": {
+      "M&M": 23.68, "MARUTI": 14.49, "BAJAJ-AUTO": 9.96, "EICHERMOT": 8.43,
+      "TVSMOTOR": 7.91, "HEROMOTOCO": 5.46, "MOTHERSON": 5.20,
+      "BHARATFORG": 4.58, "ASHOKLEY": 3.71
+    },
+    "NIFTYFMCG": {
+      "ITC": 26.80, "HINDUNILVR": 18.44, "NESTLEIND": 10.71, "TATACONSUM": 6.98,
+      "BRITANNIA": 6.31, "VBL": 5.98, "MARICO": 4.56, "UNITDSPR": 4.43,
+      "GODREJCP": 4.26, "RADICO": 3.36
+    },
+    "NIFTYMETAL": {
+      "TATASTEEL": 19.09, "HINDALCO": 17.18, "JSWSTEEL": 14.51, "ADANIENT": 10.58,
+      "VEDL": 5.46, "JINDALSTEL": 4.97, "APLAPOLLO": 4.03, "NATIONALUM": 3.82,
+      "NMDC": 3.58, "LLOYDSME": 3.24
+    },
+    "NIFTYPHARMA": {
+      "SUNPHARMA": 21.34, "DIVISLAB": 10.36, "CIPLA": 8.39, "TORNTPHARM": 7.61,
+      "LAURUSLABS": 7.15, "DRREDDY": 7.08, "LUPIN": 5.94, "AUROPHARMA": 4.43,
+      "ALKEM": 3.41, "GLENMARK": 3.40
+    },
+    "NIFTYREALTY": {
+      "DLF": 18.95, "PHOENIXLTD": 15.83, "LODHA": 15.46, "GODREJPROP": 12.76,
+      "PRESTIGE": 12.21, "OBEROIRLTY": 9.64, "BRIGADE": 4.82, "ANANTRAJ": 4.27,
+      "ABREL": 3.33, "SOBHA": 2.74
+    },
+    "NIFTYMEDIA": {
+      "ZEEL": 24.21, "PVRINOX": 18.57, "NAZARA": 17.76, "SUNTV": 11.57,
+      "SAREGAMA": 8.70, "TIPSMUSIC": 7.07, "NETWORK18": 4.44, "PFOCUS": 4.40,
+      "DBCORP": 2.19, "HATHWAY": 1.10
+    },
+    "NIFTYPSUBANK": {
+      "SBIN": 33.87, "BANKBARODA": 12.63, "CANBK": 11.79, "PNB": 10.89,
+      "UNIONBANK": 9.29, "INDIANB": 8.30, "BANKINDIA": 4.70, "MAHABANK": 4.53,
+      "CENTRALBK": 1.48, "IOB": 1.39
+    },
+    "NIFTYPVTBANK": {
+      "ICICIBANK": 22.19, "HDFCBANK": 20.03, "KOTAKBANK": 19.65, "AXISBANK": 18.28,
+      "FEDERALBNK": 6.05, "INDUSINDBK": 4.56, "IDFCFIRSTB": 3.84, "YESBANK": 2.73,
+      "RBLBANK": 1.59, "BANDHANBNK": 1.09
+    },
+    "NIFTY OIL AND GAS": {
+      "RELIANCE": 32.83, "ONGC": 15.28, "BPCL": 10.51, "IOC": 8.50,
+      "GAIL": 7.94, "HINDPETRO": 6.07, "OIL": 4.06, "PETRONET": 3.41,
+      "ATGL": 2.93, "AEGISLOG": 2.61
+    }
+  }
+}
