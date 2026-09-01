@@ -39,3 +39,17 @@ os.environ["LATENCY_DATABASE_URL"] = "sqlite:///db/latency-test.db"
 # the first place to look when debugging. Worse, setup_logging truncates that
 # file to its last 1000 lines on startup, so a test run could evict real errors.
 os.environ["LOG_DIR"] = "log/test"
+
+
+# These are manual diagnostics, not pytest modules. test_bot_web.py starts the
+# Telegram bot from its module body. The WebSocket scripts require a live proxy,
+# operator API key and timed terminal interaction; their ``test_*`` helpers take
+# ordinary arguments rather than fixtures.
+#
+# Keep the scripts runnable directly while preventing collection from starting
+# external services or misclassifying their function parameters as fixtures.
+collect_ignore = [
+    "test_bot_web.py",
+    "test_websocket.py",
+    "test_websocket_service.py",
+]

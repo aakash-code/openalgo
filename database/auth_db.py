@@ -706,7 +706,9 @@ def get_auth_token(name, bypass_cache: bool = False):
     # Bypass cache if requested (e.g., after 403 error for fresh token)
     if bypass_cache:
         logger.debug(f"Bypassing cache for user: {name} (fresh token requested)")
-        # Clear stale cache entry
+        # Clear stale cache entry. pop, not del: a TTLCache entry can expire
+        # between a membership test and the delete, and the KeyError would
+        # escape as a spurious auth failure.
         auth_cache.pop(cache_key, None)
         # Query database directly
         auth_obj = get_auth_token_dbquery(name)
@@ -716,8 +718,9 @@ def get_auth_token(name, bypass_cache: bool = False):
             return decrypt_token(auth_obj.auth)
         return None
 
-    # Normal cache-first lookup. Read through .get() - the TTL can expire
-    # between an `in` test and the lookup, turning a hit into a KeyError.
+    # Normal cache-first lookup. One get, not a membership test followed by a
+    # subscript: between the two the entry can expire or be evicted, and the
+    # KeyError surfaces to the caller as an expired broker session.
     auth_obj = auth_cache.get(cache_key)
     if auth_obj is not None:
         if isinstance(auth_obj, Auth) and not auth_obj.is_revoked:
@@ -1069,8 +1072,14 @@ def get_auth_token_broker(provided_api_key, include_feed_token=False):
     cache_key = f"{hashlib.sha256(provided_api_key.encode()).hexdigest()}_{include_feed_token}"
 
     # Check cache first (but still verify revocation status).
-    # Read through .get(): the TTL can expire between an `in` test and the
-    # lookup, and every removal below must tolerate an already-evicted key.
+    #
+    # One get rather than a membership test followed by a subscript. auth_cache
+    # is a TTLCache with a maxsize, and the entry can go between the two: the
+    # TTL can lapse, an LRU eviction can drop it (two different key schemes
+    # share this cache), or another path can delete it. The KeyError then
+    # escaped this function and reached /quotes and /multiquotes, where it was
+    # reported to the user as "Broker Session Expired" on a session that was
+    # perfectly valid.
     cached_result = auth_cache.get(cache_key)
     if cached_result is not None:
         # Security: Still check if auth is revoked even with cached data
@@ -1088,7 +1097,9 @@ def get_auth_token_broker(provided_api_key, include_feed_token=False):
                 return cached_result
             except Exception as e:
                 logger.exception(f"Error checking revocation status: {e}")
-                # On error, don't use cache
+                # On error, don't use cache. pop, not del: this is the recovery
+                # path, and a del here raised a SECOND KeyError that nothing
+                # caught, turning a harmless cache miss into a failed request.
                 auth_cache.pop(cache_key, None)
 
     # Cache miss or revocation check failed - fetch from database
