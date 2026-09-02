@@ -311,9 +311,9 @@ class WebSocketProxy:
                 except aio.CancelledError:
                     pass
 
-                zmq_task.cancel()
+                _zmq_task.cancel()
                 try:
-                    await zmq_task
+                    await _zmq_task
                 except aio.CancelledError:
                     pass
 
