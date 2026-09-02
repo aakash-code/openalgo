@@ -34,6 +34,7 @@ from .modify_gtt_order import api as modify_gtt_order_ns
 from .modify_order import api as modify_order_ns
 from .multi_option_greeks import api as multi_option_greeks_ns
 from .multiquotes import api as multiquotes_ns
+from .nse_events import api as nse_events_ns
 from .openposition import api as openposition_ns
 from .option_chain import api as option_chain_ns
 from .option_greeks import api as option_greeks_ns
@@ -48,10 +49,10 @@ from .place_order import api as place_order_ns
 from .place_smart_order import api as place_smart_order_ns
 from .pnl_symbols import api as pnl_symbols_ns
 from .portfolio import api as portfolio_ns
-from .sip import api as sip_ns
 from .positionbook import api as positionbook_ns
 from .quotes import api as quotes_ns
 from .search import api as search_ns
+from .sip import api as sip_ns
 from .split_order import api as split_order_ns
 from .strategy import api as strategy_ns
 from .symbol import api as symbol_ns
@@ -60,7 +61,6 @@ from .telegram_bot import api as telegram_ns
 from .tf_jwt_keepalive import api as tf_jwt_keepalive_ns
 from .tf_market_pulse import api as tf_market_pulse_ns
 from .tf_sector_scope import api as tf_sector_scope_ns
-from .nse_events import api as nse_events_ns
 from .ticker import api as ticker_ns
 from .tradebook import api as tradebook_ns
 from .whatsapp_bot import api as whatsapp_ns

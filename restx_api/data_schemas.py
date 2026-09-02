@@ -1,9 +1,8 @@
 import re
 
 from marshmallow import Schema, ValidationError, fields, validate
-from utils.constants import SUPPORTED_INTERVALS
 
-from utils.constants import VALID_EXCHANGES
+from utils.constants import SUPPORTED_INTERVALS, VALID_EXCHANGES
 
 
 # Custom validator for date or timestamp string
