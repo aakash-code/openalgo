@@ -1,5 +1,6 @@
-import { Github, Monitor } from 'lucide-react'
+import { Monitor } from 'lucide-react'
 import { useEffect, useState } from 'react'
+import { GithubIcon } from '@/components/icons/GithubIcon'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -74,7 +75,7 @@ export function Footer({ className }: FooterProps) {
               rel="noopener noreferrer"
               aria-label="GitHub"
             >
-              <Github className="h-4 w-4" />
+              <GithubIcon className="h-4 w-4" />
             </a>
           </Button>
           <Button

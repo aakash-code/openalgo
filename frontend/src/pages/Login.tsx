@@ -2,7 +2,6 @@ import {
   ArrowLeft,
   Eye,
   EyeOff,
-  Github,
   Info,
   Loader2,
   LogIn,
@@ -11,6 +10,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useState } from 'react'
 import { Link, useNavigate } from 'react-router'
+import { GithubIcon } from '@/components/icons/GithubIcon'
 import { Alert, AlertDescription, AlertTitle } from '@/components/ui/alert'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card'
@@ -393,7 +393,7 @@ export default function Login() {
                   rel="noopener noreferrer"
                   className="flex items-center gap-2"
                 >
-                  <Github className="h-5 w-5" />
+                  <GithubIcon className="h-5 w-5" />
                   GitHub
                 </a>
               </Button>
