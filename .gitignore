@@ -149,3 +149,15 @@ workspace/**/.sample.env
 
 # Local Git worktrees created for isolated feature and documentation work.
 .worktrees/
+worktrees/
+
+# Codebase dependency-graph tool output (regenerated on demand, not source)
+graphify-out/
+
+# Personal backtest scripts/results and trade-log scratch state -- not
+# OpenAlgo product code, stays local.
+backtesting/
+graph-target/
+SURVIVOR_PRO_PACKAGE/
+survivor_state/
+survivor_*_results/
