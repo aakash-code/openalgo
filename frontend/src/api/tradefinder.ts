@@ -63,6 +63,21 @@ export interface JwtHealthResponse {
   message?: string
 }
 
+/** `[minute_of_day, rank]` pairs, already sorted by time. */
+export type RankTimelinePoint = [number, number]
+
+export interface BoostSnapshotsResponse {
+  status: 'success' | 'error'
+  date?: string
+  list_type?: string
+  count?: number
+  symbols?: string[]
+  /** Only present when `includeRanks` was set. Keyed by symbol, then by
+   * `YYYY-MM-DD` -- a single-day request still nests one day deep. */
+  ranks?: Record<string, Record<string, RankTimelinePoint[]>>
+  message?: string
+}
+
 export const tradefinderApi = {
   getMarketPulse: async (apiKey: string): Promise<MarketPulseResponse> => {
     const response = await apiClient.post<MarketPulseResponse>('/tfmarketpulse', {
@@ -85,6 +100,24 @@ export const tradefinderApi = {
     const response = await apiClient.post<JwtHealthResponse>('/tfjwtkeepalive', {
       apikey: apiKey,
       minSeconds: 1800,
+    })
+    return response.data
+  },
+
+  /** Today's rank timeline for one list -- the backtesting endpoint doubles
+   * as the only source of "how has this symbol's rank moved today", since
+   * nothing else records rank history. */
+  getBoostSnapshots: async (
+    apiKey: string,
+    date: string,
+    listType: string
+  ): Promise<BoostSnapshotsResponse> => {
+    const response = await apiClient.post<BoostSnapshotsResponse>('/boostsnapshots', {
+      apikey: apiKey,
+      date,
+      lookbackDays: 1,
+      list_type: listType,
+      includeRanks: true,
     })
     return response.data
   },

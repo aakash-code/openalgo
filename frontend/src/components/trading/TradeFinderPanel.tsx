@@ -18,6 +18,7 @@
 import {
   ArrowDown,
   ArrowUp,
+  History,
   Pin,
   PinOff,
   Plus,
@@ -29,8 +30,10 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import {
+  type BoostSnapshotsResponse,
   type JwtHealthResponse,
   type MarketPulseData,
+  type RankTimelinePoint,
   type SectorScopeData,
   type SectorStockItem,
   type TfListItem,
@@ -58,6 +61,10 @@ const FEATURES_KEY = 'oa-trading-tradefinder-features'
 const ACTIVE_WATCHLIST_KEY = 'oa-trading-watchlist'
 
 const POLL_INTERVALS = [5_000, 15_000, 30_000, 60_000] as const
+/** How many of the most recent polls the sparkline keeps. */
+const SCORE_HISTORY_LEN = 20
+/** How far down the list counts as "the top" for the new-entrant alert. */
+const NEW_ENTRANT_TOP_N = 10
 const CPR_FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'bullish', label: 'Bullish only' },
@@ -90,6 +97,16 @@ interface Features {
   /** Pinned symbols float to the top of whichever list/sector view they
    * appear in, ahead of the active sort. */
   pinnedSymbols: string[]
+  scoreSparkline: boolean
+  rankTimeline: boolean
+  newEntrantAlert: boolean
+  /** null = off. When set, any symbol crossing this score (from below to
+   * at-or-above) toasts once -- not per watched symbol, every symbol on
+   * whichever list is active, which needs no separate watchlist UI. */
+  scoreCrossAlert: number | null
+  /** Aggressive by design -- automatically charts whoever takes rank #1 on
+   * the active list. Must never be on by default. */
+  autoChartTop1: boolean
 }
 
 const DEFAULT_FEATURES: Features = {
@@ -108,6 +125,11 @@ const DEFAULT_FEATURES: Features = {
   sectorChips: false,
   pinning: false,
   pinnedSymbols: [],
+  scoreSparkline: false,
+  rankTimeline: false,
+  newEntrantAlert: false,
+  scoreCrossAlert: null,
+  autoChartTop1: false,
 }
 
 function readFeatures(): Features {
@@ -178,6 +200,75 @@ function ScoreCell({ score, direction }: { score: number; direction: 'up' | 'dow
         <TrendingDown className="h-3 w-3 shrink-0 text-rose-600 dark:text-rose-400" />
       )}
     </span>
+  )
+}
+
+/** A session-only trend line -- last SCORE_HISTORY_LEN polls, not a
+ * backtest source. One point renders nothing (no line to draw); the colour
+ * reads first-vs-last, matching the up/down arrow's own convention. */
+function Sparkline({ values }: { values: number[] }) {
+  if (values.length < 2) return null
+  const w = 40
+  const h = 14
+  const min = Math.min(...values)
+  const max = Math.max(...values)
+  const range = max - min || 1
+  const points = values
+    .map((v, i) => {
+      const x = (i / (values.length - 1)) * w
+      const y = h - ((v - min) / range) * h
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    })
+    .join(' ')
+  const up = values.at(-1)! >= values[0]
+  return (
+    <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="shrink-0" aria-hidden="true">
+      <polyline
+        points={points}
+        fill="none"
+        strokeWidth="1.5"
+        className={up ? 'stroke-emerald-500' : 'stroke-rose-500'}
+      />
+    </svg>
+  )
+}
+
+/** Today's rank-over-time for one symbol, fetched on demand from
+ * /boostsnapshots (the backtesting endpoint -- the only place rank history
+ * lives). Inverted: a lower rank number is a better position, so the line
+ * should read as "up" when the symbol climbed the list, not the axis. */
+function RankTimelineChart({ points }: { points: RankTimelinePoint[] }) {
+  if (points.length < 2) {
+    return <p className="p-3 text-[12px] text-muted-foreground">Not enough data yet today.</p>
+  }
+  const w = 220
+  const h = 60
+  const ranks = points.map((p) => p[1])
+  const minRank = Math.min(...ranks)
+  const maxRank = Math.max(...ranks)
+  const rankRange = maxRank - minRank || 1
+  const minMin = points[0][0]
+  const maxMin = points.at(-1)![0]
+  const minRange = maxMin - minMin || 1
+  const coords = points
+    .map(([minuteOfDay, rank]) => {
+      const x = ((minuteOfDay - minMin) / minRange) * w
+      // Inverted on purpose: rank 1 is the top of the list, so it belongs
+      // at the top of the chart, not the bottom a plain value axis would put it.
+      const y = ((rank - minRank) / rankRange) * h
+      return `${x.toFixed(1)},${y.toFixed(1)}`
+    })
+    .join(' ')
+  return (
+    <div className="p-2">
+      <svg width={w} height={h} viewBox={`0 0 ${w} ${h}`} className="text-primary">
+        <polyline points={coords} fill="none" stroke="currentColor" strokeWidth="1.5" />
+      </svg>
+      <p className="mt-1 flex justify-between text-[10px] text-muted-foreground">
+        <span>Best rank {minRank}</span>
+        <span>Worst rank {maxRank}</span>
+      </p>
+    </div>
   )
 }
 
@@ -467,6 +558,44 @@ function FeatureSettings({
         checked={features.sectorChips}
         onChange={(v) => set('sectorChips', v)}
       />
+      <FeatureRow
+        label="Score sparkline"
+        checked={features.scoreSparkline}
+        onChange={(v) => set('scoreSparkline', v)}
+      />
+      <FeatureRow
+        label="Rank timeline chart"
+        checked={features.rankTimeline}
+        onChange={(v) => set('rankTimeline', v)}
+      />
+
+      <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+        Alerts
+      </p>
+      <FeatureRow
+        label={`New entrant (top ${NEW_ENTRANT_TOP_N})`}
+        checked={features.newEntrantAlert}
+        onChange={(v) => set('newEntrantAlert', v)}
+      />
+      <label className="flex items-center justify-between gap-3 py-1 text-[12px]">
+        <span className="text-foreground">Alert on score ≥</span>
+        <input
+          type="number"
+          min={0}
+          step={0.5}
+          value={features.scoreCrossAlert ?? ''}
+          onChange={(e) =>
+            set('scoreCrossAlert', e.target.value === '' ? null : Number(e.target.value))
+          }
+          placeholder="Off"
+          className="h-6 w-16 rounded border bg-background px-1.5 text-right text-[11px]"
+        />
+      </label>
+      <FeatureRow
+        label="Auto-chart rank #1"
+        checked={features.autoChartTop1}
+        onChange={(v) => set('autoChartTop1', v)}
+      />
 
       <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
         Columns
@@ -534,6 +663,21 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
   useEffect(() => {
     featuresRef.current = features
   }, [features])
+  /** Same reasoning again -- autoChartTop1 needs to know the active view
+   * without the market_pulse poll effect restarting (and losing its rank
+   * history) every time the user switches tabs. */
+  const viewRef = useRef(view)
+  useEffect(() => {
+    viewRef.current = view
+  }, [view])
+  /** Not guaranteed stable across renders (no memoization contract on the
+   * prop), and this effect only runs once per apiKey/interval change --
+   * without a ref, autoChartTop1 could call a version of onPick captured
+   * from whichever render happened to be live when the effect last ran. */
+  const onPickRef = useRef(onPick)
+  useEffect(() => {
+    onPickRef.current = onPick
+  }, [onPick])
 
   /** This poll's rank per symbol, so the next poll can tell whether each
    * symbol moved up or down the list -- compared, then overwritten, once
@@ -541,10 +685,30 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
   const prevRanksRef = useRef<Map<string, number>>(new Map())
   const [rankDeltas, setRankDeltas] = useState<Map<string, number>>(new Map())
 
+  /** Last SCORE_HISTORY_LEN scores per (list, symbol), for the sparkline --
+   * session-only, resets on remount. Not a backtest source, just "did this
+   * just move" at a glance. */
+  const scoreHistoryRef = useRef<Map<string, number[]>>(new Map())
+  const [scoreHistoryTick, setScoreHistoryTick] = useState(0)
+
+  /** This poll's top-N symbols per list, so a genuinely new entrant can be
+   * told apart from a symbol that was always there. */
+  const prevTopNRef = useRef<Map<string, Set<string>>>(new Map())
+  /** Symbols already toasted for crossing scoreCrossAlert, cleared the
+   * moment a symbol drops back below the threshold -- otherwise every poll
+   * while it stays above would toast again. */
+  const alertedSymbolsRef = useRef<Set<string>>(new Set())
+  /** This poll's #1 symbol per list, so autoChartTop1 only fires on an
+   * actual change of leader, not every poll the same leader holds. */
+  const prevTop1Ref = useRef<Map<string, string>>(new Map())
+
   const [pulseUpdatedAt, setPulseUpdatedAt] = useState<Date | null>(null)
   const [sectorUpdatedAt, setSectorUpdatedAt] = useState<Date | null>(null)
   const [search, setSearch] = useState('')
   const [jwtHealth, setJwtHealth] = useState<JwtHealthResponse | null>(null)
+  const [timelineFor, setTimelineFor] = useState<string | null>(null)
+  const [timelineData, setTimelineData] = useState<RankTimelinePoint[] | null>(null)
+  const [timelineError, setTimelineError] = useState<string | null>(null)
 
   useEffect(() => {
     localStorage.setItem(PREFS_KEY, view)
@@ -580,21 +744,69 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
           // hold a different rank on each of the three lists at once.
           const nextRanks = new Map<string, number>()
           const deltas = new Map<string, number>()
+          const isFirstPoll = prevRanksRef.current.size === 0
           for (const listKey of [
             'intraday_boost',
             'breakout_beacon',
             'high_powered_stocks',
           ] as const) {
+            const prevTopN = prevTopNRef.current.get(listKey) ?? new Set<string>()
+            const nextTopN = new Set<string>()
+
             res.data[listKey].forEach((item, i) => {
               const key = `${listKey}:${item.symbol}`
               const rank = i + 1
               nextRanks.set(key, rank)
               const prevRank = prevRanksRef.current.get(key)
               if (prevRank != null && prevRank !== rank) deltas.set(key, prevRank - rank)
+
+              if (featuresRef.current.scoreSparkline || featuresRef.current.rankTimeline) {
+                const history = scoreHistoryRef.current.get(key) ?? []
+                history.push(item.score)
+                if (history.length > SCORE_HISTORY_LEN) history.shift()
+                scoreHistoryRef.current.set(key, history)
+              }
+
+              if (i < NEW_ENTRANT_TOP_N) nextTopN.add(item.symbol)
+              // A first poll has nothing to compare against -- every symbol
+              // would read as "new", which is just noise on page load.
+              if (
+                featuresRef.current.newEntrantAlert &&
+                !isFirstPoll &&
+                i < NEW_ENTRANT_TOP_N &&
+                !prevTopN.has(item.symbol)
+              ) {
+                showToast.info(`${item.symbol} entered the top ${NEW_ENTRANT_TOP_N} (${listKey})`)
+              }
+
+              const threshold = featuresRef.current.scoreCrossAlert
+              if (threshold != null) {
+                const alertKey = `${listKey}:${item.symbol}`
+                if (item.score >= threshold) {
+                  if (!alertedSymbolsRef.current.has(alertKey)) {
+                    alertedSymbolsRef.current.add(alertKey)
+                    showToast.success(
+                      `${item.symbol} crossed score ${threshold} (${item.score.toFixed(1)})`
+                    )
+                  }
+                } else {
+                  alertedSymbolsRef.current.delete(alertKey)
+                }
+              }
             })
+            prevTopNRef.current.set(listKey, nextTopN)
+
+            if (featuresRef.current.autoChartTop1 && viewRef.current === listKey) {
+              const top1 = res.data[listKey][0]?.symbol
+              if (top1 && prevTop1Ref.current.get(listKey) !== top1 && !isFirstPoll) {
+                onPickRef.current({ symbol: top1, exchange: 'NSE' })
+              }
+              if (top1) prevTop1Ref.current.set(listKey, top1)
+            }
           }
           prevRanksRef.current = nextRanks
           setRankDeltas(deltas)
+          if (featuresRef.current.scoreSparkline) setScoreHistoryTick((n) => n + 1)
         } else {
           setPulseError(res.message ?? 'Failed to load TradeFinder data')
           scheduleBackoffRetry()
@@ -748,6 +960,30 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
       showToast.success(`Added ${symbol} to watchlist`)
     } catch {
       showToast.error(`Could not add ${symbol} to watchlist`)
+    }
+  }
+
+  /** Fetches once per click, not polled -- this is a look-up, not a live
+   * value, and the endpoint it calls is the backtesting one, not something
+   * meant for repeated hammering. */
+  const openTimeline = async (symbol: string, listKey: ListView) => {
+    setTimelineFor(symbol)
+    setTimelineData(null)
+    setTimelineError(null)
+    try {
+      const today = new Date().toISOString().slice(0, 10)
+      const res: BoostSnapshotsResponse = await tradefinderApi.getBoostSnapshots(
+        apiKey,
+        today,
+        listKey
+      )
+      if (res.status === 'success') {
+        setTimelineData(res.ranks?.[symbol]?.[today] ?? [])
+      } else {
+        setTimelineError(res.message ?? 'Failed to load rank history')
+      }
+    } catch {
+      setTimelineError('Failed to load rank history')
     }
   }
 
@@ -993,6 +1229,64 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
                         >
                           <Plus className="h-3 w-3" />
                         </button>
+                      )}
+                      {(features.scoreSparkline || features.rankTimeline) && (
+                        <Popover
+                          open={timelineFor === item.symbol}
+                          onOpenChange={(open) => {
+                            if (!open) setTimelineFor(null)
+                          }}
+                        >
+                          <PopoverTrigger asChild>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                if (timelineFor === item.symbol) {
+                                  setTimelineFor(null)
+                                } else if (features.rankTimeline) {
+                                  openTimeline(item.symbol, view as ListView)
+                                } else {
+                                  setTimelineFor(item.symbol)
+                                }
+                              }}
+                              className="rounded p-0.5 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                              title={`${item.symbol} history`}
+                              aria-label={`${item.symbol} history`}
+                            >
+                              <History className="h-3 w-3" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent
+                            align="end"
+                            className="w-auto p-0"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            {features.scoreSparkline && (
+                              <div className="flex items-center gap-2 border-b p-2">
+                                <span className="text-[10px] text-muted-foreground">
+                                  Score trend
+                                </span>
+                                <Sparkline
+                                  key={scoreHistoryTick}
+                                  values={
+                                    scoreHistoryRef.current.get(`${view}:${item.symbol}`) ?? []
+                                  }
+                                />
+                              </div>
+                            )}
+                            {features.rankTimeline &&
+                              (timelineError ? (
+                                <p className="p-3 text-[12px] text-muted-foreground">
+                                  {timelineError}
+                                </p>
+                              ) : timelineData === null ? (
+                                <p className="p-3 text-[12px] text-muted-foreground">Loading…</p>
+                              ) : (
+                                <RankTimelineChart points={timelineData} />
+                              ))}
+                          </PopoverContent>
+                        </Popover>
                       )}
                     </span>
                   </span>
