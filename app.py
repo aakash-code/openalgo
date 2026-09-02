@@ -881,17 +881,6 @@ def setup_environment(app):
             except Exception as e:
                 logger.error(f"Failed to initialize Historify scheduler: {e}")
 
-            if os.getenv("ORDERFLOW_UNIVERSE_ENABLED", "false").lower() == "true":
-                try:
-                    from services.orderflow_universe_subscriber import (
-                        init_orderflow_universe_subscriber,
-                    )
-
-                    init_orderflow_universe_subscriber()
-                    logger.debug("Order Flow universe subscriber initialized")
-                except Exception as e:
-                    logger.error(f"Failed to initialize Order Flow universe subscriber: {e}")
-
             if os.getenv("TF_BOOST_SNAPSHOT_ENABLED", "false").lower() == "true":
                 try:
                     from services.tf_boost_snapshot_service import init_tf_boost_snapshot

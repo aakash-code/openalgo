@@ -49,15 +49,6 @@ class SymbolExchangePair(Schema):
     exchange = fields.Str(required=True, validate=validate.OneOf(VALID_EXCHANGES))
 
 
-class TickReplaySchema(Schema):
-    apikey = fields.Str(required=True, validate=validate.Length(min=1, max=256))
-    symbol = fields.Str(required=True)
-    exchange = fields.Str(required=True, validate=validate.OneOf(VALID_EXCHANGES))
-    # Epoch milliseconds; return ticks recorded strictly after this. 0 = all.
-    since = fields.Float(required=False, load_default=0.0)
-    limit = fields.Int(required=False, load_default=5000, validate=validate.Range(min=1, max=20000))
-
-
 class BoostSnapshotsSchema(Schema):
     apikey = fields.Str(required=True, validate=validate.Length(min=1, max=256))
     date = fields.Str(required=True)  # YYYY-MM-DD (window end / the backtest day)

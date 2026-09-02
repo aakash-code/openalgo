@@ -28,7 +28,6 @@ from .mode_utils import (
     normalize_mode_or_none,
 )
 from .port_check import find_available_port, is_port_in_use
-from .tick_store import record_tick
 
 # Initialize logger
 logger = get_logger("websocket_proxy")
@@ -186,29 +185,6 @@ class WebSocketProxy:
     async def start(self):
         """Start the WebSocket server and ZeroMQ listener"""
         self.running = True
-
-        # One-shot, loud Redis reachability check at proxy boot — this is the
-        # single entry point common to both deployment modes (gunicorn+eventlet
-        # subprocess and dev-server thread), so it covers Redis's status
-        # exactly once per proxy start regardless of how it was launched.
-        # tick_store itself already degrades to a silent no-op if Redis is
-        # down (by design — it must never affect live tick fan-out), which
-        # means a down Redis was previously invisible until someone went
-        # looking for missing tick replay. This makes it a clear line in the
-        # startup log instead.
-        try:
-            from .tick_store import check_health as _tick_store_health
-
-            if _tick_store_health():
-                logger.info("Tick store: Redis reachable — tick replay enabled")
-            else:
-                logger.warning(
-                    "Tick store: Redis NOT reachable at startup — tick replay disabled "
-                    "for this session (live tick fan-out is unaffected). If Redis should "
-                    "be running, check `brew services list` (Mac) or `systemctl status redis` (Linux)."
-                )
-        except Exception as e:
-            logger.warning(f"Tick store: startup health check failed ({e}) — continuing without it")
 
         try:
             # Start ZeroMQ listener
@@ -2612,14 +2588,6 @@ class WebSocketProxy:
                 sub_key = (symbol, exchange, mode)
                 current_time = time.time()
                 self.last_message_time[sub_key] = current_time
-
-                # Record into the optional Redis tape so clients can replay the
-                # gap after a stall. Non-blocking + degrades to a no-op if Redis
-                # is down — never touches the live fan-out path below.
-                try:
-                    record_tick(exchange, symbol, mode, market_data)
-                except Exception:
-                    pass
 
                 # Feed market data to MarketDataService for backend consumers
                 # (sandbox execution engine, position MTM, RMS, etc.)
