@@ -55,6 +55,14 @@ export interface SectorScopeResponse {
   message?: string
 }
 
+export interface JwtHealthResponse {
+  status: 'success' | 'error'
+  hasToken?: boolean
+  expiresInSeconds?: number
+  refreshing?: boolean
+  message?: string
+}
+
 export const tradefinderApi = {
   getMarketPulse: async (apiKey: string): Promise<MarketPulseResponse> => {
     const response = await apiClient.post<MarketPulseResponse>('/tfmarketpulse', {
@@ -66,6 +74,17 @@ export const tradefinderApi = {
   getSectorScope: async (apiKey: string): Promise<SectorScopeResponse> => {
     const response = await apiClient.post<SectorScopeResponse>('/tfsectorscope', {
       apikey: apiKey,
+    })
+    return response.data
+  },
+
+  /** Cheap expiry check -- only kicks off the slow browser-based refresh
+   * server-side when the token is actually close to expiring. Safe to poll
+   * every minute or two, per the endpoint's own docstring. */
+  getJwtHealth: async (apiKey: string): Promise<JwtHealthResponse> => {
+    const response = await apiClient.post<JwtHealthResponse>('/tfjwtkeepalive', {
+      apikey: apiKey,
+      minSeconds: 1800,
     })
     return response.data
   },

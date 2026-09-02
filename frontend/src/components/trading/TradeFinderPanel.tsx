@@ -18,6 +18,8 @@
 import {
   ArrowDown,
   ArrowUp,
+  Pin,
+  PinOff,
   Plus,
   RefreshCw,
   Search,
@@ -27,6 +29,7 @@ import {
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import {
+  type JwtHealthResponse,
   type MarketPulseData,
   type SectorScopeData,
   type SectorStockItem,
@@ -50,10 +53,17 @@ import { cn } from '@/lib/utils'
 import { showToast } from '@/utils/toast'
 import { PANEL_HEADER, PanelShell } from './panelShell'
 
-const POLL_MS = 30_000
 const PREFS_KEY = 'oa-trading-tradefinder'
 const FEATURES_KEY = 'oa-trading-tradefinder-features'
 const ACTIVE_WATCHLIST_KEY = 'oa-trading-watchlist'
+
+const POLL_INTERVALS = [5_000, 15_000, 30_000, 60_000] as const
+const CPR_FILTERS = [
+  { id: 'all', label: 'All' },
+  { id: 'bullish', label: 'Bullish only' },
+  { id: 'bearish', label: 'Bearish only' },
+] as const
+type CprFilter = (typeof CPR_FILTERS)[number]['id']
 
 /** Every feature here defaults to off. Nothing in this panel changes
  * behaviour until the user opens the settings popover and switches it on
@@ -66,6 +76,20 @@ interface Features {
   compactDensity: boolean
   addToWatchlist: boolean
   columns: { ltp: boolean; chg: boolean; score: boolean; cpr: boolean }
+  /** Off = the hardcoded 30s default; any other value is the user's choice. */
+  pollIntervalMs: number
+  jwtHealth: boolean
+  retryBackoff: boolean
+  /** null = no filter. Only meaningful once a real value is set. */
+  scoreThreshold: number | null
+  cprFilter: CprFilter
+  sectorChips: boolean
+  /** Whether the pin icon shows at all -- pinning changes row order, so it
+   * stays opt-in like everything else here, not just the pinned list itself. */
+  pinning: boolean
+  /** Pinned symbols float to the top of whichever list/sector view they
+   * appear in, ahead of the active sort. */
+  pinnedSymbols: string[]
 }
 
 const DEFAULT_FEATURES: Features = {
@@ -76,6 +100,14 @@ const DEFAULT_FEATURES: Features = {
   compactDensity: false,
   addToWatchlist: false,
   columns: { ltp: true, chg: true, score: true, cpr: true },
+  pollIntervalMs: 30_000,
+  jwtHealth: false,
+  retryBackoff: false,
+  scoreThreshold: null,
+  cprFilter: 'all',
+  sectorChips: false,
+  pinning: false,
+  pinnedSymbols: [],
 }
 
 function readFeatures(): Features {
@@ -85,6 +117,7 @@ function readFeatures(): Features {
       ...DEFAULT_FEATURES,
       ...saved,
       columns: { ...DEFAULT_FEATURES.columns, ...saved.columns },
+      pinnedSymbols: Array.isArray(saved.pinnedSymbols) ? saved.pinnedSymbols : [],
     }
   } catch {
     return DEFAULT_FEATURES
@@ -227,6 +260,39 @@ function RankDeltaIcon({ delta }: { delta: number | undefined }) {
   )
 }
 
+/** The server-side TF token's health -- unknown (grey) until the first poll
+ * answers, then green/amber/red by how much runway is left. Refreshing
+ * shows as amber regardless of the remaining time, since a refresh in
+ * flight means the answer is about to change anyway. */
+function JwtHealthBadge({ health }: { health: JwtHealthResponse | null }) {
+  const label = !health
+    ? 'TradeFinder token: checking…'
+    : health.refreshing
+      ? 'TradeFinder token: refreshing…'
+      : !health.hasToken
+        ? 'TradeFinder token: missing'
+        : `TradeFinder token: ${Math.round((health.expiresInSeconds ?? 0) / 60)}m left`
+
+  const color = !health
+    ? 'bg-muted-foreground/40'
+    : health.refreshing
+      ? 'bg-amber-500'
+      : !health.hasToken || (health.expiresInSeconds ?? 0) < 300
+        ? 'bg-rose-500'
+        : (health.expiresInSeconds ?? 0) < 1800
+          ? 'bg-amber-500'
+          : 'bg-emerald-500'
+
+  return (
+    <span
+      className={cn('h-2 w-2 shrink-0 rounded-full', color)}
+      title={label}
+      aria-label={label}
+      role="status"
+    />
+  )
+}
+
 /** A small dot beside the symbol, coloured by CPR bias -- only intraday_boost
  * ever carries this. Title text is the only place cpr_width_pct/
  * first_candle_range_pct show, since there is no room for two more columns. */
@@ -306,6 +372,67 @@ function FeatureSettings({
         checked={features.pauseAutoRefresh}
         onChange={(v) => set('pauseAutoRefresh', v)}
       />
+      <label className="flex items-center justify-between gap-3 py-1 text-[12px]">
+        <span className="text-foreground">Poll interval</span>
+        <Select
+          value={String(features.pollIntervalMs)}
+          onValueChange={(v) => set('pollIntervalMs', Number(v))}
+        >
+          <SelectTrigger className="h-6 w-20 text-[11px]" aria-label="Poll interval">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {POLL_INTERVALS.map((ms) => (
+              <SelectItem key={ms} value={String(ms)} className="text-[11px]">
+                {ms / 1000}s
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </label>
+      <FeatureRow
+        label="JWT health badge"
+        checked={features.jwtHealth}
+        onChange={(v) => set('jwtHealth', v)}
+      />
+      <FeatureRow
+        label="Retry backoff on failure"
+        checked={features.retryBackoff}
+        onChange={(v) => set('retryBackoff', v)}
+      />
+
+      <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+        Filters
+      </p>
+      <label className="flex items-center justify-between gap-3 py-1 text-[12px]">
+        <span className="text-foreground">Min score</span>
+        <input
+          type="number"
+          min={0}
+          step={0.5}
+          value={features.scoreThreshold ?? ''}
+          onChange={(e) =>
+            set('scoreThreshold', e.target.value === '' ? null : Number(e.target.value))
+          }
+          placeholder="Off"
+          className="h-6 w-16 rounded border bg-background px-1.5 text-right text-[11px]"
+        />
+      </label>
+      <label className="flex items-center justify-between gap-3 py-1 text-[12px]">
+        <span className="text-foreground">CPR bias</span>
+        <Select value={features.cprFilter} onValueChange={(v) => set('cprFilter', v as CprFilter)}>
+          <SelectTrigger className="h-6 w-28 text-[11px]" aria-label="CPR bias filter">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {CPR_FILTERS.map((f) => (
+              <SelectItem key={f.id} value={f.id} className="text-[11px]">
+                {f.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </label>
 
       <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
         Display
@@ -329,6 +456,16 @@ function FeatureSettings({
         label="Add-to-watchlist button"
         checked={features.addToWatchlist}
         onChange={(v) => set('addToWatchlist', v)}
+      />
+      <FeatureRow
+        label="Pin/favorite symbols"
+        checked={features.pinning}
+        onChange={(v) => set('pinning', v)}
+      />
+      <FeatureRow
+        label="Sector quick-filter chips"
+        checked={features.sectorChips}
+        onChange={(v) => set('sectorChips', v)}
       />
 
       <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
@@ -391,6 +528,12 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
   useEffect(() => {
     pauseRef.current = features.pauseAutoRefresh
   }, [features.pauseAutoRefresh])
+  /** Same reasoning as pauseRef, for retryBackoff -- read fresh inside the
+   * poll effect's closure without making it an effect dependency. */
+  const featuresRef = useRef(features)
+  useEffect(() => {
+    featuresRef.current = features
+  }, [features])
 
   /** This poll's rank per symbol, so the next poll can tell whether each
    * symbol moved up or down the list -- compared, then overwritten, once
@@ -401,6 +544,7 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
   const [pulseUpdatedAt, setPulseUpdatedAt] = useState<Date | null>(null)
   const [sectorUpdatedAt, setSectorUpdatedAt] = useState<Date | null>(null)
   const [search, setSearch] = useState('')
+  const [jwtHealth, setJwtHealth] = useState<JwtHealthResponse | null>(null)
 
   useEffect(() => {
     localStorage.setItem(PREFS_KEY, view)
@@ -416,6 +560,8 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
   useEffect(() => {
     let alive = true
     let timer: ReturnType<typeof setInterval> | null = null
+    let backoffTimer: ReturnType<typeof setTimeout> | null = null
+    let backoffStep = 0
 
     const load = async () => {
       if (!alive || document.hidden) return
@@ -427,6 +573,7 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
           setPulse(res.data)
           setPulseError(null)
           setPulseUpdatedAt(new Date())
+          backoffStep = 0
 
           // Rank delta: this poll's position minus the last poll's, per
           // (list, symbol). Keyed by list too, since the same symbol can
@@ -450,19 +597,35 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
           setRankDeltas(deltas)
         } else {
           setPulseError(res.message ?? 'Failed to load TradeFinder data')
+          scheduleBackoffRetry()
         }
       } catch {
         if (!alive) return
         setPulseError('Failed to load TradeFinder data')
+        scheduleBackoffRetry()
       } finally {
         if (alive) setPulseLoading(false)
       }
     }
 
+    /** Off by default -- on, a failed fetch retries at 2s/5s/15s instead of
+     * waiting out the rest of the normal poll interval. Caps at 15s and
+     * resets the moment a fetch succeeds, so a real outage doesn't spin. */
+    const scheduleBackoffRetry = () => {
+      if (!featuresRef.current.retryBackoff || !alive || pauseRef.current) return
+      const delays = [2_000, 5_000, 15_000]
+      const delay = delays[Math.min(backoffStep, delays.length - 1)]
+      backoffStep += 1
+      backoffTimer = setTimeout(load, delay)
+    }
+
     load()
-    timer = setInterval(() => {
-      if (!pauseRef.current) load()
-    }, POLL_MS)
+    timer = setInterval(
+      () => {
+        if (!pauseRef.current) load()
+      },
+      Math.max(5_000, features.pollIntervalMs)
+    )
     const onVisible = () => {
       if (!document.hidden && !pauseRef.current) load()
     }
@@ -471,9 +634,10 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
     return () => {
       alive = false
       if (timer) clearInterval(timer)
+      if (backoffTimer) clearTimeout(backoffTimer)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [apiKey, attempt])
+  }, [apiKey, attempt, features.pollIntervalMs])
 
   /* ── sector_scope: only fetched while that view is actually selected ── */
   // biome-ignore lint/correctness/useExhaustiveDependencies: `attempt` is a deliberate re-run trigger, not a value this effect reads; the refresh button bumps it to refetch without changing the contract
@@ -481,6 +645,8 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
     if (view !== 'sectors') return
     let alive = true
     let timer: ReturnType<typeof setInterval> | null = null
+    let backoffTimer: ReturnType<typeof setTimeout> | null = null
+    let backoffStep = 0
 
     const load = async () => {
       if (!alive || document.hidden) return
@@ -492,26 +658,66 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
           setSectorData(res.data)
           setSectorError(null)
           setSectorUpdatedAt(new Date())
+          backoffStep = 0
         } else {
           setSectorError(res.message ?? 'Failed to load sector data')
+          scheduleBackoffRetry()
         }
       } catch {
         if (!alive) return
         setSectorError('Failed to load sector data')
+        scheduleBackoffRetry()
       } finally {
         if (alive) setSectorLoading(false)
       }
     }
 
+    const scheduleBackoffRetry = () => {
+      if (!featuresRef.current.retryBackoff || !alive || pauseRef.current) return
+      const delays = [2_000, 5_000, 15_000]
+      const delay = delays[Math.min(backoffStep, delays.length - 1)]
+      backoffStep += 1
+      backoffTimer = setTimeout(load, delay)
+    }
+
     load()
-    timer = setInterval(() => {
-      if (!pauseRef.current) load()
-    }, POLL_MS)
+    timer = setInterval(
+      () => {
+        if (!pauseRef.current) load()
+      },
+      Math.max(5_000, features.pollIntervalMs)
+    )
     return () => {
       alive = false
       if (timer) clearInterval(timer)
+      if (backoffTimer) clearTimeout(backoffTimer)
     }
-  }, [apiKey, view, attempt])
+  }, [apiKey, view, attempt, features.pollIntervalMs])
+
+  /* ── JWT health: off by default, a slow 60s poll -- this only checks the
+     server-side token's expiry and kicks off a refresh if it's close, it
+     never blocks on the actual (slow, browser-based) refresh itself. ── */
+  useEffect(() => {
+    if (!features.jwtHealth) return
+    let alive = true
+    const load = async () => {
+      if (!alive || document.hidden) return
+      try {
+        const res = await tradefinderApi.getJwtHealth(apiKey)
+        if (alive) setJwtHealth(res)
+      } catch {
+        // Silent: this is a secondary status indicator, not a fetch the
+        // rest of the panel depends on -- an error here just means the
+        // badge goes back to unknown until the next tick.
+      }
+    }
+    load()
+    const timer = setInterval(load, 60_000)
+    return () => {
+      alive = false
+      clearInterval(timer)
+    }
+  }, [apiKey, features.jwtHealth])
 
   const refresh = () => {
     attemptRef.current += 1
@@ -547,11 +753,36 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
 
   const loading = view === 'sectors' ? sectorLoading : pulseLoading
 
+  const pinnedSet = new Set(features.pinnedSymbols)
+  const togglePin = (symbol: string) => {
+    setFeatures((prev) => ({
+      ...prev,
+      pinnedSymbols: prev.pinnedSymbols.includes(symbol)
+        ? prev.pinnedSymbols.filter((s) => s !== symbol)
+        : [...prev.pinnedSymbols, symbol],
+    }))
+  }
+
   const listRowsAll: TfListItem[] = view === 'sectors' ? [] : (pulse?.[view as ListView] ?? [])
-  const listRows =
-    features.search && search.trim()
-      ? listRowsAll.filter((r) => r.symbol.toLowerCase().includes(search.trim().toLowerCase()))
-      : listRowsAll
+  let listRows = listRowsAll
+  if (features.search && search.trim()) {
+    const q = search.trim().toLowerCase()
+    listRows = listRows.filter((r) => r.symbol.toLowerCase().includes(q))
+  }
+  if (features.scoreThreshold != null) {
+    listRows = listRows.filter((r) => r.score >= (features.scoreThreshold as number))
+  }
+  if (features.cprFilter !== 'all') {
+    listRows = listRows.filter((r) => r.cpr_bias === features.cprFilter)
+  }
+  if (features.pinning && pinnedSet.size > 0) {
+    // Stable partition, not a re-sort: everything keeps the rank order the
+    // backend gave it, pinned rows just move as a block to the front.
+    listRows = [
+      ...listRows.filter((r) => pinnedSet.has(r.symbol)),
+      ...listRows.filter((r) => !pinnedSet.has(r.symbol)),
+    ]
+  }
   const showQuoteColumns = view !== 'breakout_beacon'
 
   const sectorEntries = sectorData
@@ -614,6 +845,8 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
           </SelectContent>
         </Select>
 
+        {features.jwtHealth && <JwtHealthBadge health={jwtHealth} />}
+
         <Button
           variant="ghost"
           size="icon"
@@ -637,7 +870,7 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
               <Settings2 className="h-3.5 w-3.5" />
             </Button>
           </PopoverTrigger>
-          <PopoverContent align="end" className="w-64 p-3">
+          <PopoverContent align="end" className="max-h-[80vh] w-64 overflow-y-auto p-3">
             <FeatureSettings features={features} onChange={setFeatures} />
           </PopoverContent>
         </Popover>
@@ -716,6 +949,37 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
                       {features.rankArrows && (
                         <RankDeltaIcon delta={rankDeltas.get(`${view}:${item.symbol}`)} />
                       )}
+                      {features.pinning && (
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            togglePin(item.symbol)
+                          }}
+                          className={cn(
+                            'rounded p-0.5 hover:bg-primary/10',
+                            pinnedSet.has(item.symbol)
+                              ? 'text-primary'
+                              : 'text-muted-foreground hover:text-primary'
+                          )}
+                          title={
+                            pinnedSet.has(item.symbol)
+                              ? `Unpin ${item.symbol}`
+                              : `Pin ${item.symbol}`
+                          }
+                          aria-label={
+                            pinnedSet.has(item.symbol)
+                              ? `Unpin ${item.symbol}`
+                              : `Pin ${item.symbol}`
+                          }
+                        >
+                          {pinnedSet.has(item.symbol) ? (
+                            <PinOff className="h-3 w-3" />
+                          ) : (
+                            <Pin className="h-3 w-3" />
+                          )}
+                        </button>
+                      )}
                       {features.addToWatchlist && (
                         <button
                           type="button"
@@ -777,6 +1041,35 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
           A fixed 50/50 split keeps the full index visible while drilling in. */}
       {view === 'sectors' && (
         <div className="flex min-h-0 flex-1 flex-col">
+          {/* Off by default -- a faster way to jump straight to one of the
+              strongest sectors without scrolling the full bar list first. */}
+          {features.sectorChips && sectorIndex.length > 0 && (
+            <div className="flex shrink-0 flex-wrap gap-1 border-b px-2 py-1.5">
+              {sectorIndex
+                .slice()
+                .sort((a, b) => Math.abs(b.param_3) - Math.abs(a.param_3))
+                .slice(0, 6)
+                .map((sector) => {
+                  const key = `${sector.Symbol}_r_factor`
+                  return (
+                    <button
+                      key={sector.Symbol}
+                      type="button"
+                      onClick={() => setSelectedSector(key)}
+                      disabled={!sectorEntries.some((s) => s.key === key)}
+                      className={cn(
+                        'rounded-full border px-2 py-0.5 text-[10px] font-medium transition-colors disabled:opacity-50',
+                        selectedSector === key
+                          ? 'border-primary bg-primary text-primary-foreground'
+                          : 'border-border bg-background text-muted-foreground hover:bg-accent'
+                      )}
+                    >
+                      {sector.Symbol.replace(/^NIFTY\s+/, '')}
+                    </button>
+                  )
+                })}
+            </div>
+          )}
           <div className="min-h-0 flex-1 overflow-y-auto">
             {sectorError && sectorIndex.length === 0 ? (
               <div className="flex flex-col items-center gap-2 p-6 text-center">
