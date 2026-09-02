@@ -8,13 +8,13 @@
  * closes it.
  */
 
-import { List, Table2 } from 'lucide-react'
+import { List, Table2, Zap } from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { RAIL_BTN, RAIL_BTN_ON, RAIL_ICON_STROKE, RailTip } from './railStyles'
 
 /** Which panel the rail is showing, or null when the workspace is all chart. */
-export type PanelId = 'watchlist' | 'options'
+export type PanelId = 'watchlist' | 'options' | 'tradefinder'
 
 interface Props {
   active: PanelId | null
@@ -26,6 +26,7 @@ const PANELS: Array<{ id: PanelId; label: string; icon: typeof List }> = [
   // list of instruments and the option chain is a table of strikes.
   { id: 'watchlist', label: 'Watchlist', icon: List },
   { id: 'options', label: 'Option chain', icon: Table2 },
+  { id: 'tradefinder', label: 'TradeFinder', icon: Zap },
 ]
 
 export function RightRail({ active, onSelect }: Props) {

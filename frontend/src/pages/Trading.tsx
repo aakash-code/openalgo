@@ -7,6 +7,7 @@ import { DrawingRail } from '@/components/trading/DrawingRail'
 import { OptionChainPanel } from '@/components/trading/OptionChainPanel'
 import { type PanelId, RightRail } from '@/components/trading/RightRail'
 import { TickBox } from '@/components/trading/TickBox'
+import { TradeFinderPanel } from '@/components/trading/TradeFinderPanel'
 import { WatchlistPanel } from '@/components/trading/WatchlistPanel'
 import { Button } from '@/components/ui/button'
 import {
@@ -561,6 +562,13 @@ export default function Trading() {
           )}
           {apiKey && wsUrl && panel === 'options' && (
             <OptionChainPanel
+              apiKey={apiKey}
+              onPick={sendToFocusedPane}
+              activeSymbol={paneSymbols[focusedPane] ?? null}
+            />
+          )}
+          {apiKey && wsUrl && panel === 'tradefinder' && (
+            <TradeFinderPanel
               apiKey={apiKey}
               onPick={sendToFocusedPane}
               activeSymbol={paneSymbols[focusedPane] ?? null}
