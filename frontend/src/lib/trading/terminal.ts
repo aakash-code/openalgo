@@ -372,6 +372,10 @@ const STRATEGY = 'chart-trading'
 const VISIBLE_BARS = 120
 /** Empty bars kept between the newest candle and the price axis. */
 const RIGHT_PAD_BARS = 4
+/** What a chart opens with the very first time this browser has no saved layout, matching TradingView's own default. */
+const DEFAULT_INDICATORS: { indicatorId: string; settings: Record<string, unknown> }[] = [
+  { indicatorId: 'volume', settings: {} },
+]
 
 /**
  * Where the exported PNG paints the OHLC readout, in CSS px. These mirror the
@@ -1273,7 +1277,12 @@ export class TradingTerminal {
     }
     try {
       const raw = this.lsGet('indicators')
-      const parsed = raw ? (JSON.parse(raw) as typeof this.activeIndicators) : []
+      // `raw === null` means this browser has never saved a layout at all --
+      // distinct from an explicit clear, which persists '[]'. Only the former
+      // gets TradingView's default: Volume on, so a user who deliberately
+      // removed every indicator does not have it reappear on the next load.
+      const parsed =
+        raw != null ? (JSON.parse(raw) as typeof this.activeIndicators) : DEFAULT_INDICATORS
       if (Array.isArray(parsed)) this.activeIndicators = parsed
     } catch {
       /* ignore */

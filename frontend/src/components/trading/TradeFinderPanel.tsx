@@ -107,6 +107,10 @@ interface Features {
   /** Aggressive by design -- automatically charts whoever takes rank #1 on
    * the active list. Must never be on by default. */
   autoChartTop1: boolean
+  /** Sectors-only: rank-over-the-day chart for a sector, same idea as
+   * `rankTimeline` but reading the "sector_index" list_type the scheduler
+   * writes alongside the three boost lists. */
+  sectorRankTimeline: boolean
 }
 
 const DEFAULT_FEATURES: Features = {
@@ -130,6 +134,7 @@ const DEFAULT_FEATURES: Features = {
   newEntrantAlert: false,
   scoreCrossAlert: null,
   autoChartTop1: false,
+  sectorRankTimeline: false,
 }
 
 function readFeatures(): Features {
@@ -428,6 +433,19 @@ function FeatureRow({
   )
 }
 
+/** A section header that names its scope explicitly -- every setting under
+ * it applies to exactly the view(s) named here, nothing wider or narrower. */
+function ScopeHeader({ title, scope }: { title: string; scope: string }) {
+  return (
+    <div className="mt-1 border-t pt-1.5 first:mt-0 first:border-t-0 first:pt-0">
+      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
+        {title}
+      </p>
+      <p className="text-[10px] text-muted-foreground/70">{scope}</p>
+    </div>
+  )
+}
+
 /** All 20-feature-audit toggles, off by default, persisted by the caller.
  * Grouped to match the plan's categories so the popover reads as a menu,
  * not a flat wall of switches. */
@@ -450,9 +468,13 @@ function FeatureSettings({
 
   return (
     <div className="flex flex-col gap-2">
-      <p className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-        Data
-      </p>
+      {/* Every setting below is scoped to exactly one of these three groups
+          -- a switch that only does something on two of the four views
+          (Intraday Boost/Breakout Beacon/High Powered are one group here,
+          Sectors is its own) needs to say so, or "why isn't this doing
+          anything" is the first thing a user hits after turning it on
+          while looking at the wrong tab. */}
+      <ScopeHeader title="All views" scope="Applies everywhere -- ranked lists and Sectors" />
       <FeatureRow
         label="Freshness caption"
         checked={features.freshness}
@@ -491,10 +513,46 @@ function FeatureSettings({
         checked={features.retryBackoff}
         onChange={(v) => set('retryBackoff', v)}
       />
+      <FeatureRow
+        label="Compact rows"
+        checked={features.compactDensity}
+        onChange={(v) => set('compactDensity', v)}
+      />
+      <FeatureRow
+        label="Add-to-watchlist button"
+        checked={features.addToWatchlist}
+        onChange={(v) => set('addToWatchlist', v)}
+      />
 
-      <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-        Filters
-      </p>
+      <ScopeHeader
+        title="Ranked lists only"
+        scope="Intraday Boost · Breakout Beacon · High Powered -- has no effect on Sectors"
+      />
+      <FeatureRow
+        label="Symbol search"
+        checked={features.search}
+        onChange={(v) => set('search', v)}
+      />
+      <FeatureRow
+        label="Rank change arrows"
+        checked={features.rankArrows}
+        onChange={(v) => set('rankArrows', v)}
+      />
+      <FeatureRow
+        label="Pin/favorite symbols"
+        checked={features.pinning}
+        onChange={(v) => set('pinning', v)}
+      />
+      <FeatureRow
+        label="Score sparkline"
+        checked={features.scoreSparkline}
+        onChange={(v) => set('scoreSparkline', v)}
+      />
+      <FeatureRow
+        label="Rank timeline chart"
+        checked={features.rankTimeline}
+        onChange={(v) => set('rankTimeline', v)}
+      />
       <label className="flex items-center justify-between gap-3 py-1 text-[12px]">
         <span className="text-foreground">Min score</span>
         <input
@@ -509,69 +567,30 @@ function FeatureSettings({
           className="h-6 w-16 rounded border bg-background px-1.5 text-right text-[11px]"
         />
       </label>
-      <label className="flex items-center justify-between gap-3 py-1 text-[12px]">
-        <span className="text-foreground">CPR bias</span>
-        <Select value={features.cprFilter} onValueChange={(v) => set('cprFilter', v as CprFilter)}>
-          <SelectTrigger className="h-6 w-28 text-[11px]" aria-label="CPR bias filter">
-            <SelectValue />
-          </SelectTrigger>
-          <SelectContent>
-            {CPR_FILTERS.map((f) => (
-              <SelectItem key={f.id} value={f.id} className="text-[11px]">
-                {f.label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      <label className="flex flex-col gap-0.5 py-1 text-[12px]">
+        <span className="flex items-center justify-between gap-3">
+          <span className="text-foreground">CPR bias</span>
+          <Select
+            value={features.cprFilter}
+            onValueChange={(v) => set('cprFilter', v as CprFilter)}
+          >
+            <SelectTrigger className="h-6 w-28 text-[11px]" aria-label="CPR bias filter">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CPR_FILTERS.map((f) => (
+                <SelectItem key={f.id} value={f.id} className="text-[11px]">
+                  {f.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </span>
+        <span className="text-[10px] text-muted-foreground">
+          Only Intraday Boost carries real CPR data -- filtering the other two lists returns
+          nothing.
+        </span>
       </label>
-
-      <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-        Display
-      </p>
-      <FeatureRow
-        label="Rank change arrows"
-        checked={features.rankArrows}
-        onChange={(v) => set('rankArrows', v)}
-      />
-      <FeatureRow
-        label="Symbol search"
-        checked={features.search}
-        onChange={(v) => set('search', v)}
-      />
-      <FeatureRow
-        label="Compact rows"
-        checked={features.compactDensity}
-        onChange={(v) => set('compactDensity', v)}
-      />
-      <FeatureRow
-        label="Add-to-watchlist button"
-        checked={features.addToWatchlist}
-        onChange={(v) => set('addToWatchlist', v)}
-      />
-      <FeatureRow
-        label="Pin/favorite symbols"
-        checked={features.pinning}
-        onChange={(v) => set('pinning', v)}
-      />
-      <FeatureRow
-        label="Sector quick-filter chips"
-        checked={features.sectorChips}
-        onChange={(v) => set('sectorChips', v)}
-      />
-      <FeatureRow
-        label="Score sparkline"
-        checked={features.scoreSparkline}
-        onChange={(v) => set('scoreSparkline', v)}
-      />
-      <FeatureRow
-        label="Rank timeline chart"
-        checked={features.rankTimeline}
-        onChange={(v) => set('rankTimeline', v)}
-      />
-
-      <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-        Alerts
-      </p>
       <FeatureRow
         label={`New entrant (top ${NEW_ENTRANT_TOP_N})`}
         checked={features.newEntrantAlert}
@@ -596,10 +615,13 @@ function FeatureSettings({
         checked={features.autoChartTop1}
         onChange={(v) => set('autoChartTop1', v)}
       />
-
-      <p className="mt-1 text-[10px] font-medium uppercase tracking-wider text-muted-foreground/70">
-        Columns
-      </p>
+      <label className="flex flex-col gap-0.5 py-1 text-[12px]">
+        <span className="text-foreground">Columns</span>
+        <span className="text-[10px] text-muted-foreground">
+          LTP/Change % are hidden on Breakout Beacon regardless of this setting -- that list's own
+          fields aren't real quote data.
+        </span>
+      </label>
       <FeatureRow
         label="LTP"
         checked={features.columns.ltp}
@@ -620,6 +642,27 @@ function FeatureSettings({
         checked={features.columns.cpr}
         onChange={(v) => setColumn('cpr', v)}
       />
+
+      <ScopeHeader
+        title="Sectors only"
+        scope="Has no effect on Intraday Boost/Breakout Beacon/High Powered"
+      />
+      <FeatureRow
+        label="Sector quick-filter chips"
+        checked={features.sectorChips}
+        onChange={(v) => set('sectorChips', v)}
+      />
+      <FeatureRow
+        label="Sector rank timeline chart"
+        checked={features.sectorRankTimeline}
+        onChange={(v) => set('sectorRankTimeline', v)}
+      />
+      {features.sectorRankTimeline && (
+        <p className="text-[10px] text-muted-foreground/70">
+          Needs the backend snapshot scheduler enabled (TF_BOOST_SNAPSHOT_ENABLED) -- shows today's
+          history only, from the moment it was turned on.
+        </p>
+      )}
     </div>
   )
 }
@@ -966,7 +1009,7 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
   /** Fetches once per click, not polled -- this is a look-up, not a live
    * value, and the endpoint it calls is the backtesting one, not something
    * meant for repeated hammering. */
-  const openTimeline = async (symbol: string, listKey: ListView) => {
+  const openTimeline = async (symbol: string, listKey: ListView | 'sector_index') => {
     setTimelineFor(symbol)
     setTimelineData(null)
     setTimelineError(null)
@@ -1423,12 +1466,55 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
               every time the selection cleared. */}
           <div className="flex min-h-0 flex-1 flex-col border-t">
             <div className="flex shrink-0 items-center justify-between gap-2 border-b bg-muted/30 px-2 py-1">
-              <span className="truncate text-[11px] font-medium">
-                {selectedSector === ALL_SECTORS
-                  ? 'ALL'
-                  : selectedSector
-                    ? selectedSector.replace(/_r_factor$/, '')
-                    : 'Select a sector'}
+              <span className="flex min-w-0 items-center gap-1">
+                <span className="truncate text-[11px] font-medium">
+                  {selectedSector === ALL_SECTORS
+                    ? 'ALL'
+                    : selectedSector
+                      ? selectedSector.replace(/_r_factor$/, '')
+                      : 'Select a sector'}
+                </span>
+                {features.sectorRankTimeline &&
+                  selectedSector &&
+                  selectedSector !== ALL_SECTORS &&
+                  (() => {
+                    const sectorSymbol = selectedSector.replace(/_r_factor$/, '')
+                    return (
+                      <Popover
+                        open={timelineFor === sectorSymbol}
+                        onOpenChange={(open) => {
+                          if (!open) setTimelineFor(null)
+                        }}
+                      >
+                        <PopoverTrigger asChild>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (timelineFor === sectorSymbol) {
+                                setTimelineFor(null)
+                              } else {
+                                openTimeline(sectorSymbol, 'sector_index')
+                              }
+                            }}
+                            className="shrink-0 rounded p-0.5 text-muted-foreground hover:bg-primary/10 hover:text-primary"
+                            title={`${sectorSymbol} rank history`}
+                            aria-label={`${sectorSymbol} rank history`}
+                          >
+                            <History className="h-3 w-3" />
+                          </button>
+                        </PopoverTrigger>
+                        <PopoverContent align="start" className="w-auto p-0">
+                          {timelineError ? (
+                            <p className="p-3 text-[12px] text-muted-foreground">{timelineError}</p>
+                          ) : timelineData === null ? (
+                            <p className="p-3 text-[12px] text-muted-foreground">Loading…</p>
+                          ) : (
+                            <RankTimelineChart points={timelineData} />
+                          )}
+                        </PopoverContent>
+                      </Popover>
+                    )
+                  })()}
               </span>
               {/* Off by default -- the list keeps its |rfactor| ranking until
                   the user explicitly asks to see gainers or losers first.

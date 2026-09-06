@@ -55,7 +55,9 @@ class BoostSnapshotsSchema(Schema):
     list_type = fields.Str(
         required=False,
         load_default="intraday_boost",
-        validate=validate.OneOf(["intraday_boost", "breakout_beacon", "high_powered_stocks"]),
+        validate=validate.OneOf(
+            ["intraday_boost", "breakout_beacon", "high_powered_stocks", "sector_index"]
+        ),
     )
     # HH:MM IST. When set, the universe is what the list looked like as of that
     # time (no whole-day hindsight). Omit/empty = best rank over the whole day.
