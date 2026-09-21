@@ -1,10 +1,10 @@
 import { Search } from 'lucide-react'
+import { isPlainSymbol, parseExpression } from 'openalgo-charts/transform'
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react'
 import { Dialog, DialogContent, DialogTitle } from '@/components/ui/dialog'
 import { useSupportedExchanges } from '@/hooks/useSupportedExchanges'
 import type { SearchRow } from '@/lib/trading/terminal'
 import { cn } from '@/lib/utils'
-import { isPlainSymbol, parseExpression } from 'openalgo-charts/transform'
 
 /**
  * The operator keypad, in the order it is drawn. `1/` wraps the whole box
@@ -194,9 +194,21 @@ interface Props {
   onPick: (row: SearchRow) => void
   /** Seeds the input (usually the pane's current symbol) and is text-selected on open. */
   initialQuery?: string
+  mode?: 'symbol' | 'comparison'
+  title?: string
+  container?: HTMLElement | null
 }
 
-export function SymbolSearchDialog({ open, onOpenChange, search, onPick, initialQuery }: Props) {
+export function SymbolSearchDialog({
+  open,
+  onOpenChange,
+  search,
+  onPick,
+  initialQuery,
+  mode = 'symbol',
+  title = 'Symbol Search',
+  container,
+}: Props) {
   const { allExchanges } = useSupportedExchanges()
   const [query, setQuery] = useState('')
   const [rows, setRows] = useState<SearchRow[]>([])
@@ -225,14 +237,23 @@ export function SymbolSearchDialog({ open, onOpenChange, search, onPick, initial
     return ['ALL', ...CHIP_ORDER.filter((c) => present.has(c))]
   }, [allExchanges])
 
-  const expression = useMemo(() => isExpression(query), [query])
-  const { prefix, leg } = useMemo(() => splitLeg(query), [query])
+  const expression = useMemo(() => mode === 'symbol' && isExpression(query), [query, mode])
+  const { prefix, leg } = useMemo(
+    () => (mode === 'comparison' ? { prefix: '', leg: query } : splitLeg(query)),
+    [query, mode]
+  )
 
   const filtered = useMemo(() => {
-    const q = leg.trim().toUpperCase()
+    // Ranked against the whole box when the whole box names something, and
+    // against the leg otherwise. `BAJAJ-AUTO` splits into a leg of `AUTO`, and
+    // ranking on that buries the instrument actually typed under every other
+    // name containing AUTO.
+    const whole = query.trim().toUpperCase()
+    const named = whole !== '' && rows.some((r) => String(r.symbol).toUpperCase().startsWith(whole))
+    const q = named ? whole : leg.trim().toUpperCase()
     const base = chip === 'ALL' ? rows : rows.filter((r) => categoryOf(String(r.exchange)) === chip)
     return [...base].sort((a, b) => compareRows(a, b, q)).slice(0, MAX_ROWS)
-  }, [rows, chip, leg])
+  }, [rows, chip, leg, query])
 
   // On open: seed query with the current symbol, select it, focus, reset chip.
   useEffect(() => {
@@ -250,11 +271,23 @@ export function SymbolSearchDialog({ open, onOpenChange, search, onPick, initial
   // Debounced search; a request id guards against out-of-order responses.
   useEffect(() => {
     if (!open) return
-    // The leg being typed, not the whole box: mid-expression the box is not a
-    // symbol and would match nothing.
-    const q = leg.trim()
+    // Two searches, merged, because a hyphen is both an operator and a
+    // character real instruments are named with.
+    //
+    // The leg is what a half-typed expression needs: mid-expression the whole
+    // box is not a symbol and matches nothing, so `NIFTY/` has to search on the
+    // empty second leg rather than on `NIFTY/`. But splitting on `-` is what
+    // made `BAJAJ-AUTO` unsearchable: the box split into `BAJAJ` and `AUTO`,
+    // the caret sat in the second, and typing the hyphen emptied the list.
+    //
+    // So the whole box is searched too, and the results are merged. Neither
+    // query can be dropped: the leg is the only one that works mid-expression,
+    // and the whole box is the only one that finds a name with an operator
+    // character inside it.
+    const whole = query.trim()
+    const queries = [...new Set([leg.trim(), whole].filter((one) => one.length > 0))]
     if (debounceRef.current) clearTimeout(debounceRef.current)
-    if (q.length < 1) {
+    if (queries.length === 0) {
       setRows([])
       setLoading(false)
       return
@@ -264,16 +297,27 @@ export function SymbolSearchDialog({ open, onOpenChange, search, onPick, initial
     debounceRef.current = setTimeout(async () => {
       // Fetch the full match set (the backend caps at 500) so Cash/index rows are
       // present before client-side ranking floats them to the top.
-      const res = await search(q, undefined, 500)
+      const answers = await Promise.all(queries.map((one) => search(one, undefined, 500)))
       if (id !== reqIdRef.current) return // a newer keystroke won
-      setRows(res)
+      // Whole-box matches first, because a trader who typed a name containing a
+      // hyphen meant the name. Deduped on symbol and exchange together: one
+      // symbol legitimately exists on several.
+      const seen = new Set<string>()
+      const merged: SearchRow[] = []
+      for (const row of [...(answers[queries.indexOf(whole)] ?? []), ...answers.flat()]) {
+        const key = JSON.stringify([row.symbol, row.exchange])
+        if (seen.has(key)) continue
+        seen.add(key)
+        merged.push(row)
+      }
+      setRows(merged)
       setSel(0)
       setLoading(false)
     }, 180)
     return () => {
       if (debounceRef.current) clearTimeout(debounceRef.current)
     }
-  }, [leg, open, search])
+  }, [leg, query, open, search])
 
   useLayoutEffect(() => {
     if (caretRef.current === null) return
@@ -295,6 +339,7 @@ export function SymbolSearchDialog({ open, onOpenChange, search, onPick, initial
 
   /** Load this and close. The only path that leaves the dialog. */
   const pick = (row: SearchRow) => {
+    if (mode === 'comparison' && row.expression) return
     onPick(row)
     onOpenChange(false)
   }
@@ -307,8 +352,20 @@ export function SymbolSearchDialog({ open, onOpenChange, search, onPick, initial
    * in so a leg is never ambiguous: `NFO:NIFTY...CE` and `NSE:RELIANCE` resolve
    * without inheriting whatever the pane happens to be showing.
    */
+  /**
+   * A row the whole box already names is the instrument, not a leg.
+   *
+   * `splitLeg` treats `-` as an operator so a half-typed expression can look up
+   * its second leg, which means `BAJAJ-AUTO` has a prefix of `BAJAJ-` and picking
+   * its row spliced `NSE:BAJAJ-AUTO` onto the end instead of loading it. The
+   * row was found and could not be chosen, which is worse than not finding it:
+   * the instrument is on screen and clicking it does something else.
+   */
+  const namesWholeBox = (row: SearchRow): boolean =>
+    String(row.symbol).toUpperCase() === query.trim().toUpperCase()
+
   const chooseRow = (row: SearchRow) => {
-    if (prefix === '') {
+    if (prefix === '' || namesWholeBox(row)) {
       pick(row)
       return
     }
@@ -329,11 +386,15 @@ export function SymbolSearchDialog({ open, onOpenChange, search, onPick, initial
       // Arithmetic wins over the result list: the rows below are matches for
       // the last leg the user typed, and loading one of those would silently
       // discard the expression they built.
-      if (expression) {
+      const row = filtered[sel]
+      // An instrument whose own name parses as arithmetic beats the arithmetic
+      // reading of it. `BAJAJ-AUTO` is a subtraction to the grammar and an
+      // instrument to everybody else, and charting the subtraction is not a
+      // thing anybody typing it wanted.
+      if (expression && !(row && namesWholeBox(row))) {
         pick({ symbol: query.trim(), exchange: '', name: 'Computed chart', expression: true })
         return
       }
-      const row = filtered[sel]
       if (row) chooseRow(row)
     }
   }
@@ -341,10 +402,11 @@ export function SymbolSearchDialog({ open, onOpenChange, search, onPick, initial
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent
+        container={container}
         className="flex max-h-[80vh] w-full flex-col gap-0 overflow-hidden p-0 sm:max-w-2xl"
         onOpenAutoFocus={(e) => e.preventDefault()}
       >
-        <DialogTitle className="px-5 pt-5 pb-3 text-xl">Symbol Search</DialogTitle>
+        <DialogTitle className="px-5 pt-5 pb-3 text-xl">{title}</DialogTitle>
 
         {/* Search input */}
         <div className="flex items-center gap-2 border-y px-5 py-3">
@@ -354,40 +416,46 @@ export function SymbolSearchDialog({ open, onOpenChange, search, onPick, initial
             value={query}
             onChange={(e) => setQuery(e.target.value)}
             onKeyDown={onKeyDown}
-            placeholder="Search symbol, or build an expression…"
+            placeholder={
+              mode === 'comparison'
+                ? 'Search comparison symbol'
+                : 'Search symbol, or build an expression…'
+            }
             className="w-full bg-transparent text-base outline-none placeholder:text-muted-foreground"
-            aria-label="Search symbol"
+            aria-label={mode === 'comparison' ? 'Search comparison symbol' : 'Search symbol'}
           />
           {/* Each key carries its own label, so the row needs no group role of its
               own: a wrapper role here would only add a landmark with nothing to say. */}
-          <div className="flex shrink-0 items-center gap-0.5">
-            {OPERATORS.map((op) => (
-              <button
-                type="button"
-                key={op.insert}
-                title={op.title}
-                aria-label={op.title}
-                // `mousedown`, not `click`: the field must not lose focus first,
-                // or the caret position being written to is already gone.
-                onMouseDown={(e) => {
-                  e.preventDefault()
-                  const node = inputRef.current
-                  if (!node) return
-                  const start = node.selectionStart ?? query.length
-                  const end = node.selectionEnd ?? start
-                  const next =
-                    op.insert === '1/'
-                      ? `1/(${query.trim()})`
-                      : query.slice(0, start) + op.insert + query.slice(end)
-                  setQuery(next)
-                  caretRef.current = op.insert === '1/' ? next.length : start + op.insert.length
-                }}
-                className="flex h-6 w-6 items-center justify-center rounded text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-              >
-                {op.label}
-              </button>
-            ))}
-          </div>
+          {mode === 'symbol' && (
+            <div className="flex shrink-0 items-center gap-0.5">
+              {OPERATORS.map((op) => (
+                <button
+                  type="button"
+                  key={op.insert}
+                  title={op.title}
+                  aria-label={op.title}
+                  // `mousedown`, not `click`: the field must not lose focus first,
+                  // or the caret position being written to is already gone.
+                  onMouseDown={(e) => {
+                    e.preventDefault()
+                    const node = inputRef.current
+                    if (!node) return
+                    const start = node.selectionStart ?? query.length
+                    const end = node.selectionEnd ?? start
+                    const next =
+                      op.insert === '1/'
+                        ? `1/(${query.trim()})`
+                        : query.slice(0, start) + op.insert + query.slice(end)
+                    setQuery(next)
+                    caretRef.current = op.insert === '1/' ? next.length : start + op.insert.length
+                  }}
+                  className="flex h-6 w-6 items-center justify-center rounded text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+                >
+                  {op.label}
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Segment chips (broker-supported only) */}
@@ -458,9 +526,11 @@ export function SymbolSearchDialog({ open, onOpenChange, search, onPick, initial
           {expression ? (
             <>
               Press Enter to chart{' '}
-              <span className="font-medium text-foreground">{query.trim()}</span>. A computed
-              chart cannot be traded.
+              <span className="font-medium text-foreground">{query.trim()}</span>. A computed chart
+              cannot be traded.
             </>
+          ) : mode === 'comparison' ? (
+            'Search and select a symbol to compare with the current chart.'
           ) : (
             'Start typing to search, then press Enter to load the highlighted symbol. Operators build an expression.'
           )}
