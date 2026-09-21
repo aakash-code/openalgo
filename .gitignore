@@ -180,3 +180,13 @@ docs/audit/qa_audit/**/qa_sandbox_*.csv
 docs/audit/qa_audit/**/qa_live_*.csv
 # Excel writes a ~$-prefixed lock file next to any workbook left open.
 docs/audit/qa_audit/**/~$*
+
+# Runtime and study output. `log/` holds the app's own rotating logs plus the
+# evening studies, none of which belong in git -- a `git add -A` during a merge
+# swept a 4MB live app log into main on 2026-09-21. readme.md and
+# log/strategies/.gitignore are the only tracked things in here.
+log/*.out
+log/*.log
+log/errors.jsonl
+log/tf_boost_*.md
+log/tf_boost_*.txt
