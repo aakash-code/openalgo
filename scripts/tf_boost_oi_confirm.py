@@ -137,10 +137,17 @@ def oi_reading(bars, badge_min):
     now = at_minute(bars, badge_min)
     if not now or not now.get("oi"):
         return None
-    back = at_minute(bars, badge_min - LOOKBACK_MIN)
     first = bars[0][1] if bars else None
     if not first or not first.get("oi"):
         return None
+    # A badge inside the first half hour has no bar a full lookback behind it --
+    # 09:26 minus thirty minutes is before the market opened. Reaching for one
+    # and finding nothing returned an EMPTY reading, so the whole of the opening
+    # half hour scored "unknown": on 21-Sep-2026 that was 16 of 32 up badges and
+    # every one of the day's best runs, MANKIND and OFSS among them. The session
+    # open is the earliest real baseline, so the window shortens against it
+    # rather than the reading being thrown away.
+    back = at_minute(bars, badge_min - LOOKBACK_MIN) or first
 
     def delta(then):
         if not then or not then.get("oi"):
