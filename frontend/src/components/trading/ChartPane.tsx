@@ -1020,11 +1020,6 @@ export function ChartPane({
           </div>
         )}
 
-        {/* The layout picker sits here, immediately after Indicators, because
-            that is where a chart terminal puts it. It is page-level, so only
-            the first pane is given one. */}
-        {layoutPicker}
-
           <ComparisonMenu
             state={comparisons}
             disabled={
