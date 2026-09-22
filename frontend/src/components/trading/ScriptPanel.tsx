@@ -157,6 +157,14 @@ interface Props {
    */
   onAddToChart: (indicatorId: string) => boolean
   /**
+   * Test this strategy over the chart's history and mark what it did.
+   *
+   * Answers a boolean for the same reason `onAddToChart` does: a button that
+   * does nothing and says nothing is the failure this panel keeps being caught
+   * by. False means there was no chart to test against.
+   */
+  onBacktest?: (file: string) => boolean
+  /**
    * A script to open as soon as the panel is up, from the braces button on a
    * study's legend row.
    *
@@ -170,7 +178,7 @@ interface Props {
   onOpened?: () => void
 }
 
-export function ScriptPanel({ onAddToChart, openFile = null, onOpened }: Props) {
+export function ScriptPanel({ onAddToChart, onBacktest, openFile = null, onOpened }: Props) {
   const [scripts, setScripts] = useState<StoredScript[] | null>(null)
   const [listError, setListError] = useState<string | null>(null)
   const [open, setOpen] = useState<string | null>(null)
@@ -511,6 +519,23 @@ export function ScriptPanel({ onAddToChart, openFile = null, onOpened }: Props) 
    */
   const applyToChart = useCallback(() => {
     if (open === null) return
+
+    // Applying a strategy means testing it over the chart's history and marking
+    // what it did, which is the only thing "apply" can honestly mean for a
+    // script that trades: the chart tier draws and does not trade, so a
+    // strategy is not in the indicator list and adding it there was refused by
+    // the engine with OS6006. Handed to the backtest instead of refused.
+    if (kind === 'strategy') {
+      if (onBacktest?.(open)) return
+      setResult((previous) => ({
+        ok: previous?.ok ?? false,
+        diagnostics: previous?.diagnostics ?? [],
+        problem: 'There is no chart open to test this strategy against.',
+      }))
+      setConsoleOpen(true)
+      return
+    }
+
     if (onAddToChart(idForScript(open))) return
     setResult((previous) => ({
       ok: previous?.ok ?? false,
@@ -518,7 +543,7 @@ export function ScriptPanel({ onAddToChart, openFile = null, onOpened }: Props) 
       problem: 'There is no chart open to add this study to.',
     }))
     setConsoleOpen(true)
-  }, [open, onAddToChart])
+  }, [kind, onBacktest, open, onAddToChart])
 
   // Ctrl+S is what anyone editing text reaches for, and without it the browser
   // opens its own save dialog over the panel.

@@ -39,6 +39,13 @@ export interface OpenScriptLoad {
   loaded: string[]
   /** Per-script failures, already written for a trader to read. */
   errors: { file: string; message: string }[]
+  /**
+   * Scripts the chart tier cannot run, with the capability that stopped each.
+   *
+   * Not an error and not a silence: a caller that lists what loaded can say
+   * why a strategy is missing from it rather than leaving the trader to wonder.
+   */
+  skipped: { file: string; needs: string }[]
 }
 
 const INDEX_URL = '/openscript/index.json'
@@ -57,6 +64,27 @@ const compiled = new Set<string>()
 function messageOf(error: unknown): string {
   if (error instanceof Error && error.message) return error.message
   return String(error)
+}
+
+/**
+ * What the chart tier can run, read off the program rather than off the file.
+ *
+ * A compiled program declares the capabilities it needs in `requires`, and the
+ * chart tier grants the drawing ones and not `orders`: it plots, it does not
+ * trade. Registering a program that needs `orders` produced a study a trader
+ * could add and the engine then refused at load with OS6006, a message about
+ * capability tags shown to somebody who had only pressed a button in a list.
+ *
+ * Checked against the program's own declaration and not against whether the
+ * source says `study` or `strategy`, because `requires` is the same fact the
+ * engine tests. A strategy that placed no orders would be runnable here and a
+ * study that somehow needed them would not, and both would be right.
+ */
+function needsMoreThanTheChartCanGive(program: unknown): string | null {
+  const requires = (program as { requires?: unknown })?.requires
+  if (!Array.isArray(requires)) return null
+  const beyond = requires.filter((tag) => tag === 'orders')
+  return beyond.length > 0 ? String(beyond[0]) : null
 }
 
 /**
@@ -100,7 +128,7 @@ async function programFor(file: string, text: string): Promise<unknown> {
  * fix, which the chart already puts in front of the trader.
  */
 export async function loadOpenScriptStudies(): Promise<OpenScriptLoad> {
-  const result: OpenScriptLoad = { loaded: [], errors: [] }
+  const result: OpenScriptLoad = { loaded: [], errors: [], skipped: [] }
 
   let stored: StoredScript[]
   try {
@@ -129,9 +157,30 @@ export async function loadOpenScriptStudies(): Promise<OpenScriptLoad> {
       const text = await response.text()
 
       const program = await programFor(script.file, text)
+
+      // **A strategy is registered like a study, and draws like one.** It has
+      // plots, a title and settings exactly as a study does, and until now none
+      // of them reached the chart: a trader who saved a strategy opened the
+      // indicator list and could not find it, so its lines came from a separate
+      // study they had to keep in step by hand.
+      //
+      // `simulateOrders` is what makes that safe. Without it the engine refuses
+      // a program that places orders, and with a destination that answered
+      // nothing it would run while never learning it holds a position: every
+      // close closing nothing, every entry allowed again on the next signal,
+      // and the plots wrong wherever they read the position. The language runs
+      // it against the venue its own backtest uses instead, so what is drawn
+      // here and what a report of the same script says are one answer.
+      //
+      // **It places nothing.** The venue is a simulation inside the browser;
+      // the chart has no route to the platform and is given none. Trading is
+      // what the strategies panel is for, and the panel says so on screen.
+      const trades = needsMoreThanTheChartCanGive(program) !== null
+
       const descriptor = descriptorFor(program as never, {
         id: idForScript(script.file),
         category: 'OpenScript',
+        ...(trades ? { simulateOrders: true } : {}),
       })
       // `hasSource` puts a braces button on this study's legend row, which the
       // chart turns into an `indicatorSource` event and the terminal turns back

@@ -8,7 +8,18 @@
  * closes it.
  */
 
-import { Bell, Bot, FileCode2, Layers, List, Shapes, Table2, Zap } from 'lucide-react'
+import {
+  Activity,
+  Bell,
+  Bot,
+  FileCode2,
+  FlaskConical,
+  Layers,
+  List,
+  Shapes,
+  Table2,
+  Zap,
+} from 'lucide-react'
 import { useEffect, useRef } from 'react'
 import { cn } from '@/lib/utils'
 import { RAIL_BTN, RAIL_BTN_ON, RAIL_ICON_STROKE, RailTip } from './railStyles'
@@ -31,6 +42,15 @@ const PANELS = [
   // an alert line is one of the things drawn on it.
   { id: 'alerts', label: 'Alerts', icon: Bell },
   { id: 'scripts', label: 'Scripts', icon: FileCode2 },
+  // Beside the editor, because writing a strategy and asking what it would
+  // have done are one activity seen twice, and a trader moves between the two
+  // constantly while a strategy is taking shape.
+  { id: 'backtest', label: 'Backtest', icon: FlaskConical },
+  // After the backtest, because that is the order the work happens in: a
+  // strategy is written, tested over history, and only then run. This is the
+  // one panel whose rows are processes on the server rather than things in
+  // this tab, and they outlive it.
+  { id: 'strategies', label: 'Strategies', icon: Activity },
   { id: 'agent', label: 'Assistant', icon: Bot },
   // Below the assistant because it is the newest surface and the one a trader
   // reaches for last: the badged names, and the contracts liquid enough to
