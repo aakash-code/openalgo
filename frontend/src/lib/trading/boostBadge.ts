@@ -48,6 +48,52 @@ export function badgeFor(event: string | undefined): BadgeStyle | undefined {
   return event ? MOVEMENT_BADGE[event] : undefined
 }
 
+/** What a row last badged as, and when. Keeping the badge itself -- not just a
+ * timestamp -- is what lets a row held by the sticky window still show the
+ * reason it is on screen. A row with nothing rendered beside it reads as a
+ * filter that leaked, which is how the first version of this looked. */
+export interface BadgeSighting extends BadgeStyle {
+  at: number
+}
+
+/** Record that each `[key, badge]` (`view:symbol`) was badged at `now`, keeping
+ * earlier sightings still inside `windowMs` and dropping the rest.
+ *
+ * The merge is the point. The backend classifies only transitions on the latest
+ * observed minute, so LARGE_JUMP and TOP10_ENTRY are gone by the next poll --
+ * replacing the map instead of merging would forget the mover a minute after it
+ * moved, which is exactly the miss the badged-only filter exists to prevent.
+ * Pruning here rather than at the point of use keeps the map bounded by the
+ * window instead of by everything that badged all session. */
+export function stampBadgeSightings(
+  prev: Map<string, BadgeSighting>,
+  seen: Iterable<[string, BadgeStyle]>,
+  now: number,
+  windowMs: number
+): Map<string, BadgeSighting> {
+  const cutoff = now - windowMs
+  const next = new Map([...prev].filter(([, s]) => s.at >= cutoff))
+  for (const [key, badge] of seen) next.set(key, { ...badge, at: now })
+  return next
+}
+
+/** The sighting for `key` if it is still inside the window, else undefined. */
+export function badgedWithin(
+  seenAt: Map<string, BadgeSighting>,
+  key: string,
+  now: number,
+  windowMs: number
+): BadgeSighting | undefined {
+  const s = seenAt.get(key)
+  return s && s.at >= now - windowMs ? s : undefined
+}
+
+/** "just now" / "4m" -- how long ago a sticky row last badged. */
+export function badgeAge(at: number, now: number): string {
+  const mins = Math.floor((now - at) / 60_000)
+  return mins < 1 ? 'now' : `${mins}m`
+}
+
 /** A minute-of-day as a clock time: 574 reads as 09:34.
  *
  * The recorder samples twice a minute, so the value can carry a half -- 604.5

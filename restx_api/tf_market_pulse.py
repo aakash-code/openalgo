@@ -12,6 +12,10 @@ from services.tf_directional_score_service import (
     ensure_directional_score_cache,
 )
 from services.tf_first_candle_service import attach_first_candle, ensure_first_candle_cache
+from services.tf_future_liquidity_service import (
+    attach_future_liquidity,
+    ensure_future_liquidity_cache,
+)
 from services.tradefinder_service import fetch_market_pulse
 from utils.logging import get_logger
 
@@ -21,7 +25,7 @@ API_RATE_LIMIT = os.getenv("API_RATE_LIMIT", "10 per second")
 api = Namespace(
     "tfmarketpulse",
     description="TradeFinder market_pulse (Intraday Boost / Breakout Beacon / High Powered) "
-                 "via the server's own auto-refreshing JWT — no client-pasted token needed",
+    "via the server's own auto-refreshing JWT — no client-pasted token needed",
 )
 
 logger = get_logger(__name__)
@@ -54,10 +58,12 @@ class TfMarketPulse(Resource):
             result = fetch_market_pulse()
             if result is None:
                 return make_response(
-                    jsonify({
-                        "status": "error",
-                        "message": "Server-side TradeFinder token unavailable or expired",
-                    }),
+                    jsonify(
+                        {
+                            "status": "error",
+                            "message": "Server-side TradeFinder token unavailable or expired",
+                        }
+                    ),
                     200,
                 )
 
@@ -78,6 +84,14 @@ class TfMarketPulse(Resource):
                 # than once per day (see services/tf_directional_score_service.py).
                 ensure_directional_score_cache(boost_symbols, auth_token, broker)
                 attach_directional_score(result["intraday_boost"])
+
+                # Current-month future tradeability: same non-blocking pattern,
+                # refreshed every 60s because spread moves through the session.
+                # Unlike the three above, the whole list is ONE broker call --
+                # the multiquote path batches (see the service's module docstring
+                # for why this reads the live book and not the bhavcopy).
+                ensure_future_liquidity_cache(boost_symbols, auth_token, broker)
+                attach_future_liquidity(result["intraday_boost"])
 
             return make_response(jsonify({"status": "success", "data": result}), 200)
 

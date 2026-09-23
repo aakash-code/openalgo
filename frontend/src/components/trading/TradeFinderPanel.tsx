@@ -29,6 +29,7 @@ import {
   TrendingUp,
 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
+import { optionChainApi } from '@/api/option-chain'
 import {
   type BoostMovementRow,
   type BoostSnapshotsResponse,
@@ -53,8 +54,19 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
-import { MOVEMENT_BADGE, minuteOfDay, UNPROVEN_EVENTS } from '@/lib/trading/boostBadge'
+import {
+  type BadgeSighting,
+  type BadgeStyle,
+  badgeAge,
+  badgedWithin,
+  badgeFor,
+  MOVEMENT_BADGE,
+  minuteOfDay,
+  stampBadgeSightings,
+  UNPROVEN_EVENTS,
+} from '@/lib/trading/boostBadge'
 import type { SearchRow } from '@/lib/trading/terminal'
+import { tradableSymbol } from '@/lib/trading/tfSymbol'
 import { cn } from '@/lib/utils'
 import { showToast } from '@/utils/toast'
 import { PANEL_HEADER, PanelShell } from './panelShell'
@@ -90,6 +102,21 @@ const CONSOLIDATION_RANGE_MAX_PCT = 1.5
 /** The latest price must clear the base's high by at least this much to
  * count as a breakout rather than noise. */
 const BREAKOUT_MARGIN_PCT = 0.5
+/** How long a row stays in the badged-only view after its last badge.
+ *
+ * Not cosmetic. The backend classifies only transitions that happened on the
+ * latest observed minute (`tf_rank_movement_service.classify_event`), so a rank
+ * jump or a Top-10 entry is a ONE-MINUTE event -- filtering on "badged right
+ * now" would show the mover for a single poll and then drop it, which is the
+ * miss this filter exists to prevent. Only SUSTAINED_* and the clean runs
+ * persist on their own. */
+const BADGE_STICKY_MS = 15 * 60_000
+
+/** The client-side detectors have no MOVEMENT_BADGE entry, so the sticky chip
+ * needs a name for them. Matches what MomentumBadge renders live. */
+const CLIMB_BADGE = { text: 'CLIMB', className: 'text-emerald-500' }
+const BREAKOUT_BADGE = { text: 'BRKOUT', className: 'text-sky-400' }
+
 const CPR_FILTERS = [
   { id: 'all', label: 'All' },
   { id: 'bullish', label: 'Bullish only' },
@@ -150,6 +177,18 @@ interface Features {
    * list to its N highest directional_score rows -- "identify the
    * directional stock" without scanning past the choppy ones by eye. */
   topN: number | null
+  /** Row clicks chart the stock's current-month NFO future instead of the
+   * NSE equity. Falls back to equity with a toast when a stock has no
+   * listed futures (most of the list -- F&O eligibility is a small subset). */
+  clickToFuture: boolean
+  /** Narrows the ranked list to rows that have badged within
+   * BADGE_STICKY_MS. The list runs to ~200 symbols, which is more than
+   * anyone scans, and the badged rows are what the panel exists to surface. */
+  badgedOnly: boolean
+  /** Shows how tradeable each row's current-month future is. Marks, never
+   * hides -- a thin contract is a warning to price in, not a reason to lose
+   * sight of a mover. */
+  futureLiquidity: boolean
 }
 
 const DEFAULT_FEATURES: Features = {
@@ -178,6 +217,9 @@ const DEFAULT_FEATURES: Features = {
   baseBreakoutAlert: false,
   movementAlerts: false,
   topN: null,
+  clickToFuture: false,
+  badgedOnly: false,
+  futureLiquidity: false,
 }
 
 function readFeatures(): Features {
@@ -523,6 +565,74 @@ function runAge(minutes: number): string {
   return `${hours}h${String(Math.round(minutes - hours * 60)).padStart(2, '0')}`
 }
 
+/** The chip on a row the badged-only filter is holding past its live badge.
+ *
+ * Deliberately dimmed and struck through: it says "this badged, and no longer
+ * is", which is the one thing a bare row could not say. A row kept by the
+ * window with nothing rendered beside it reads as the filter having leaked --
+ * that is exactly how the first version of this was reported. */
+function FadedBadge({ sighting }: { sighting: BadgeSighting | undefined }) {
+  if (!sighting) return null
+  const ago = badgeAge(sighting.at, Date.now())
+  return (
+    <span
+      className={cn('shrink-0 text-[9px] tabular-nums opacity-40', sighting.className)}
+      title={`Badged ${sighting.text} ${ago === 'now' ? 'moments ago' : `${ago} ago`}. Kept on screen for 15 minutes after its badge, because rank jumps and Top-N entries only last a minute.`}
+    >
+      <span className="line-through">{sighting.text}</span> {ago}
+    </span>
+  )
+}
+
+/** How tradeable the row's current-month future is.
+ *
+ * An option tracks its future, so the cost of crossing that book is the cost of
+ * getting out. Only the wide case is coloured -- a tight book is the normal
+ * case and does not need to shout. Measured 22-Sep-2026 across 19 contracts:
+ * TITAN quoted 0.010% while IEX quoted 0.168%, on the same list, at the same
+ * moment. */
+function LiquidityChip({ item }: { item: TfListItem }) {
+  if (!item.fut_symbol) {
+    return (
+      <span
+        className="shrink-0 text-[9px] text-muted-foreground/60"
+        title="No listed future for this stock, so it has no options either."
+      >
+        NO FUT
+      </span>
+    )
+  }
+  if (item.fut_spread_pct == null) {
+    return (
+      <span
+        className="shrink-0 text-[9px] text-muted-foreground/60"
+        title={`${item.fut_symbol} is not quoting a two-sided price right now -- normal outside market hours.`}
+      >
+        —
+      </span>
+    )
+  }
+  const wide = item.fut_tier === 'wide'
+  const turnover =
+    item.fut_turnover_cr != null ? `, ${item.fut_turnover_cr.toFixed(0)} cr traded today` : ''
+  return (
+    <span
+      className={cn(
+        'shrink-0 text-[9px] tabular-nums',
+        wide ? 'text-amber-500' : 'text-muted-foreground/60'
+      )}
+      title={`${item.fut_symbol} has been quoted ${item.fut_spread_pct}% wide over the last few minutes (latest tick ${item.fut_spread_rs} rupees)${turnover}. ${
+        wide
+          ? 'Crossing this costs real money each way, and an option on it will be harder to leave than to enter.'
+          : 'Normal for this list.'
+      } Typical over a short window, not this instant -- a single reading swings too much to act on.`}
+    >
+      {wide ? 'WIDE ' : ''}
+      {item.fut_spread_pct.toFixed(2)}%
+    </span>
+  )
+}
+
 function MovementBadge({ mv }: { mv: BoostMovementRow }) {
   const badge = MOVEMENT_BADGE[mv.event]
   if (!badge) return null
@@ -672,6 +782,15 @@ function FeatureSettings({
         checked={features.addToWatchlist}
         onChange={(v) => set('addToWatchlist', v)}
       />
+      <FeatureRow
+        label="Click loads current-month future"
+        checked={features.clickToFuture}
+        onChange={(v) => set('clickToFuture', v)}
+      />
+      <span className="block pb-1 text-[10px] text-muted-foreground">
+        Row clicks chart the stock's NFO future for the current month instead of the equity. Falls
+        back to equity if it has no listed futures.
+      </span>
 
       <ScopeHeader
         title="Ranked lists only"
@@ -790,6 +909,25 @@ function FeatureSettings({
       <span className="block pb-1 text-[10px] text-muted-foreground">
         Toasts a new Top-10 entry, fast climb or rank jump on the active list. The badges show
         either way.
+      </span>
+      <FeatureRow
+        label="Future liquidity"
+        checked={features.futureLiquidity}
+        onChange={(v) => set('futureLiquidity', v)}
+      />
+      <span className="block pb-1 text-[10px] text-muted-foreground">
+        Shows how wide each stock's current-month future is quoted right now. An option follows its
+        future, so a wide book there is what makes a position hard to leave. Marked, never hidden.
+      </span>
+      <FeatureRow
+        label="Show only badged movers"
+        checked={features.badgedOnly}
+        onChange={(v) => set('badgedOnly', v)}
+      />
+      <span className="block pb-1 text-[10px] text-muted-foreground">
+        Hides rows with no badge, so a mover cannot get lost among 200 symbols. A row stays for 15
+        minutes after its badge -- rank jumps and Top-N entries only last a minute, so filtering on
+        the live badge alone would drop them again straight away.
       </span>
       <label className="flex flex-col gap-0.5 py-1 text-[12px]">
         <span className="text-foreground">Columns</span>
@@ -982,6 +1120,11 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
   /** Why the badges are missing, when they are. Null means they simply are not
    * due yet -- the engine needs ten of today's snapshots before it calls a run. */
   const [movementError, setMovementError] = useState<string | null>(null)
+  /** `view:symbol` -> the badge that row last carried and when, from any of the
+   * three sources. Merged, never replaced: this map IS the memory that keeps a
+   * one-minute jump visible for BADGE_STICKY_MS, and carrying the badge itself
+   * is what lets such a row still show why it is on screen. */
+  const [badgeSeenAt, setBadgeSeenAt] = useState<Map<string, BadgeSighting>>(new Map())
   /** Symbols already toasted today for each detector -- same dedup shape as
    * alertedSymbolsRef, but never cleared mid-session (unlike scoreCrossAlert,
    * a climb/breakout is a one-time event for the day, not a level that can
@@ -1187,6 +1330,32 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
    * do not show. */
   const badgedCount = [...movement.values()].filter((mv) => MOVEMENT_BADGE[mv.event]).length
 
+  /** True if `symbol` carries a badge right now, from any of the three sources.
+   * They are separate structures with two different key shapes -- `movement` is
+   * keyed by bare symbol, the two client-side detectors by `view:symbol`. */
+  const isBadgedNow = (symbol: string) =>
+    Boolean(badgeFor(movement.get(symbol)?.event)) ||
+    climbFlags.has(`${view}:${symbol}`) ||
+    breakoutFlags.has(`${view}:${symbol}`)
+
+  /* Stamp every currently-badged symbol, merging into what is already there.
+     Replacing the map instead of merging would forget the one-minute events the
+     moment the backend stops reporting them, which is the whole point of it. */
+  useEffect(() => {
+    const badged: [string, BadgeStyle][] = []
+    for (const [symbol, mv] of movement) {
+      const badge = badgeFor(mv.event)
+      if (badge) badged.push([`${view}:${symbol}`, badge])
+    }
+    // The two client-side detectors are already `view:symbol` keyed. They carry
+    // no MOVEMENT_BADGE entry of their own, so name them for the sticky chip.
+    for (const key of climbFlags.keys()) badged.push([key, CLIMB_BADGE])
+    for (const key of breakoutFlags.keys()) badged.push([key, BREAKOUT_BADGE])
+    if (badged.length === 0) return
+    const now = Date.now()
+    setBadgeSeenAt((prev) => stampBadgeSightings(prev, badged, now, BADGE_STICKY_MS))
+  }, [movement, climbFlags, breakoutFlags, view])
+
   /* ── rank-movement alerts: toast a NEW salient backend event. The first
      populated poll of each list only sets a baseline (otherwise every event
      already in progress toasts at once), and the toggle-off path keeps that
@@ -1323,7 +1492,33 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
 
   const chartSymbol = (symbol: string) => {
     if (!symbol) return
-    onPick({ symbol, exchange: 'NSE' })
+    if (!features.clickToFuture) {
+      onPick({ symbol, exchange: 'NSE' })
+      return
+    }
+    const broker = tradableSymbol(symbol)
+    optionChainApi
+      .getExpiries(apiKey, broker, 'NFO', 'futures')
+      .then((res) => {
+        const nearest = res.data?.[0]
+        if (!nearest) {
+          showToast.info(
+            `No monthly futures contract listed for ${symbol} -- showing equity instead.`
+          )
+          onPick({ symbol, exchange: 'NSE' })
+          return
+        }
+        onPick({
+          symbol: `${broker}${nearest.replace(/-/g, '').toUpperCase()}FUT`,
+          exchange: 'NFO',
+        })
+      })
+      .catch(() => {
+        showToast.info(
+          `No monthly futures contract listed for ${symbol} -- showing equity instead.`
+        )
+        onPick({ symbol, exchange: 'NSE' })
+      })
   }
 
   /** Adds to whichever list WatchlistPanel currently has open -- reads the
@@ -1501,6 +1696,24 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
   if (features.cprFilter !== 'all') {
     listRows = listRows.filter((r) => r.cpr_bias === features.cprFilter)
   }
+  // What the earlier filters left, so the empty state can tell whether it was
+  // THIS filter that emptied the list. Blaming the badge filter for a list the
+  // score threshold had already cleared sends the reader to switch off a toggle
+  // that was never the cause.
+  const rowsBeforeBadgeFilter = listRows.length
+  // Before the pinning partition, so pinning and topN operate on the reduced
+  // set. Reads the sticky map rather than the live badge, so a row that jumped
+  // a few minutes ago is still here to be clicked.
+  if (features.badgedOnly) {
+    const now = Date.now()
+    listRows = listRows.filter(
+      (r) =>
+        Boolean(badgedWithin(badgeSeenAt, `${view}:${r.symbol}`, now, BADGE_STICKY_MS)) ||
+        // The effect that stamps has not run yet on the poll a badge first
+        // arrives, so read the live badge too or the row blinks once.
+        isBadgedNow(r.symbol)
+    )
+  }
   if (features.pinning && pinnedSet.size > 0) {
     // Stable partition, not a re-sort: everything keeps the rank order the
     // backend gave it, pinned rows just move as a block to the front.
@@ -1676,7 +1889,13 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
               <p className="p-3 text-[12px] text-muted-foreground">Loading TradeFinder list…</p>
             ) : listRows.length === 0 ? (
               <p className="p-3 text-[12px] text-muted-foreground">
-                {search.trim() ? 'No symbols match.' : 'No symbols in this list right now.'}
+                {search.trim()
+                  ? 'No symbols match.'
+                  : features.badgedOnly && rowsBeforeBadgeFilter > 0
+                    ? // Without this the filter looks like a broken panel: the
+                      // list is live and full, it just has nothing badged yet.
+                      `Nothing has badged in the last 15 minutes. ${rowsBeforeBadgeFilter} symbols on the list are quiet -- switch off "Show only badged movers" to see them.`
+                    : 'No symbols in this list right now.'}
               </p>
             ) : (
               listRows.map((item, i) => (
@@ -1730,6 +1949,20 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
                         <MomentumBadge
                           kind="breakout"
                           detail={breakoutFlags.get(`${view}:${item.symbol}`)!}
+                        />
+                      )}
+                      {/* Held by the sticky window with nothing live to show.
+                          Without this the row renders bare and reads as the
+                          filter having leaked, which is what it looked like. */}
+                      {features.futureLiquidity && <LiquidityChip item={item} />}
+                      {features.badgedOnly && !isBadgedNow(item.symbol) && (
+                        <FadedBadge
+                          sighting={badgedWithin(
+                            badgeSeenAt,
+                            `${view}:${item.symbol}`,
+                            Date.now(),
+                            BADGE_STICKY_MS
+                          )}
                         />
                       )}
                     </span>

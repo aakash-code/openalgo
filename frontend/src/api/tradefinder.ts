@@ -19,6 +19,17 @@ export interface TfListItem {
   /** Sign flips in the candle-to-candle move since the open -- the concrete
    * number behind "without hiccups." */
   directional_reversals?: number | null
+  /** How tradeable this stock's current-month future is right now. An option
+   * tracks its future, so a wide or empty book there is what turns an exit
+   * into a wait. Read from the live book, refreshed ~60s; null outside market
+   * hours and for a stock with no listed future (`fut_symbol` null). */
+  fut_symbol?: string | null
+  fut_spread_pct?: number | null
+  fut_spread_rs?: number | null
+  /** Rupees traded today, in crore -- comparable across contracts in a way raw
+   * volume is not, since lot size and price both vary. */
+  fut_turnover_cr?: number | null
+  fut_tier?: 'tight' | 'ok' | 'wide' | null
 }
 
 export interface MarketPulseData {
