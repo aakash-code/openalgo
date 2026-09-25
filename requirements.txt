@@ -70,6 +70,7 @@ matplotlib-inline==0.2.2
 mcp==1.28.1
 mdurl==0.1.2
 msgpack==1.2.2
+openpyxl==3.1.5
 opengreeks==0.2.0
 narwhals==2.25.0
 nbformat==5.11.1
@@ -149,3 +150,22 @@ zipp==3.23.1
 # Portfolio analytics for the Portfolio Backtester (metrics + tearsheets).
 # Pure-NumPy kernels -- no Numba, so nothing pins numpy's upper bound.
 openstatz==0.4.1
+
+# The engine that runs a compiled OpenScript strategy on the server. Without it
+# a native install shows the OpenScript editor but cannot run a strategy.
+openscript==0.5.0
+
+# The /agent module and the /trading agent side tab. They are imported only when
+# someone uses the agent, so a missing package does not stop the app starting;
+# it fails the first chat instead.
+litellm==1.99.0
+agno==3.0.5
+ddgs>=9.16.0
+
+# TF JWT keep-alive's headless/headed browser login (services/tf_jwt_keepalive_service.py,
+# strategies/tf_auth.py, strategies/tf_login_setup.py).
+playwright==1.63.0
+
+# xlsx report export for the security-audit skill and progress bars for its
+# longer-running scripts.
+tqdm==4.70.0

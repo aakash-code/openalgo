@@ -1493,6 +1493,9 @@ def test_subscribe_reads_depth_under_either_key_before_defaulting(
     proxy.user_broker_mapping = {"alice": "angel"}
     proxy.subscriptions = {7: set()}
     proxy.subscription_index = defaultdict(set)
+    # Set by __init__ in production; subscribe_client's stale-feed diagnostic
+    # timer reads it unconditionally, so this bare fixture needs it too.
+    proxy._subscription_started_at = {}
     responses: list[dict[str, Any]] = []
 
     async def capture(_client_id: int, response: dict[str, Any]) -> None:
