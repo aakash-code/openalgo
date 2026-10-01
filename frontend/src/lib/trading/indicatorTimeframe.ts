@@ -359,7 +359,12 @@ export function withTimeframe(core: Core, d: IndicatorDescriptor): IndicatorDesc
         // Never flash the chart-timeframe values while the higher bars load.
         return nullValues(d.calc(bars, settings, store, ctx), bars.length)
       }
-      const higher = buildHigherBars(core, state.bars, bars, want.tfSec, ctx?.timezone, want.tf)
+      // Nothing past the chart's last bar: in bar replay the fetched history runs
+      // to today, and the period under the replay cursor would otherwise show
+      // its final value, i.e. the future. Cut there and let the fold rebuild it.
+      const end = bars.length > 0 ? bars[bars.length - 1].time : Number.POSITIVE_INFINITY
+      const known = state.bars.filter((b) => b.time <= end)
+      const higher = buildHigherBars(core, known, bars, want.tfSec, ctx?.timezone, want.tf)
       const last = higher.length - 1
       const hctx: IndicatorCalcContext | undefined = ctx && {
         ...ctx,

@@ -165,6 +165,22 @@ describe('withTimeframe', () => {
     expect(after! - before!).toBeCloseTo(10) // +30 on one of three closes
   })
 
+  it('never reads past the chart in bar replay', () => {
+    const all = sessions(2)
+    const h = hourly(all)
+    // Replay stopped at 10:20 on day 2: the fetched history still runs to the end.
+    const cursor = all.findIndex((b) => b.time === DAY1 + 86_400 + 13 * 300)
+    const shown = all.slice(0, cursor + 1)
+    const w = withTimeframe(core, smaStudy())
+    const v = run(w, shown, h, '1h').values.sma
+    // The same as if the 1h history had only ever reached 10:20.
+    const upTo = hourly(shown)
+    const expected = smaStudy().calc(upTo, { length: 3 }, {}, ctx('1h')).sma.at(-1)
+    expect(v.at(-1)).toBeCloseTo(expected as number)
+    const leaked = smaStudy().calc(h, { length: 3 }, {}, ctx('1h')).sma[upTo.length - 1]
+    expect(v.at(-1)).not.toBeCloseTo(leaked as number)
+  })
+
   it('shows nothing while the higher bars are loading', () => {
     const { values } = run(withTimeframe(core, smaStudy()), sessions(1), null, '1h')
     expect(values.sma.every((v) => v === null)).toBe(true)
