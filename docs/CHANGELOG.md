@@ -19,6 +19,8 @@ files and OpenScript studies. It works like TradingView's: put a 1h EMA on a
   period still forming updates with every tick, built from the chart's own bars.
 - Lines, boxes, labels and markers an indicator draws are placed at their real
   times on the lower chart.
+- **Wait for timeframe closes**, as on TradingView: each value appears on the
+  first bar after its period closes and never moves while the next one forms.
 - Only higher timeframes are offered, including W, M, Q and Y. A layout saved
   with a timeframe that is now at or below the chart's, for example after
   switching the chart from 5m to D, still loads: the indicator runs on the

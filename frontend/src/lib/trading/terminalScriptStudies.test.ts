@@ -258,12 +258,15 @@ plot(close * mult, "Upper")
     await vi.waitFor(() => expect(onIndicatorSettings).toHaveBeenCalled())
 
     const [request] = onIndicatorSettings.mock.calls[0]
+    // The script's own input, then the Timeframe pair every study gets.
     expect(request.inputs).toEqual([
       expect.objectContaining({
         label: 'Width',
         group: 'Bands',
         tooltip: 'Standard deviations either side.',
       }),
+      expect.objectContaining({ key: 'tf', group: 'Timeframe' }),
+      expect.objectContaining({ key: 'tfWait', group: 'Timeframe' }),
     ])
   })
 })

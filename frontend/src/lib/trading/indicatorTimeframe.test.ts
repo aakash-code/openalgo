@@ -92,7 +92,8 @@ function run(d: IndicatorDescriptor, bars: Bar[], fetched: Bar[] | null, tf: str
 describe('withTimeframe', () => {
   it('adds a Timeframe input and is idempotent', () => {
     const w = withTimeframe(core, smaStudy())
-    expect(w.inputs.at(-1)).toMatchObject({ key: 'tf', type: 'interval', default: '' })
+    expect(w.inputs.at(-2)).toMatchObject({ key: 'tf', type: 'interval', default: '' })
+    expect(w.inputs.at(-1)).toMatchObject({ key: 'tfWait', type: 'boolean', default: false })
     expect(withTimeframe(core, w)).toBe(w)
   })
 
@@ -134,6 +135,23 @@ describe('withTimeframe', () => {
     const hour = values.sma.slice(36, 48)
     expect(new Set(hour).size).toBe(1)
     expect(hour[0]).not.toBeNull()
+  })
+
+  it('waits for the close: each hour shows the previous completed hour, fixed', () => {
+    const bars = sessions(3)
+    const h = hourly(bars)
+    const w = withTimeframe(core, smaStudy())
+    const store = { __mtf: { key: 'k', bars: h.slice(0, -1), coveredFrom: 0 } }
+    const live = w.calc(bars, { length: 3, tf: '1h' }, store, ctx('5m')).sma
+    const waited = w.calc(bars, { length: 3, tf: '1h', tfWait: true }, store, ctx('5m')).sma
+    // Bar 48 opens the 13:15 hour on day 1: waiting shows 12:15's final value.
+    expect(waited[48]).toBe(live[47])
+    expect(waited.slice(48, 60).every((v) => v === live[47])).toBe(true)
+    // The forming hour moves the live value, never the waited one.
+    const moved = bars.slice()
+    moved[moved.length - 1] = { ...moved.at(-1)!, close: moved.at(-1)!.close + 30 }
+    const waitedAfter = w.calc(moved, { length: 3, tf: '1h', tfWait: true }, store, ctx('5m')).sma
+    expect(waitedAfter.at(-1)).toBe(waited.at(-1))
   })
 
   it('moves the forming hour with the last 5m bar', () => {

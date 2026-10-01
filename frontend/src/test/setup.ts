@@ -7,6 +7,69 @@ afterEach(() => {
   cleanup()
 })
 
+// Web Storage on Node 25 and later.
+//
+// Those releases define their own global localStorage and sessionStorage,
+// which read as undefined unless Node is started with --localstorage-file, and
+// they shadow jsdom's. Every test touching storage then failed locally while CI
+// (Node 20 to 24) passed. An in-memory store stands in only when that happens,
+// with its methods on Storage.prototype so a test can still stub them there.
+if (!globalThis.localStorage) {
+  const data = new WeakMap<object, Map<string, string>>()
+  const of = (s: object) => {
+    let m = data.get(s)
+    if (!m) data.set(s, (m = new Map()))
+    return m
+  }
+  const proto = globalThis.Storage.prototype
+  Object.defineProperties(proto, {
+    length: {
+      configurable: true,
+      get(this: object) {
+        return of(this).size
+      },
+    },
+    clear: {
+      configurable: true,
+      writable: true,
+      value(this: object) {
+        of(this).clear()
+      },
+    },
+    getItem: {
+      configurable: true,
+      writable: true,
+      value(this: object, k: string) {
+        return of(this).get(k) ?? null
+      },
+    },
+    key: {
+      configurable: true,
+      writable: true,
+      value(this: object, i: number) {
+        return [...of(this).keys()][i] ?? null
+      },
+    },
+    removeItem: {
+      configurable: true,
+      writable: true,
+      value(this: object, k: string) {
+        of(this).delete(k)
+      },
+    },
+    setItem: {
+      configurable: true,
+      writable: true,
+      value(this: object, k: string, v: string) {
+        of(this).set(k, String(v))
+      },
+    },
+  })
+  for (const name of ['localStorage', 'sessionStorage'] as const) {
+    Object.defineProperty(globalThis, name, { configurable: true, value: Object.create(proto) })
+  }
+}
+
 // Mock window.matchMedia for tests
 Object.defineProperty(window, 'matchMedia', {
   writable: true,

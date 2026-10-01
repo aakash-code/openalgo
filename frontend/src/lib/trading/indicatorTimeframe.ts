@@ -38,6 +38,8 @@ type Core = Pick<
 
 /** The setting this adds. A descriptor with its own input of that key opts out. */
 export const TF_KEY = 'tf'
+/** TradingView's "Wait for timeframe closes": show only completed periods. */
+export const TF_WAIT_KEY = 'tfWait'
 
 const WRAPPED = Symbol.for('openalgo.indicatorTimeframe')
 const STORE_KEY = '__mtf'
@@ -248,6 +250,15 @@ export function withTimeframe(core: Core, d: IndicatorDescriptor): IndicatorDesc
         tooltip:
           "Calculate on a higher timeframe and show it on this chart. Chart interval keeps it on this chart's own bars.",
       } as IndicatorDescriptor['inputs'][number],
+      {
+        key: TF_WAIT_KEY,
+        type: 'boolean',
+        label: 'Wait for timeframe closes',
+        default: false,
+        group: 'Timeframe',
+        tooltip:
+          'Show each higher-timeframe value only once its period has closed, so it never changes while the period is forming.',
+      } as IndicatorDescriptor['inputs'][number],
     ],
 
     attach(ctx: IndicatorAttachContext) {
@@ -356,7 +367,10 @@ export function withTimeframe(core: Core, d: IndicatorDescriptor): IndicatorDesc
         barState: { ...ctx.barState, lastIndex: last, isNew: false },
       }
       const values = d.calc(higher, settings, store, hctx)
-      const map = mapToChart(higher, bars)
+      let map = mapToChart(higher, bars)
+      // Waiting for the close reads the period before the one each bar is in:
+      // a value appears on the first bar after its period ends and never moves.
+      if ((settings as Record<string, unknown>)[TF_WAIT_KEY] === true) map = map.map((j) => j - 1)
       const out = spreadValues(values, map)
       htfContext.set(out, { bars: higher, values, map })
       return out

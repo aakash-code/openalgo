@@ -131,6 +131,35 @@ test.describe('indicator Timeframe on /trading charts', () => {
     expect(failures).toEqual([])
   })
 
+  test('Wait for timeframe closes shows each completed hour from the next bar on', async ({ page }) => {
+    const live = await add(page, 'ema', { tf: '1h' })
+    const waited = await add(page, 'ema', { tf: '1h', tfWait: true })
+    const r = await page.evaluate(
+      async ({ live, waited }) => {
+        const w = window as any
+        const get = (id: string) => w.chart.indicators().find((i: any) => i.id === id)
+        const L = get(live).values().ma as number[]
+        const W = get(waited).values().ma as number[]
+        const bars = w.chart.primaryBars()
+        let bad = 0
+        for (let i = 1; i < bars.length; i++) {
+          const newHour = L[i] !== L[i - 1]
+          // On the first bar of each hour the waited value becomes the live
+          // value of the hour that just ended, and holds for the whole hour.
+          if (newHour && W[i] !== L[i - 1]) bad++
+          if (!newHour && W[i] !== W[i - 1]) bad++
+        }
+        const before = W.at(-1)
+        const bar = bars.at(-1)
+        w.series.update({ ...bar, close: bar.close + 200, high: bar.high + 200 })
+        await new Promise((res) => setTimeout(res, 50))
+        return { bad, steady: get(waited).values().ma.at(-1) === before, moved: get(live).values().ma.at(-1) !== L.at(-1) }
+      },
+      { live, waited }
+    )
+    expect(r).toEqual({ bad: 0, steady: true, moved: true })
+  })
+
   test('the forming hour moves with each 5m tick', async ({ page }) => {
     const id = await add(page, 'ema', { tf: '1h' })
     const [before, after] = await page.evaluate(async (id) => {
