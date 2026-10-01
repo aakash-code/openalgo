@@ -8,6 +8,29 @@ fix, live in [docs/releases](releases/).
 
 ## [Unreleased]
 
+### A Timeframe setting on every chart indicator
+
+Every indicator on the `/trading` chart now has a **Timeframe** setting in its
+settings dialog. That covers the built-ins, your own `strategies/indicators/`
+files and OpenScript studies. It works like TradingView's: put a 1h EMA on a
+5m chart and it plots the 1h values as a step across each hour.
+
+- Past periods show their final value, exactly as on the higher chart. The
+  period still forming updates with every tick, built from the chart's own bars.
+- Lines, boxes, labels and markers an indicator draws are placed at their real
+  times on the lower chart.
+- Only higher timeframes are offered, including W, M, Q and Y. A layout saved
+  with a timeframe that is now at or below the chart's, for example after
+  switching the chart from 5m to D, still loads: the indicator runs on the
+  chart's own bars and a message names it and says why.
+- An indicator that fails on the chart now raises a message. It used to
+  draw nothing and say nothing.
+- Not modelled: a lower timeframe on a higher chart (TradingView refuses it
+  too), and per-bar values "as they stood" inside past periods. A higher
+  timeframe always reads the broker's own history for that interval, so where
+  the broker's monthly or weekly bars disagree with its daily ones, the
+  indicator follows the broker's higher bars.
+
 ### Long-running memory and resource cleanup
 
 - The Windows and macOS/Linux Docker runners allow 45 seconds for container

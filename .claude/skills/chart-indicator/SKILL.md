@@ -442,6 +442,16 @@ hand-rolling anything, check whether one of these already covers it:
 
 Full list in `reference/api.md`, which is generated from the installed build.
 
+**Every study already has a Timeframe setting on `/trading`.** The terminal
+wraps each registered descriptor (`frontend/src/lib/trading/indicatorTimeframe.ts`)
+with an `interval` input keyed `tf`: `calc` then runs on the higher bars and
+each column is spread back over the chart bars, while `draws`, `markers` and
+`table` are handed the higher bars, so time-anchored output lands at its real
+time. Write the study for one timeframe and do not add a timeframe input of
+your own for that purpose. A descriptor that declares any `interval` input, or
+an input keyed `tf`, is left unwrapped, which is the opt-out for a study that
+folds its own timeframe with `securitySeries`.
+
 ## The four things that go wrong most
 
 Full list in `reference/pitfalls.md`. These four account for most failures:

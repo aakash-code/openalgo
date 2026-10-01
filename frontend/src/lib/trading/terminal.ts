@@ -39,6 +39,7 @@ import {
   exportChartDataCsv,
   getIndicator,
   type IPrimitive,
+  IndicatorInputError,
   indicatorDefaults,
   type LtpEvent,
   type MarketDepth,
@@ -204,6 +205,7 @@ import {
   lotInfoText,
 } from './legend'
 import { fileForScriptId } from './openscriptFiles'
+import { applyTimeframeToAll, safeIntervalSeconds, TF_KEY } from './indicatorTimeframe'
 import { loadOpenScriptStudies, SCRIPT_ALERT_EVENT } from './openscriptStudies'
 import { profileIntervalSupported, selectProfileInterval } from './profileIntervals'
 import { ProfileLayer, type ProfileMenuAction } from './profileLayer'
@@ -2483,6 +2485,38 @@ export class TradingTerminal {
     // Visibility changes made from the Objects panel stay with the pane on a
     // chart rebuild, just like settings and removal from the canvas legend.
     this.chart.on('objects:change', () => this.syncIndicators())
+    // An indicator that cannot run as set (a Timeframe at or below the chart's,
+    // a higher-timeframe history that would not load, or a calc that threw)
+    // publishes an error status. Nothing on the canvas shows it, so say it
+    // once per indicator and message; a message written for the trader is
+    // shown as is, anything else as a plain sentence naming the indicator.
+    const shownStatus = new Map<string, string>()
+    this.chart.on('indicator:data-status', (p) => {
+      const { id, indicatorId, status } = p as {
+        id: string
+        indicatorId: string
+        status: { state: string; error?: unknown }
+      }
+      if (status.state !== 'error') {
+        shownStatus.delete(id)
+        return
+      }
+      // By descriptor, not instance: a status published while the indicator is
+      // still being added (a restored layout) arrives before the chart lists it.
+      let name = 'An indicator'
+      try {
+        name = getIndicator(indicatorId).name
+      } catch {
+        // an id no longer registered keeps the generic name
+      }
+      const message =
+        status.error instanceof IndicatorInputError
+          ? `${name}: ${status.error.message}`
+          : `${name} could not be calculated on this chart. Check its settings, or remove it and add it again.`
+      if (shownStatus.get(id) === message) return
+      shownStatus.set(id, message)
+      this.toast(message, 'err')
+    })
     // Scrolling back past the loaded range pages in older bars.
     this.chart.setHistoryLoader(() => void this.loadOlderHistory())
 
@@ -3299,6 +3333,17 @@ export class TradingTerminal {
     // any other way: there is no build step between saving and running, so this
     // toast is the compiler's only route to the person who wrote the mistake.
     for (const err of studies.errors) this.toast(`${err.file}: ${err.message}`, 'err')
+    await this.applyIndicatorTimeframe()
+  }
+
+  /**
+   * Give every registered indicator a Timeframe setting (TradingView's
+   * per-study timeframe). Last, after every tier has registered, and before a
+   * layout is restored, because an instance keeps the descriptor it was added
+   * with.
+   */
+  private async applyIndicatorTimeframe(): Promise<void> {
+    applyTimeframeToAll(await import('openalgo-charts'))
   }
 
   /**
@@ -3318,7 +3363,7 @@ export class TradingTerminal {
       await import('openalgo-charts/indicators')
       this.indicatorsLoaded = true
     }
-    if (ids.length === 0) return
+    if (ids.length === 0) return this.applyIndicatorTimeframe()
 
     const { ensureCustomIndicators } = await import('./customIndicators')
     const custom = await ensureCustomIndicators(ids, {
@@ -3330,6 +3375,7 @@ export class TradingTerminal {
       const studies = await loadOpenScriptStudies()
       for (const err of studies.errors) this.toast(`${err.file}: ${err.message}`, 'err')
     }
+    await this.applyIndicatorTimeframe()
   }
 
   /**
@@ -3875,16 +3921,22 @@ export class TradingTerminal {
     if (field.type !== 'interval' || field.options !== undefined) return field
     // The empty entry is "the chart's own interval", which is how a study says
     // it is not folding at all.
+    // The Timeframe every study gets (indicatorTimeframe.ts) only folds up, so
+    // offer just the intervals above the chart's; a lower one could only ever
+    // produce the warning. A saved lower value still shows, below.
+    let codes = this.availableIntervals
+    if (field.key === TF_KEY) {
+      const chartSec = safeIntervalSeconds(this.interval)
+      if (chartSec !== null) {
+        codes = codes.filter((c) => (safeIntervalSeconds(c) ?? 0) > chartSec)
+      }
+    }
     const options = [
       { label: 'Chart interval', value: '' as unknown },
-      ...this.availableIntervals.map((code) => ({ label: code, value: code as unknown })),
+      ...codes.map((code) => ({ label: code, value: code as unknown })),
     ]
     const current = values[field.key]
-    if (
-      typeof current === 'string' &&
-      current !== '' &&
-      !this.availableIntervals.includes(current)
-    ) {
+    if (typeof current === 'string' && current !== '' && !codes.includes(current)) {
       options.push({ label: current, value: current })
     }
     return { ...field, options }
