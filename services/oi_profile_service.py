@@ -35,6 +35,7 @@ from services.strategy_chart_service import (
     _cap_last_n_trading_dates,
     _resolve_trading_window,
 )
+from utils import runtime
 from utils.constants import CRYPTO_EXCHANGES, INSTRUMENT_PERPFUT
 from utils.logging import get_logger
 
