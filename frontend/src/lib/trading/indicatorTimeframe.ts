@@ -43,6 +43,12 @@ export const TF_WAIT_KEY = 'tfWait'
 
 const WRAPPED = Symbol.for('openalgo.indicatorTimeframe')
 const STORE_KEY = '__mtf'
+/**
+ * Whether the last calc ran on transformed bars (Renko and the like), and the
+ * attach's sync to rerun when that changes. Only calc is told, attach is not.
+ */
+const TRANSFORMED_KEY = '__mtfTransformed'
+const RESYNC_KEY = '__mtfResync'
 
 /** Higher-timeframe bars a study needs before the first chart bar: warmup. */
 const WARMUP_BARS = 300
@@ -209,9 +215,37 @@ function hasOwnTimeframe(d: IndicatorDescriptor): boolean {
   return d.inputs.some((i) => i.key === TF_KEY || i.type === 'interval')
 }
 
+/** The input openalgo-charts 2.6.0 put on 29 built-ins (`withTimeframe` there). */
+const LIB_TF_KEY = 'timeframe'
+
+/**
+ * `d` without the library's own Timeframe, so ours wraps it instead. The
+ * library folds only the bars already on the chart, so a daily EMA(200) on a
+ * 5m chart has a few dozen daily bars to work with, and it never shows the
+ * period still forming. Ours fetches the higher history and does both. The
+ * study runs as if the input were empty, which the library defines as exactly
+ * the study it was, so a value left in an older saved layout cannot fold it.
+ */
+function withoutLibraryTimeframe(d: IndicatorDescriptor): IndicatorDescriptor {
+  if (!d.inputs.some((i) => i.key === LIB_TF_KEY && i.type === 'interval')) return d
+  const plain = (s: Readonly<IndicatorSettings>) => ({ ...s, [LIB_TF_KEY]: '' })
+  const tail = d.calcTail
+  return {
+    ...d,
+    inputs: d.inputs.filter((i) => i.key !== LIB_TF_KEY),
+    calc: (bars, settings, store, ctx) => d.calc(bars, plain(settings), store, ctx),
+    ...(tail && {
+      calcTail: (bars, settings, fromIndex, previous, store, ctx) =>
+        tail(bars, plain(settings), fromIndex, previous, store, ctx),
+    }),
+  }
+}
+
 /** `d` with a Timeframe input; the same object when it opts out or is wrapped. */
-export function withTimeframe(core: Core, d: IndicatorDescriptor): IndicatorDescriptor {
-  if ((d as unknown as Record<symbol, unknown>)[WRAPPED] || hasOwnTimeframe(d)) return d
+export function withTimeframe(core: Core, original: IndicatorDescriptor): IndicatorDescriptor {
+  if ((original as unknown as Record<symbol, unknown>)[WRAPPED]) return original
+  const d = withoutLibraryTimeframe(original)
+  if (hasOwnTimeframe(d)) return original
 
   const refuse = (tf: string, chart: string) =>
     new core.IndicatorInputError(
@@ -269,7 +303,18 @@ export function withTimeframe(core: Core, d: IndicatorDescriptor): IndicatorDesc
 
       const sync = () => {
         const store = ctx.store as Record<string, unknown>
-        const decision = active(ctx.settings(), ctx.interval?.())
+        store[RESYNC_KEY] = sync
+        let decision = active(ctx.settings(), ctx.interval?.())
+        // Renko and other transformed bars do not close on the clock, so they
+        // have no higher period to sit in. The library refuses the same way.
+        if (decision && !('refused' in decision) && store[TRANSFORMED_KEY] === true) {
+          aborter?.abort()
+          decision = {
+            refused: new core.IndicatorInputError(
+              `${d.name}: this chart draws transformed bars, which a timeframe cannot fold; compute the study on the underlying bars`
+            ),
+          }
+        }
         if (decision && 'refused' in decision) {
           delete store[STORE_KEY]
           refused = true
@@ -354,6 +399,13 @@ export function withTimeframe(core: Core, d: IndicatorDescriptor): IndicatorDesc
     calc(bars, settings, store, ctx?: IndicatorCalcContext) {
       const want = active(settings, ctx?.interval)
       if (!want || 'refused' in want) return d.calc(bars, settings, store, ctx)
+      const s = store as Record<string, unknown>
+      const transformed = ctx?.transformed === true
+      if (s[TRANSFORMED_KEY] !== transformed) {
+        s[TRANSFORMED_KEY] = transformed
+        ;(s[RESYNC_KEY] as (() => void) | undefined)?.()
+      }
+      if (transformed) return nullValues(d.calc(bars, settings, store, ctx), bars.length)
       const state = (store as Record<string, unknown>)[STORE_KEY] as MtfState | undefined
       if (!state?.bars) {
         // Never flash the chart-timeframe values while the higher bars load.

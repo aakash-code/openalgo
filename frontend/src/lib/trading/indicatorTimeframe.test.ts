@@ -5,8 +5,9 @@
  * chart must read, on every 5m bar, what the same study reads on the 1h chart
  * for the hour that bar falls in.
  */
-import * as core from 'openalgo-charts'
+
 import type { Bar, IndicatorCalcContext, IndicatorDescriptor } from 'openalgo-charts'
+import * as core from 'openalgo-charts'
 import { describe, expect, it } from 'vitest'
 
 import {
@@ -284,5 +285,25 @@ describe('applyTimeframeToAll', () => {
     const count = core.registeredIndicators().length
     applyTimeframeToAll(core)
     expect(core.registeredIndicators().length).toBe(count)
+  })
+
+  it("replaces the library's own Timeframe on the 29 built-ins that have one", async () => {
+    const lib = await import('openalgo-charts/indicators')
+    const folded = lib.BUILTIN_INDICATORS.filter((d) => d.inputs.some((i) => i.key === 'timeframe'))
+    expect(folded.length).toBeGreaterThan(0)
+    applyTimeframeToAll(core)
+    for (const { id } of folded) {
+      const d = core.registeredIndicators().find((r) => r.id === id)
+      const intervals = d?.inputs.filter((i) => i.type === 'interval').map((i) => i.key)
+      expect([id, intervals]).toEqual([id, ['tf']])
+    }
+    // A `timeframe` left in an older saved layout must not fold the study.
+    const ema = core.registeredIndicators().find((d) => d.id === 'ema') as IndicatorDescriptor
+    const bars = sessions(3)
+    const ctx = { interval: '5m', timezone: ZONE } as IndicatorCalcContext
+    const settings = Object.fromEntries(ema.inputs.map((i) => [i.key, i.default]))
+    expect(ema.calc(bars, { ...settings, timeframe: '1h' }, {}, ctx)).toEqual(
+      ema.calc(bars, settings, {}, ctx)
+    )
   })
 })

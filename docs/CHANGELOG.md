@@ -29,11 +29,225 @@ files and OpenScript studies. It works like TradingView's: put a 1h EMA on a
   chart's own bars and a message names it and says why.
 - An indicator that fails on the chart now raises a message. It used to
   draw nothing and say nothing.
+- openalgo-charts 2.6.0 gives 29 built-ins a Timeframe of its own. On
+  `/trading` this setting replaces it, so each study shows one Timeframe row,
+  not two. The library's version builds the higher bars only from the bars
+  already on the chart, so a long study such as a daily EMA(200) on a 5m chart
+  has too few of them, and it never shows the period still forming.
 - Not modelled: a lower timeframe on a higher chart (TradingView refuses it
   too), and per-bar values "as they stood" inside past periods. A higher
   timeframe always reads the broker's own history for that interval, so where
   the broker's monthly or weekly bars disagree with its daily ones, the
   indicator follows the broker's higher bars.
+
+### Charting terminal on openalgo-charts 2.6.0 and OpenScript 0.8.1
+
+`/trading` moves from openalgo-charts 2.5.1 to 2.6.0, and OpenScript from 0.5.0
+to 0.8.1, both the compiler in the browser (`openalgo-script`) and the engine
+that runs strategies on the server (`openscript`).
+
+- **Heikin Ashi, Renko, Range Bars and Line Break are formed by the chart from
+  the time bars**, so a brick appears the moment the tick that completes it
+  arrives, and a tick back takes it away again until the bar closes. They used
+  to be rebuilt from scratch on every tick. **Point & Figure and Kagi** join the
+  chart type menu. The brick, range or reversal is still sized from the
+  instrument's price when the chart opens (about 0.15 percent of the last
+  close), and the Price tab of the chart settings now shows it with the
+  transform's other options (reversal boxes, lines to break, box size mode). A
+  size you set is kept for that instrument and chart type, not for the pane, so
+  it never follows the pane onto another symbol. Saved charts and workspaces
+  open as before.
+- **Replay on these chart types steps through the time bars**, and the bricks
+  form as each bar is revealed. The replay starts from the bar that completed
+  the brick you picked, and the volume under a brick counts only bars already
+  revealed.
+- **Compute on.** A study on a transformed chart has a Compute on row in its
+  settings: Chart bars (the bricks or candles drawn, as before) or Underlying
+  bars (the time bars, each value shown at the brick it was read on). The
+  choice is saved with the study and survives a chart type change.
+- **A Timeframe row on 29 built-in studies**: the moving averages, Bollinger,
+  Keltner, Donchian, Envelope, Supertrend, Parabolic SAR, ATR, RSI, MACD,
+  Stochastic, Stochastic RSI, Williams %R, CCI and ADX. It offers Chart interval
+  and your broker's intervals; set, the study is computed on the chart's bars
+  folded into that interval, a value appears once its period closes and never
+  moves, and the legend names the interval (`EMA 9 close 1h`). The broker's
+  monthly interval is not offered there, because the chart cannot fold to it.
+  A setting the chart refuses, such as a timeframe on a Renko chart's own
+  bricks, keeps the study on the chart without drawing it, and says why.
+- **Seven new studies**: ZigZag, 52 Week High/Low, Zero Lag EMA, Variable Index
+  Dynamic Average, Elder-Ray Index, Schaff Trend Cycle and Volatility Squeeze
+  (112 built-ins).
+- **Two drawing tools** in a new Volume studies group on the rail: Anchored
+  VWAP and Fixed Range Volume Profile (87 tools). Objects panel rows name every
+  drawing as the rail does ("Anchored VWAP", "Trend Line").
+- **OpenScript studies draw what 0.5.0 could not**: a band whose colour the
+  script computes per bar, and every grid a study declares, each in the corner
+  its own `position` names.
+- **Loads lighter.** The side panels (watchlist, option chain, alerts,
+  strategies, scripts) and the chart's forms (alerts, chart settings, study
+  settings, study picker, symbol search, order ticket) load when first opened.
+  Less JavaScript loads before `/trading` draws its first chart than before
+  this update, although the chart engine itself grew.
+- An alert on a transformed chart can now fire on several bricks that one bar
+  completes, each delivered with its own numbers.
+- The chart's right-click menu no longer closes when the toolbar's own row
+  scrolls, which could take it away the moment it opened; a scroll that moves
+  the chart still closes it.
+
+**OpenScript 0.6.0 to 0.8.1, what a script author meets.** A mode written as
+the third argument of `req.timeframe` (or the fifth of `req.symbol`) is now
+read; it used to be ignored and run as `"confirmed"`. A `"lookahead"` read in
+a backtest reads a higher timeframe bar's final value from its first bar. A few
+spellings that compiled are now refused with a code and a fix: an `input()`
+inside a field fixed before bar 0 that is not the whole value (OS3025), and a
+plot `style` written from an input (OS3026). Results can differ in their final
+bits from 0.5.0's, from the engines' exact arithmetic.
+
+**On the server.** A strategy that reads a minute or hour timeframe with
+`req.timeframe` now runs; 0.5.0 refused every such program. A daily, weekly or
+monthly read, and `session.isLastBar`, are refused at start with a sentence
+naming them, because the server cannot answer them yet; before, they would
+have read nothing on every bar.
+
+**What to do after pulling.**
+- Open and save again, in `/trading`, any OpenScript strategy that writes a
+  request's mode positionally. The server runs the program saved with the
+  script, which keeps the mode the older compiler gave it.
+- On Ubuntu, run `update.sh` once; it installs `openscript` 0.8.1 from the
+  requirements.
+
+**Still not modelled.**
+- An OpenScript alert that waits for its bar to close is not announced on a
+  transformed chart, as before this update.
+- A study alert with no frequency judges a bar once, when the bar first
+  appears; a crossing later inside the same bar waits for a frequency that
+  watches for it (on bar close, or every update). This is the chart's rule on
+  every chart type.
+- On a transformed chart whose loaded history has formed no element at all,
+  the first bar to complete one is not judged by a study's alerts; every bar
+  after it is. The chart library fixes this in its next patch.
+
+**Dependencies.** `openalgo-charts` 2.5.1 to 2.6.0, `openalgo-script` 0.5.0 to
+0.8.1, `openscript` 0.5.0 to 0.8.1.
+
+### Charting terminal: bottom bar and trading hours
+
+- **A bottom bar under the chart grid**, one for the whole grid, following the
+  chart you last clicked. It costs 28 pixels of height in any layout.
+  - **Ranges** 1D, 5D, 1M, 3M, 6M, YTD, 1Y, 5Y and All pick the nearest
+    interval your broker offers and load the history needed. When the broker
+    has less history, a message says from which date the chart starts.
+  - **Go to** jumps to a date or a date range, loading older history if it is
+    needed.
+  - **Auto-fit, Log and Percent** in one click, saved with the chart's settings.
+  - **Market status** (open, pre-open, closed, holiday, and when it next opens)
+    and a live IST clock, which also opens the timezone choice.
+- **The time axis follows trading hours and holidays** from your admin's market
+  timings and OpenAlgo's holiday calendar, including MCX's evening session and
+  special sessions, with pre-open shaded. Crypto runs round the clock. If the
+  timings cannot be read, the chart draws exactly as before.
+- Nothing to do after pulling. Saved charts and workspaces open as before.
+
+### Charting terminal: drawing tools
+
+- **The active drawing tool's icon follows the pointer**, so you always know
+  what a click will draw.
+- **Drawings stay with the symbol they were drawn on.** Switch a chart to
+  another symbol and back, and your lines come back. Drawings saved before this
+  update move to the symbol each chart was showing, once, by themselves.
+- **Copy, cut and paste drawings** with Ctrl+C, Ctrl+X and Ctrl+V, across
+  charts and browser tabs, also from the right-click menu. Text boxes, dialogs
+  and the order ticket keep these keys.
+- **Remove all drawings** asks first and one Ctrl+Z brings them back. Hide,
+  lock, delete and select all are in the trash button's menu. Order and
+  position lines are never touched by any of these.
+- **Eraser** (in the cursor button's menu), and **magnet weak and strong**.
+- **A properties bar beside the selected drawing**: colour, thickness, style,
+  fill and opacity, extend left and right, Fibonacci and Gann levels, bring to
+  front, send to back, duplicate, hide and lock. It floats over the chart and
+  takes no space from it.
+- **Double-click a rail tool to keep it** until Esc, and each tool group shows
+  the tool you last used there.
+
+### Charting terminal: data window, chart states and replay
+
+- **Data window** on the right rail: the bar's open, high, low, close, volume
+  and open interest, and every study's values, at the crosshair (or the latest
+  bar). It takes width only while open.
+- **A chart says what is happening, on the chart.** Loading dots appear only
+  when a load takes more than a moment. "No data for SYMBOL on INTERVAL" and
+  "Could not load SYMBOL on INTERVAL" cards explain the cause in plain words and
+  offer Try again, while the previous chart stays usable. These replace the
+  pop-up messages for those cases.
+- **Replay:** the start bar's date and time while you pick it, a clock showing
+  the replayed bar's date and time in IST, and a step count while a bar forms.
+  Esc cancels picking a start bar.
+- Zoom and autoscale animations are off when your system asks for reduced
+  motion.
+
+### Charting terminal: price scale
+
+- **Right-click the price scale** for its own menu: auto-fit, fit to the main
+  prices only, invert, reset, Linear, Logarithmic, Percent or Indexed to 100,
+  and move the scale to the left or right.
+- **Price level lines with tags on the scale**: previous close, day high, day
+  low, bid and ask, each switched on separately (all off by default, so charts
+  look as before). Bid and ask come from the depth the chart already receives.
+  A level with nothing behind it says "no data" instead of drawing a wrong line.
+- **Shortcuts** on the chart under the pointer: Alt+A auto-fit, Alt+L
+  logarithmic, Alt+P percent, Alt+1 indexed to 100, Alt+I invert, Alt+R reset.
+- A chart whose saved settings had auto-fit off no longer opens on an empty
+  scale.
+
+### Charting terminal: right-click actions and chart-wide undo
+
+- **Right-click a study** (its line, its legend or its pane) for its settings,
+  Remove, and on a study pane Move pane up, Move pane down and Collapse or
+  Expand. The price pane stays on top.
+- **Right-click the chart** for Alerts..., and, when the symbol has something
+  open: Cancel orders on SYMBOL (n), Close position, Close half and Reverse
+  position. Every one asks first, naming the symbol, side, quantity and
+  product, and says whether it goes to your broker or, in analyzer mode, to the
+  sandbox.
+  - Cancel and Close are the same actions as the positions and orders panel.
+  - Close half is one market order for half the position in whole lots. It is
+    sent only if the position is still what the menu showed.
+  - Reverse closes the position, then opens the order ticket filled in for the
+    other side. The new position is entered only when you place that order.
+    Delivery (CNC) positions are not reversed.
+- **Undo and redo for the whole chart** (Ctrl+Z, Ctrl+Y): drawings, studies
+  added, removed or edited, pane moves, scale, chart type and interval. Orders
+  are never undone.
+
+### Charting terminal: faster everyday work
+
+- **Type on a chart to change it.** A letter opens symbol search with that
+  letter typed; a digit opens a small interval box ("5" then Enter is 5m, also
+  1h, D, W, M), accepting only your broker's intervals. Fields, dialogs and the
+  order ticket keep their keys.
+- **Comparisons:** each compared symbol shows its value and change in the
+  legend, can be hidden without removing it, and has Retry if its history
+  failed. Four scales: Price (on the chart's own price axis), Percentage,
+  Indexed to 100 and Own scale. Comparisons saved before this update open as
+  Own scale and look exactly as before, because that is how the old "Price"
+  drew them.
+- **Resize the charts in a grid** by dragging the gaps between them (or with
+  the arrow keys); double-click a gap to go back to the layout's sizes. Sizes
+  are saved with the layout, and older layouts open at their usual sizes.
+- **Clearer button labels** on the toolbar and the rails: the name, the
+  shortcut and one line on what it does, also on buttons that are greyed out.
+- **Delete asks first** for study templates and saved workspaces, and a study
+  template can be updated from the current chart.
+- **Download CSV** lets you choose all loaded bars or only those on screen,
+  which studies to include, and comparison closes. Pressing Download straight
+  away writes the same file as before.
+- **Study inputs:** prices and times can be picked by clicking the chart, and a
+  number outside the allowed range is explained beside the field.
+
+**Still not modelled.** A saved named workspace keeps a comparison scale only
+as Price or Percentage: Price reopens as Own scale and Indexed to 100 as
+Percentage. The unnamed grid keeps all four. The chart library's workspace
+format gains the other two in its next patch.
 
 ### Long-running memory and resource cleanup
 
@@ -226,6 +440,31 @@ by open and trigger-pending orders (unchanged from before).
 
 ### Fixed
 
+- **An update left your secrets readable by every account on the server.**
+  `install/update.sh` opens the whole install with `chmod -R 755` and never
+  closed `.env` again, so after each update your `.env` (app keys, broker
+  credentials) and the databases in `db/` could be read by any local account.
+  This hit every server layout, and since this release also instances made by
+  `install-multi.sh`, which the updater now recognises. The updater now sets
+  `.env` and every file in `db/` back to owner-only, as a fresh install does.
+  Running the updater once fixes an existing server.
+- **A service switched to gthread could not start after going back to an
+  older release.** The switched service file started OpenAlgo only through
+  `install/openalgo-gunicorn.sh`, which older releases do not have, so a
+  rollback without `install/switch-worker.sh --restore` first left the service
+  restarting in a loop. A service switched from now on starts OpenAlgo on
+  eventlet exactly as before the switch when the launcher is missing, and says
+  so in the service log. A service switched earlier gets this by running
+  `--restore` and switching again.
+- **WhatsApp logged out after every restart.** The paired session was saved
+  once, at pairing, so each restart brought back the pairing-day copy and
+  WhatsApp logged the device out a few seconds later. Alerts then failed with
+  "WhatsApp is not paired or not connected" until you paired again. The bot now
+  saves its session after each login, every 5 minutes and when OpenAlgo stops.
+  A save never brings back a device you unlinked. When WhatsApp does log the
+  device out, the /whatsapp page, alerts and Flow's WhatsApp node say so and
+  ask you to pair again, and the bot no longer retries the rejected session on
+  every start.
 - **A smart order could double or reverse a position when the broker did not
   answer the position check.** A smart order reads your open position from the
   broker, compares it with the position size you asked for, and places the
@@ -281,6 +520,18 @@ by open and trigger-pending orders (unchanged from before).
   no packaged Chromium can run as a service, so /chart still cannot draw there;
   use Debian, Raspberry Pi OS or the Docker install. Docker installs were not
   affected.
+
+### Dependencies
+
+Security updates for every open advisory. Nothing to do beyond the usual
+update; no behaviour change is expected.
+
+- `PyJWT` 2.13.0 to 2.15.1 (HMAC key validation, JWKS fetching, malformed and
+  deeply nested tokens). OpenAlgo itself calls none of these: its remote MCP
+  tokens are signed and checked with `joserfc`.
+- `tornado` 6.5.8 to 6.5.10.
+- `urllib3` 2.7.0 to 2.8.0.
+- `axios` 1.18 to 1.20.0 in the frontend.
 
 ## [2.0.2.6] - 2026-09-23
 
