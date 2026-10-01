@@ -211,7 +211,13 @@ function nullValues(values: IndicatorValues, n: number): IndicatorValues {
   return out
 }
 
+/**
+ * Set `noTimeframe: true` on a descriptor whose picture is not a series over
+ * time, such as OI Profile (the option chain now, pinned to the right edge).
+ * A Timeframe there would fetch higher bars for nothing and change nothing.
+ */
 function hasOwnTimeframe(d: IndicatorDescriptor): boolean {
+  if ((d as { noTimeframe?: unknown }).noTimeframe === true) return true
   return d.inputs.some((i) => i.key === TF_KEY || i.type === 'interval')
 }
 

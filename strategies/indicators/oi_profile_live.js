@@ -173,6 +173,8 @@ export default function ({ registerIndicator, nulls }) {
     name: 'OI Profile',
     category: 'Custom',
     placement: 'onchart',
+    // The chain as it stands now, not a series over time: no Timeframe row.
+    noTimeframe: true,
 
     inputs: [
       { key: 'underlying', type: 'text', label: 'Underlying', default: '', group: 'Instrument' },

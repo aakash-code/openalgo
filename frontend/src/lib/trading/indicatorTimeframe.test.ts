@@ -112,6 +112,11 @@ describe('withTimeframe', () => {
     expect(withTimeframe(core, own)).toBe(own)
   })
 
+  it('leaves a study that opts out with noTimeframe alone', () => {
+    const snapshot = { ...smaStudy(), noTimeframe: true } as IndicatorDescriptor
+    expect(withTimeframe(core, snapshot)).toBe(snapshot)
+  })
+
   it('is the original calc, value for value, on the chart interval', () => {
     const bars = sessions(2)
     const plain = smaStudy()
