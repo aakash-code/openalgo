@@ -249,6 +249,34 @@ as Price or Percentage: Price reopens as Own scale and Indexed to 100 as
 Percentage. The unnamed grid keeps all four. The chart library's workspace
 format gains the other two in its next patch.
 
+### Charting terminal: backtest equity and drawdown
+
+- **A backtest's results now sit right under Run backtest**, above the
+  settings, so a run's figures are visible without scrolling.
+- **Equity, Drawdown and Trades tabs** under the figures. Each curve gets the
+  panel's full chart height, drawn by the same chart engine as the terminal:
+  equity is green above the capital the run started with and red below it,
+  and drawdown fills downward from zero in red, so the deepest point of a run
+  is the lowest point of its chart. The tab you last chose is remembered.
+- **The whole run, on one screen.** Equity and drawdown show the full period
+  however long the run, compressed to the chart's width with every peak and
+  trough kept. Equity uses the chart's whole height on its own range, with a
+  dashed "Start" line at the starting capital, and a drawdown strip under it on
+  the same dates. Before, a long run on one-minute bars showed only its last
+  few hours, squashed against the starting capital.
+- **A reversal is one mark.** When a strategy closes one side and opens the
+  other on the same bar, the chart shows "Short -2" (or "Long +2") instead of
+  "Exit long -1" and "Short -1" stacked on one candle: the position the bar
+  ended in, and the units it took to get there. Two entries on one bar and
+  exits on their own keep their own marks.
+- **Written the way a trader reads them.** The equity axis is in rupees grouped
+  the Indian way and compacted to lakh and crore (₹1.08L), the drawdown axis
+  is a percentage of the high it fell from, and times are in the instrument's
+  hours. A line above each chart says it in words: "Equity ₹1,10,968
+  +₹11,400 (+11.45%) from ₹99,568 at the start", "Deepest drawdown -₹2,283
+  (-2.09%) on 04 Sept 2026, 09:00". The current-value tag is green above the
+  starting capital and red below it.
+
 ### Long-running memory and resource cleanup
 
 - The Windows and macOS/Linux Docker runners allow 45 seconds for container
@@ -440,6 +468,28 @@ by open and trigger-pending orders (unchanged from before).
 
 ### Fixed
 
+- **A strategy's Long, Short and Exit marks stayed on the chart after the
+  strategy was removed.** Backtest from the Scripts panel adds the strategy to
+  the chart and marks the run's fills on it; removing the strategy took its
+  lines away but left the marks. Now removing it takes its marks down too, and
+  so does closing the Backtest panel. Under Run backtest, "Clear marks (N)"
+  removes them at any time, and "Show trades on chart" (remembered in this
+  browser) runs the report without drawing on the chart at all.
+- **The assistant could fail part way through an answer when a reasoning level
+  was set on GPT-5.4 or newer models** (#2081), with "Cannot run the event loop
+  while another loop is running", and only sometimes. It happened on the
+  default web server (eventlet): the library the assistant talks to models
+  through ran a second internal loop on the same thread at the wrong moment.
+  Those steps now run on a thread of their own, so reasoning at Low, Medium and
+  High works on these models. Installs on the optional gthread web server were
+  not affected and are unchanged.
+- **The assistant on /trading could fail while /agent worked.** The chart
+  panel had no model picker, so it always ran the default model. When that
+  model's key had stopped working it answered "OpenAI did not accept the API
+  key for this model", while /agent kept working on a model picked by hand.
+  The chart panel now has the same model and reasoning picker as /agent, and
+  the chosen model is remembered in this browser and shared by both. A
+  remembered model that is later disabled or removed falls back to the default.
 - **An update left your secrets readable by every account on the server.**
   `install/update.sh` opens the whole install with `chmod -R 755` and never
   closed `.env` again, so after each update your `.env` (app keys, broker
