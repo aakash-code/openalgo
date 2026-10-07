@@ -94,7 +94,16 @@ def get_api_response(endpoint, auth, method="GET", payload="", retry_count=0):
     logger.debug(f"Making {method} request to Upstox v3 API: {url}")
 
     if method == "GET":
-        response = client.get(url, headers=headers)
+        try:
+            response = client.get(url, headers=headers)
+        except (httpx.ReadError, httpx.ConnectError, httpx.RemoteProtocolError):
+            # A pooled keep-alive connection Upstox already closed; GET is
+            # read-only, so one retry on a fresh connection is safe.
+            if retry_count >= 1:
+                raise
+            logger.warning(f"Upstox connection reset on {endpoint}; retrying once")
+            time.sleep(0.5)
+            return get_api_response(endpoint, auth, method, payload, retry_count + 1)
     elif method == "POST":
         response = client.post(url, headers=headers, content=payload)
     elif method == "PUT":
