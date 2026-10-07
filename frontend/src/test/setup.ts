@@ -18,7 +18,10 @@ if (!globalThis.localStorage) {
   const data = new WeakMap<object, Map<string, string>>()
   const of = (s: object) => {
     let m = data.get(s)
-    if (!m) data.set(s, (m = new Map()))
+    if (!m) {
+      m = new Map()
+      data.set(s, m)
+    }
     return m
   }
   const proto = globalThis.Storage.prototype
