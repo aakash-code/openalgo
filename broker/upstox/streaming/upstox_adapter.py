@@ -866,6 +866,23 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
         except (TypeError, ValueError):
             return None
 
+    @staticmethod
+    def _extract_oi(ff: dict[str, Any]) -> dict[str, Any]:
+        """Open interest from a MarketFullFeed-as-dict, as `{"oi": n}` or `{}`.
+
+        proto3 omits a defaulted scalar, so a missing key means "not in this
+        packet" and not "zero". Publishing nothing leaves the client holding its
+        last known value instead of flashing a false 0. Indices and cash equity
+        have no OI and never carry the field. The key matches the other adapters
+        (`oi`), which is what the proxy forwards and the clients read.
+        """
+        if "oi" not in ff:
+            return {}
+        try:
+            return {"oi": int(float(ff["oi"]))}
+        except (TypeError, ValueError):
+            return {}
+
     def _extract_cas_fields(self, ff: dict[str, Any]) -> dict[str, Any]:
         """Extract the Closing Auction Session / pre-open extras from a
         MarketFullFeed-as-dict (added by Upstox on 2026-09-04).
@@ -996,6 +1013,7 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
 
         # Additive CAS/pre-open extras — an empty merge outside an auction window.
         market_data.update(self._extract_cas_fields(ff))
+        market_data.update(self._extract_oi(ff))
 
         return market_data
 
@@ -1043,5 +1061,6 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
         # They sit beside `depth` in the published payload, not inside it, since
         # they describe the auction rather than a price level.
         depth_data.update(self._extract_cas_fields(market_ff))
+        depth_data.update(self._extract_oi(market_ff))
 
         return depth_data
