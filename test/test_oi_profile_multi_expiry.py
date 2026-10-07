@@ -19,6 +19,11 @@ def _clear_profile_cache(monkeypatch):
     monkeypatch.setattr(svc, "_nse_cached_book", lambda exchange: None)
     svc._profile_cache.clear()
     yield
+    # Drain the anchor worker while the mocks are still in place. A request
+    # queues it and returns; left running, it would resume after monkeypatch
+    # restores the real NSE and history functions and race later tests. The
+    # executor has one worker, so a no-op behind it is a barrier.
+    svc._anchor_executor.submit(lambda: None).result(timeout=30)
     svc._profile_cache.clear()
 
 
@@ -89,7 +94,9 @@ def test_two_expiries_sum_oi_and_change(monkeypatch):
     assert row["ce_oi"] == 350 and row["pe_oi"] == 100
     assert row["ce_oi_change"] == 175 and row["pe_oi_change"] == 50
     assert resp["expiry_dates"] == ["09OCT25", "30OCT25"]
-    assert "ce_legs" not in row
+    # Legs ride along so a client with a live tick can re-base the change.
+    assert sorted(leg["oi"] for leg in row["ce_legs"]) == [100, 250]
+    assert resp["options_exchange"] == "NFO"
 
 
 def test_single_expiry_still_works(monkeypatch):

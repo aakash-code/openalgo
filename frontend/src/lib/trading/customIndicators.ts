@@ -26,6 +26,8 @@
  * checks live here, where the real library already is, and report as toasts.
  */
 
+import { subscribeQuotes } from '@/lib/MarketDataManager'
+
 /** One module the server is offering. `mtime` busts the browser module cache. */
 interface CustomModule {
   file: string
@@ -402,6 +404,7 @@ function registerOnce(mod: CustomModule, onProblem: ProblemReporter): Promise<Ou
       const ids: string[] = []
       await register({
         ...api,
+        subscribeQuotes,
         registerIndicator: (descriptor: Record<string, unknown>) => {
           if (typeof descriptor !== 'object' || descriptor === null) {
             throw new Error('registerIndicator needs a descriptor object')

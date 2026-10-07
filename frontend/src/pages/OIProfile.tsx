@@ -22,6 +22,8 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import { useSupportedExchanges } from '@/hooks/useSupportedExchanges'
+import { subscribeQuotes } from '@/lib/MarketDataManager'
+import { applyLiveOi, type LiveOi, liveOiKey } from '@/lib/oiProfileLive'
 import Plot from '@/lib/Plot2D'
 import { serverSentence } from '@/lib/serverSentence'
 import { useThemeStore } from '@/stores/themeStore'
@@ -42,6 +44,8 @@ const INTERVAL_DAYS: Record<string, number> = {
 // market cannot move, but the beat still has to come back slowly rather than
 // stop: a page left open overnight has to notice the next session opening.
 const LIVE_REFRESH_MS = 3 * 60 * 1000
+// How often the OI columns redraw from live ticks.
+const LIVE_REDRAW_MS = 2000
 const CLOSED_REFRESH_MS = 15 * 60 * 1000
 
 // An underlying nobody has looked at today has no previous-session OI cached
@@ -154,6 +158,13 @@ export default function OIProfile() {
     fetchIntervals()
   }, [])
 
+  // Which selection the plot on screen belongs to. The two-pass load below
+  // needs to know whether there is anything painted yet for what is being
+  // asked for - a repaint of the same selection must not blank its change
+  // columns on the way through. It is the key of a FULL answer only, and is
+  // cleared whenever the screen stops holding one.
+  const paintedKeyRef = useRef<string | null>(null)
+
   // Fetch underlyings when exchange changes
   useEffect(() => {
     const defaults = defaultUnderlyings[selectedExchange] || []
@@ -162,6 +173,7 @@ export default function OIProfile() {
     setExpiries([])
     setSelectedExpiries([])
     setProfileData(null)
+    paintedKeyRef.current = null
     setWindowRange(null)
 
     let cancelled = false
@@ -191,6 +203,7 @@ export default function OIProfile() {
     setExpiries([])
     setSelectedExpiries([])
     setProfileData(null)
+    paintedKeyRef.current = null
     setWindowRange(null)
 
     let cancelled = false
@@ -216,12 +229,6 @@ export default function OIProfile() {
       cancelled = true
     }
   }, [selectedUnderlying, selectedExchange])
-
-  // Which selection the plot on screen belongs to. The two-pass load below
-  // needs to know whether there is anything painted yet for what is being
-  // asked for - a repaint of the same selection must not blank its change
-  // columns on the way through.
-  const paintedKeyRef = useRef<string | null>(null)
 
   // Fetch profile data
   const fetchProfileData = useCallback(async () => {
@@ -252,7 +259,14 @@ export default function OIProfile() {
       if (paintedKeyRef.current !== selectionKey && !windowRange) {
         const fast = await oiProfileApi.getProfileData({ ...params, include_change: false })
         if (requestIdRef.current !== requestId) return
-        if (fast.status === 'success') setProfileData(fast)
+        if (fast.status === 'success') {
+          setProfileData(fast)
+          // The screen now holds a fast answer, which is no selection's full
+          // one. Without this, switching away and straight back would find the
+          // old key still here and skip the fast pass, leaving the other
+          // selection's chain on screen under this one's title.
+          paintedKeyRef.current = null
+        }
       }
 
       const response = await oiProfileApi.getProfileData(params)
@@ -399,6 +413,80 @@ export default function OIProfile() {
     []
   )
 
+  // Live open interest. Where the broker's feed carries `oi`, the ticks that
+  // are already flowing to this browser keep the columns current between polls,
+  // at no cost to the broker API. A broker whose feed omits it simply never
+  // fills the map, and the polled numbers stand.
+  //
+  // The set of contracts is keyed as a string so a re-poll returning the same
+  // contracts does not tear down and rebuild every subscription.
+  const liveLegsKey = useMemo(() => {
+    const exchange = profileData?.options_exchange
+    if (!exchange || !profileData?.oi_chain) return ''
+    const symbols = new Set<string>()
+    for (const row of profileData.oi_chain) {
+      for (const leg of row.ce_legs ?? []) symbols.add(leg.symbol)
+      for (const leg of row.pe_legs ?? []) symbols.add(leg.symbol)
+    }
+    // No contracts means nothing to stream: no key, so no subscription and no
+    // reason to open the shared socket.
+    if (symbols.size === 0) return ''
+    return [exchange, ...[...symbols].sort()].join('|')
+  }, [profileData?.options_exchange, profileData?.oi_chain])
+  const liveEnabled = liveLegsKey !== '' && profileData?.market_open !== false
+
+  // Ticks land in a ref, not in state: they arrive far faster than a bar chart
+  // can usefully redraw, and putting each one in state would re-render the
+  // whole page per tick. The plot reads a snapshot taken on a slow beat.
+  const liveOiRef = useRef(new Map<string, LiveOi>())
+  const liveDirtyRef = useRef(false)
+  const [liveSnapshot, setLiveSnapshot] = useState<Map<string, LiveOi>>(() => new Map())
+
+  useEffect(() => {
+    liveOiRef.current = new Map()
+    setLiveSnapshot(new Map())
+    if (!liveEnabled) return
+    const [exchange, ...symbols] = liveLegsKey.split('|')
+    return subscribeQuotes(
+      symbols.map((symbol) => ({ symbol, exchange })),
+      ({ symbol, exchange: ex, data }) => {
+        // Only a positive OI is usable (0 means "not carried" on some brokers),
+        // and its age is when OI last arrived, not when this tick did: a
+        // price-only tick re-sends the cached OI and must not keep it fresh.
+        const { oi, oi_updated_at: at } = data
+        if (typeof oi !== 'number' || !(oi > 0) || typeof at !== 'number') return
+        const key = liveOiKey(ex, symbol)
+        const prev = liveOiRef.current.get(key)
+        if (prev?.oi === oi && prev.at === at) return
+        liveOiRef.current.set(key, { oi, at })
+        liveDirtyRef.current = true
+      }
+    )
+  }, [liveLegsKey, liveEnabled])
+
+  useEffect(() => {
+    const timer = setInterval(() => {
+      if (!liveDirtyRef.current) return
+      liveDirtyRef.current = false
+      setLiveSnapshot(new Map(liveOiRef.current))
+    }, LIVE_REDRAW_MS)
+    return () => clearInterval(timer)
+  }, [])
+
+  // A tick older than one refresh beat is no longer treated as live, so a feed
+  // that goes quiet falls back to the polled number when the next poll lands.
+  const live = useMemo(
+    () =>
+      applyLiveOi(
+        profileData?.oi_chain ?? [],
+        liveSnapshot,
+        profileData?.options_exchange ?? '',
+        Date.now(),
+        LIVE_REFRESH_MS
+      ),
+    [profileData?.oi_chain, profileData?.options_exchange, liveSnapshot]
+  )
+
   // Build the 3-column plot
   const profilePlot = useMemo(() => {
     // The OI columns are the point of the page; the futures candles are
@@ -407,7 +495,7 @@ export default function OIProfile() {
     if (!profileData?.oi_chain?.length) return { data: [], layout: {} }
 
     const candles = profileData.candles ?? []
-    const oiChain = profileData.oi_chain
+    const oiChain = live.chain
     const atmStrike = profileData.atm_strike
 
     // Futures candle time labels (category x-axis)
@@ -639,7 +727,7 @@ export default function OIProfile() {
     }
 
     return { data, layout }
-  }, [profileData, themeColors, selectedExpiries, selectedUnderlying, windowRange])
+  }, [profileData, live, themeColors, selectedExpiries, selectedUnderlying, windowRange])
 
   return (
     <div className="py-6 space-y-4">
@@ -791,6 +879,11 @@ export default function OIProfile() {
               ? `Expiries: ${selectedExpiries.join(' + ')}`
               : `Expiry: ${selectedExpiries[0] || '-'}`}
           </Badge>{' '}
+          {live.liveLegs > 0 && (
+            <Badge variant="secondary" className="text-sm px-3 py-1">
+              Live OI: {live.liveLegs} contracts
+            </Badge>
+          )}
           <Badge variant="secondary" className="text-sm px-3 py-1">
             Interval: {profileData.interval}
           </Badge>

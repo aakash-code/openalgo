@@ -485,9 +485,8 @@ export function ChartPane({
   const [intervalBox, setIntervalBox] = useState<string | null>(null)
 
   // drawing + indicator controls (additive; the trading controls are unchanged)
-  // `indicatorId` is kept on the row (ours): the OI Profile toggle and the
-  // settings shortcut both need to find an instance by which indicator it is,
-  // not just by its instance id.
+  // `indicatorId` rides along on each row because the OI Profile toggle finds
+  // its instance by WHICH indicator it is, not by the instance id.
   const [indicators, setIndicators] = useState<{ id: string; indicatorId: string; name: string }[]>(
     []
   )
@@ -847,11 +846,19 @@ export function ChartPane({
   /** The live OI Profile instance, if the overlay is currently on. */
   const oiProfile = indicators.find((i) => i.indicatorId === OI_PROFILE_ID)
 
+  // `oiProfile` only updates once the add has landed, so a second click before
+  // then would see no instance and add another. One toggle at a time.
+  const oiProfileToggling = useRef(false)
   const toggleOiProfile = async () => {
     const t = terminalRef.current
-    if (!t) return
-    if (oiProfile) t.removeIndicatorById(oiProfile.id)
-    else await t.addIndicatorById(OI_PROFILE_ID)
+    if (!t || oiProfileToggling.current) return
+    oiProfileToggling.current = true
+    try {
+      if (oiProfile) t.removeIndicatorById(oiProfile.id)
+      else await t.addIndicatorById(OI_PROFILE_ID)
+    } finally {
+      oiProfileToggling.current = false
+    }
   }
 
   /* ── drawing / indicator / view actions (additive) ────────────────────── */

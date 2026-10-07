@@ -144,25 +144,16 @@ const note = once(notes)
 //
 // 2.5.4 then added `symbol`, `session`, `multiline`, `price` and `timestamp`
 // to the library. They stay out of this set because OpenAlgo's loader
-// (frontend/src/lib/trading/customIndicators.ts) accepts only the
-// eight above plus this app's own `expiries`, so the gate refuses what the terminal would refuse at load.
-// 'expiries' is this app's own, not the library's, and belongs here because
-// IndicatorSettingsDialog genuinely draws it: a tick list of the underlying's
-// nearest option expiries stored as a comma-separated string. The rule upstream
-// states still holds -- a type the dialog cannot draw is dropped in silence --
-// so this set must track the dialog, not wishes.
+// (frontend/src/lib/trading/customIndicators.ts) is the authority on what
+// registers, and this has to agree with it, or a file the app runs happily is
+// refused by the gate (and the reverse). 'expiries' is ours rather than the
+// library's - the dialog renders it as a tick list of the underlying's nearest
+// option expiries and hands back a comma-separated string.
 const INPUT_TYPES = new Set([
-  'number',
-  'boolean',
-  'color',
-  'text',
-  'select',
-  'source',
-  'interval',
-  'time',
+  'number', 'boolean', 'color', 'text', 'select', 'source', 'interval', 'time',
   'expiries',
 ])
-const STRING_INPUTS = new Set(['text', 'select', 'source', 'interval', 'time'])
+const STRING_INPUTS = new Set(['text', 'select', 'source', 'interval', 'time', 'expiries'])
 const NUMBER_INPUTS = new Set(['number'])
 const SOURCES = new Set(['open', 'high', 'low', 'close', 'hl2', 'hlc3', 'ohlc4', 'volume'])
 const PLACEMENTS = new Set(['onchart', 'pane'])

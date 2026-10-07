@@ -71,8 +71,12 @@ const COLOR_SCHEMES = {
  * would rather see expiry settle. Payoff to holders at each candidate
  * settlement, summed over every strike; the cheapest one wins.
  *
- * Computed over the WHOLE chain, never the strikes that happen to be on
- * screen: max pain is a property of the open interest, and one that moved
+ * Computed over every strike the profile fetched (Strikes Around ATM either
+ * side), never just the ones that happen to be on screen. It is not the whole
+ * option chain: open interest beyond that window is left out, so the marker
+ * is labelled as window-limited. A wider window moves it closer to the
+ * full-chain figure. Never the on-screen strikes: max pain is a property of
+ * the open interest, and one that moved
  * every time the user zoomed would be worse than none at all.
  *
  * ponytail: O(strikes^2) over the ~41 rows the chain carries, which is under
@@ -167,7 +171,55 @@ async function fetchNearestExpiries(exchange, underlying, count) {
   return list.slice(0, count).map((e) => String(e).replace(/-/g, '').toUpperCase())
 }
 
-export default function ({ registerIndicator, nulls }) {
+/**
+ * Lay live OI over a polled chain. Mirrors frontend/src/lib/oiProfileLive.ts,
+ * so the chart and the /oiprofile page never disagree about a strike:
+ * - a contract with a usable tick takes the tick's OI, everything else keeps
+ *   the polled number;
+ * - a 0 tick is unknown (some adapters send 0 for "not in this packet"), never
+ *   an emptied contract;
+ * - a tick older than `maxAgeMs` is no longer live, so a feed that goes quiet
+ *   falls back to the polled number instead of freezing on its last value;
+ * - the change is the sum over contracts with a known anchor (`base`) of
+ *   `oi - base`, exactly as the server builds it.
+ *
+ * `liveOi` maps an uppercased symbol to `{ oi, at }` (epoch ms).
+ */
+export function overlayLiveOi(chain, liveOi, now = Date.now(), maxAgeMs = Number.POSITIVE_INFINITY) {
+  let live = 0
+  const tickFor = (symbol) => {
+    const t = liveOi.get(String(symbol).toUpperCase())
+    if (!t || !(t.oi > 0) || now - t.at > maxAgeMs) return null
+    return t.oi
+  }
+  const next = chain.map((row) => {
+    const out = { ...row }
+    for (const side of ['ce', 'pe']) {
+      const legs = row[`${side}_legs`]
+      if (!Array.isArray(legs) || legs.length === 0) continue
+      let total = 0
+      let change = 0
+      let sawLive = false
+      for (const leg of legs) {
+        const tick = tickFor(leg.symbol)
+        const oi = tick ?? (Number(leg.oi) || 0)
+        total += oi
+        if (tick !== null) {
+          sawLive = true
+          live += 1
+        }
+        if (leg.base != null) change += oi - leg.base
+      }
+      if (!sawLive) continue
+      out[`${side}_oi`] = total
+      out[`${side}_oi_change`] = change
+    }
+    return out
+  })
+  return { chain: next, live }
+}
+
+export default function ({ registerIndicator, nulls, subscribeQuotes }) {
   registerIndicator({
     id: 'oi-profile-live',
     name: 'OI Profile',
@@ -212,7 +264,7 @@ export default function ({ registerIndicator, nulls }) {
         ],
       },
       { key: 'outline', type: 'boolean', label: 'Previous Session Outline', default: true, group: 'Display' },
-      { key: 'maxPain', type: 'boolean', label: 'Max Pain Marker', default: true, group: 'Display' },
+      { key: 'maxPain', type: 'boolean', label: 'Max Pain Marker (strikes fetched)', default: true, group: 'Display' },
       { key: 'barWidth', type: 'number', label: 'Max Bar Width (px)', default: 140, min: 20, max: 400, step: 10, group: 'Display' },
       { key: 'opacity', type: 'number', label: 'Bar Opacity (%)', default: 55, min: 10, max: 100, step: 5, group: 'Display' },
       { key: 'refreshSeconds', type: 'number', label: 'Refresh (seconds)', default: 180, min: 60, max: 900, step: 30, group: 'Display' },
@@ -579,9 +631,16 @@ export default function ({ registerIndicator, nulls }) {
         const key = `${exchange}|${underlying}|${count}`
         const fresh = Date.now() - expiryCachedAt < EXPIRY_CACHE_MS
         if (key !== expiryCacheKey || expiryCache.length === 0 || !fresh) {
-          expiryCache = await fetchNearestExpiries(exchange, underlying, count)
-          expiryCacheKey = key
-          expiryCachedAt = Date.now()
+          const answer = await fetchNearestExpiries(exchange, underlying, count)
+          // An empty answer for the instrument already on screen is far more
+          // likely a lookup hiccup than expiries vanishing: keep the last good
+          // list (and its age, so the next beat asks again) rather than blank
+          // a chart that was right a moment ago.
+          if (answer.length > 0 || key !== expiryCacheKey) {
+            expiryCache = answer
+            expiryCacheKey = key
+            expiryCachedAt = Date.now()
+          }
         }
         return expiryCache
       }
@@ -598,12 +657,85 @@ export default function ({ registerIndicator, nulls }) {
       // every animation frame.
       const applyChain = (body, valueMode, hasChange) => {
         const chain = Array.isArray(body.oi_chain) ? body.oi_chain : null
-        state.chain = chain
+        polledChain = chain
         state.valueMode = valueMode
         state.hasChange = hasChange
-        state.maxPain = chain ? maxPainStrike(chain) : null
+        state.marketOpen = body.market_open !== false
+        watchLegs(chain, body.options_exchange)
+        redraw()
+      }
+
+      // Live open interest. Where the broker's feed carries `oi`, the ticks
+      // keep the bars current between polls at no cost to the broker API, over
+      // the page's one shared socket. A host without `subscribeQuotes`, or a
+      // feed that never sends `oi`, leaves the polled numbers exactly as they were.
+      let polledChain = null
+      const liveOi = new Map()
+      let liveDirty = false
+      let unsubscribeLive = null
+      let watchedLegs = ''
+
+      const redraw = () => {
+        const chain = polledChain
+        // A tick older than one refresh beat no longer counts as live: when the
+        // next poll lands, a contract whose feed went quiet shows the poll.
+        state.chain =
+          chain && liveOi.size
+            ? overlayLiveOi(chain, liveOi, Date.now(), beatSeconds() * 1000).chain
+            : chain
+        state.maxPain = state.chain ? maxPainStrike(state.chain) : null
         ctx.requestRecompute()
       }
+
+      const stopLive = () => {
+        if (unsubscribeLive) unsubscribeLive()
+        unsubscribeLive = null
+        watchedLegs = ''
+        liveOi.clear()
+      }
+
+      const watchLegs = (chain, exchange) => {
+        if (typeof subscribeQuotes !== 'function' || !exchange || !state.marketOpen) {
+          stopLive()
+          return
+        }
+        const symbols = new Set()
+        for (const row of chain ?? []) {
+          for (const leg of row.ce_legs ?? []) symbols.add(leg.symbol)
+          for (const leg of row.pe_legs ?? []) symbols.add(leg.symbol)
+        }
+        const key = `${exchange}|${[...symbols].sort().join(',')}`
+        if (key === watchedLegs) return
+        stopLive()
+        if (symbols.size === 0) return
+        watchedLegs = key
+        unsubscribeLive = subscribeQuotes(
+          [...symbols].map((symbol) => ({ symbol, exchange })),
+          (tick) => {
+            const oi = Number(tick?.data?.oi)
+            // A 0 is "not carried" on some brokers, so it must not replace the
+            // last good value; that one ages out on its own if the feed stops.
+            if (!(oi > 0)) return
+            // When OI last arrived, not when this tick did: the host merges
+            // ticks, so a price-only tick re-sends the old OI and must not keep
+            // it fresh. An older host without the stamp falls back to now.
+            const at = Number(tick.data.oi_updated_at) || Date.now()
+            const key = String(tick.symbol).toUpperCase()
+            const prev = liveOi.get(key)
+            liveOi.set(key, { oi, at })
+            if (prev?.oi !== oi) liveDirty = true
+          }
+        )
+      }
+
+      // Ticks arrive far faster than bars need repainting; fold them in on a
+      // slow beat instead of recomputing on every one.
+      const LIVE_REDRAW_MS = 2000
+      const liveTimer = setInterval(() => {
+        if (!liveDirty || cancelled) return
+        liveDirty = false
+        redraw()
+      }, LIVE_REDRAW_MS)
 
       // `force` is for a settings change: the run already in flight is for
       // settings nobody is looking at any more, so it is abandoned rather than
@@ -629,6 +761,8 @@ export default function ({ registerIndicator, nulls }) {
         state.mode = settings.mode === 'oi' ? 'oi' : 'change'
         watchedKey = dataKey(settings, ctx.symbol?.())
         if (!underlying) {
+          polledChain = null
+          stopLive()
           state.chain = null
           return
         }
@@ -636,10 +770,10 @@ export default function ({ registerIndicator, nulls }) {
         try {
           const expiries = await resolveExpiries(settings, exchange, underlying)
           if (stale()) return
-          if (expiries.length === 0) {
-            state.chain = null
-            return
-          }
+          // Nothing to ask for. Leave the screen as it is: a changed
+          // instrument was already cleared by the settings watcher, and an
+          // unchanged one keeps its last good chain through a failed lookup.
+          if (expiries.length === 0) return
 
           const request = async (includeChange) => {
             const res = await postProfileData({
@@ -669,7 +803,6 @@ export default function ({ registerIndicator, nulls }) {
           const oiBody = await request(false)
           if (!oiBody) return
           applyChain(oiBody, 'oi', false)
-          state.marketOpen = oiBody.market_open !== false
 
           // The change columns carry yesterday's open interest too, so the
           // outline needs them even when the bars themselves show OI.
@@ -732,6 +865,8 @@ export default function ({ registerIndicator, nulls }) {
         watchedKey = next
         // A changed instrument invalidates what is on screen; clear it rather
         // than leave the previous underlying's bars up while the new one loads.
+        polledChain = null
+        stopLive()
         state.chain = null
         state.maxPain = null
         state.changePending = false
@@ -756,6 +891,8 @@ export default function ({ registerIndicator, nulls }) {
         cancelled = true
         if (timer) clearTimeout(timer)
         clearInterval(watcher)
+        clearInterval(liveTimer)
+        stopLive()
         document.removeEventListener('visibilitychange', onVisible)
         ctx.removePrimitive(primitive)
       }

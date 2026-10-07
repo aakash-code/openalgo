@@ -480,6 +480,34 @@ fit data that is not indexed by time at all - a value per strike, per expiry, pe
 depth level. For those, fetch in `attach` and draw with your own primitive, which
 is what the shipped OI Profile does.
 
+### Live ticks: `subscribeQuotes`
+
+An indicator that needs live prices for symbols other than the chart's own (the
+legs of an option chain, a basket) gets them from `subscribeQuotes`, which the
+loader hands in beside `registerIndicator`. It rides the app's one shared
+WebSocket, so it costs no second connection and no duplicate broker subscription
+for symbols the page is already streaming.
+
+```js
+export default function ({ registerIndicator, subscribeQuotes }) {
+  registerIndicator({
+    // ...
+    attach(ctx) {
+      const unsubscribe = subscribeQuotes(
+        [{ symbol: 'NIFTY28OCT2625000CE', exchange: 'NFO' }],
+        ({ symbol, exchange, data }) => { /* data.ltp, data.oi, ... */ }
+      )
+      return () => unsubscribe()   // always, or the subscription outlives the chart
+    },
+  })
+}
+```
+
+Ticks are Quote mode: `ltp`, `open`, `high`, `low`, `close`, `volume`, and `oi`
+where the broker's feed carries it. A field the packet did not carry is absent,
+not 0. Check `typeof subscribeQuotes === 'function'` before calling it if the
+file must also load on an older OpenAlgo.
+
 ---
 
 ## Shipped example: OI Profile
@@ -494,7 +522,7 @@ right edge of the pane the way Sensibull and Upstox Chart 360 draw theirs.
 Calls sit above each strike line and puts below it, the solid fill is current
 open interest and the dashed box is what the strike carried into the day.
 
-Read it for four patterns:
+Read it for these patterns:
 
 **Fetch in `attach`, draw in a primitive.** The data is per strike, not per bar,
 so no plot column can carry it. `attach` polls
@@ -515,9 +543,19 @@ many open charts do not arrive together, and skips entirely while the tab is
 hidden. A closed market stretches the beat to fifteen minutes rather than
 stopping it, because only a fetch can tell the chart that the next session has
 opened - stopping outright leaves a chart left open overnight dead until it is
-reloaded. Only one request is ever in flight, and a
-generation counter means a slow answer for an instrument you have left cannot
-paint over the one you are looking at.
+reloaded. A scheduled beat never starts while another request is in flight.
+A settings change (a new underlying, expiry or mode) does start one at once
+without waiting, so two can overlap briefly; a generation counter is what
+stops the slow answer for the instrument you have left from painting over the
+one you are looking at.
+
+**Live between polls, from ticks already flowing.** Where the broker's feed
+carries open interest, the indicator subscribes to every contract on screen
+through `subscribeQuotes` (see below) and moves the bars as ticks arrive,
+repainting at most every two seconds. The poll then only sets the anchors and
+picks up contracts the feed does not cover. Brokers whose feed sends no `oi`
+keep the polled numbers; see
+[oi-profile-live-oi.md](oi-profile-live-oi.md) for which brokers send it.
 
 **Two passes, fastest first.** Current open interest answers in under a second;
 the open interest each leg carried into the session costs one broker history

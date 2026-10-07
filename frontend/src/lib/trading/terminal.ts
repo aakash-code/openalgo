@@ -996,7 +996,6 @@ const RIGHT_PAD_BARS = 4
 const DEFAULT_INDICATORS: { indicatorId: string; settings: Record<string, unknown> }[] = [
   { indicatorId: 'volume', settings: {} },
 ]
-
 /**
  * Where the exported PNG paints the OHLC readout, in CSS px. These mirror the
  * DOM overlay's own placement in `ChartPane` (`left-3 top-1.5`, a 12px line and
@@ -5589,6 +5588,8 @@ export class TradingTerminal {
   ): void {
     const loaded = this.rawBars.length
     if (!loaded) return
+    // An indicator whose every plot is hidden draws through a primitive (the
+    // OI Profile does): an empty placeholder column is not starvation.
     const plots = descriptor?.plots
     if (plots?.length && plots.every((p) => p.style?.visible === false)) return
     const cols = Object.entries(inst.values())
