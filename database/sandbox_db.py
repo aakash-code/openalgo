@@ -92,7 +92,7 @@ class SandboxOrders(Base):
     rejection_reason = Column(Text, nullable=True)
     margin_blocked = Column(
         DECIMAL(10, 2), nullable=True, default=0.00
-    )  # Margin blocked at order placement
+    )  # NULL means a recorded zero; migrated legacy rows retain default zero
     margin_source = Column(String(30), nullable=True, default="internal")
     margin_snapshot = Column(Text, nullable=True)
     # Set only on an order a GTT leg placed, and written in the same INSERT as
