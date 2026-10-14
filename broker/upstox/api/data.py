@@ -73,6 +73,58 @@ IST = timezone(timedelta(hours=5, minutes=30))
 FULL_QUOTE_BATCH_SIZE = 500
 
 
+def _previous_close(quote, prev_ohlc):
+    """Previous session's close for a v3 full-quote entry, by trust order.
+
+    v3 states the previous close explicitly as ``prev_close_price``, but it comes
+    back null at and just after the open (the symptom this exists to handle). The
+    live ``ohlc.close`` must never stand in for it: intraday that field tracks the
+    last traded price, not yesterday's close. So the sources are tried in order:
+
+    1. ``prev_close_price`` -- the explicit v3 field, when present and non-zero.
+    2. ``prev_ohlc['close']`` -- a previous-day OHLC the caller supplies.
+    3. ``last_price - net_change`` -- what the quote implies; a ``net_change`` of
+       0.0 is a real "unchanged", not a missing value, so it is honoured.
+    4. ``ohlc['close']`` -- a pre-market last resort, valid only before the first
+       trade moves it off yesterday's close.
+
+    Returns 0.0 when nothing usable is found, so a caller keeps its own fallback.
+    Never raises on malformed input.
+    """
+    quote = quote or {}
+    ohlc = quote.get("ohlc") or {}
+
+    explicit = _to_float(quote.get("prev_close_price"))
+    if explicit:
+        return explicit
+
+    if isinstance(prev_ohlc, dict):
+        from_prev = _to_float(prev_ohlc.get("close"))
+        if from_prev:
+            return from_prev
+
+    last_price = _to_float(quote.get("last_price"))
+    net_change = _to_float(quote.get("net_change"))
+    if last_price is not None and net_change is not None:
+        return last_price - net_change
+
+    from_ohlc = _to_float(ohlc.get("close"))
+    if from_ohlc:
+        return from_ohlc
+
+    return 0.0
+
+
+def _to_float(value):
+    """float(value), or None when the value is absent or not numeric. Never raises."""
+    if value is None or value == "":
+        return None
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return None
+
+
 def get_api_response(endpoint, auth, method="GET", payload="", retry_count=0):
     """Common function to make API calls to Upstox v3 using httpx with connection pooling
 
@@ -337,9 +389,11 @@ class BrokerData:
         best_bid = depth.get("buy", [{}])[0] if depth.get("buy") else {}
         best_ask = depth.get("sell", [{}])[0] if depth.get("sell") else {}
 
-        # v3 states the previous session's close explicitly as prev_close_price, so
-        # nothing has to be inferred from a live ohlc.close or a prev_ohlc fallback.
-        prev_close = quote.get("prev_close_price", 0)
+        # v3 states the previous session's close explicitly as prev_close_price,
+        # but it comes back null around the open, so _previous_close falls back
+        # through prev_ohlc, the implied net_change and (pre-market) ohlc.close.
+        # The live ohlc.close is never used as prev_close -- it tracks the LTP.
+        prev_close = _previous_close(quote, quote.get("prev_ohlc"))
 
         return {
             "ask": float(best_ask.get("price", 0)) if best_ask.get("price") else 0,
@@ -348,7 +402,7 @@ class BrokerData:
             "low": float(ohlc.get("low", 0)) if ohlc.get("low") else 0,
             "ltp": float(quote.get("last_price", 0)) if quote.get("last_price") else 0,
             "open": float(ohlc.get("open", 0)) if ohlc.get("open") else 0,
-            "prev_close": float(prev_close) if prev_close else 0,
+            "prev_close": prev_close,
             # top-level volume is the day's traded volume; ohlc.volume is only the candle's
             "volume": int(quote.get("volume", 0)) if quote.get("volume") else 0,
             "oi": int(quote.get("oi", 0)) if quote.get("oi") else 0,
@@ -1203,8 +1257,9 @@ class BrokerData:
                 "oi": quote.get("oi", 0),
                 "open": ohlc.get("open", 0),
                 # prev_close_price is the previous session's close; v3's ohlc.close is
-                # the live session's, so it must not be used here
-                "prev_close": quote.get("prev_close_price", 0),
+                # the live session's, so it must not be used here. _previous_close
+                # falls back when prev_close_price is null (seen around the open).
+                "prev_close": _previous_close(quote, quote.get("prev_ohlc")),
                 "totalbuyqty": quote.get("total_buy_quantity", 0),
                 "totalsellqty": quote.get("total_sell_quantity", 0),
                 "volume": quote.get("volume", 0),
