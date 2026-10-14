@@ -8,6 +8,30 @@ fix, live in [docs/releases](releases/).
 
 ## [Unreleased]
 
+### /trading: OI Profile fixes
+
+No database migration and no `update.sh` run are needed. The indicator is
+loaded at runtime, so pulling and reloading the chart is enough.
+
+- **M&M, BAJAJ-AUTO and every other underlying with `&` or `-` in its name**
+  now draw. The overlay stripped those characters and asked for `MM` and
+  `BAJAJAUTO`, which have no expiries, so the profile stayed blank.
+- **MCX underlyings (CRUDEOIL, GOLD and the rest) now draw.** Exchange on Auto
+  only ever looked on NFO or BFO. It now falls back to BFO and then MCX when
+  its first guess lists no options, and MCX can be chosen by hand.
+- **A refresh is one request instead of two**, and Change in OI no longer
+  shows totals for the seconds the second request took. Each refresh used to
+  cost two option-chain quotes to the broker.
+- **One failed network call no longer stops the profile until a page
+  reload.** A failed security-token fetch was kept and reused on every later
+  refresh.
+- **A status line at the top right** says when the bars were last refreshed,
+  or why they are not there: no option expiries found, or a refresh that
+  failed and is being retried. Turn it off with **Status Line** in the
+  settings.
+- Not changed yet: Max Pain with more than one expiry combined is still
+  computed over the summed open interest, which no single expiry settles at.
+
 ### A Timeframe setting on every chart indicator
 
 Every indicator on the `/trading` chart now has a **Timeframe** setting in its
