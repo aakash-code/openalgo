@@ -8,14 +8,37 @@ fix, live in [docs/releases](releases/).
 
 ## [Unreleased]
 
+### Upstox: one client leaving no longer stops a symbol for everyone
+
+Restart OpenAlgo after pulling; the fix is in the market data feed. No
+database migration.
+
+- Upstox streams each instrument in one mode at a time, while OpenAlgo keeps a
+  subscription per mode. When a symbol was held in two modes (a strategy on
+  NIFTY LTP and a chart on NIFTY Quote) and one of them dropped it, OpenAlgo
+  told Upstox to stop the instrument altogether. The other subscriber's feed
+  then looked live and sent nothing, and subscribing again was answered with
+  "already subscribed". Seen on 14-Oct-2026: a strategy's NIFTY LTP went silent
+  when a chart reloaded, and came back only when something else happened to
+  subscribe NIFTY. Now the instrument is stopped only when nobody holds it,
+  and otherwise kept in the mode the rest still need.
+- An LTP subscription no longer moves an instrument a Quote or Depth client
+  holds down to LTP-only data, which left that client receiving nothing. Each
+  instrument is held in the richest mode any subscriber needs, changed with
+  Upstox's own mode-change message rather than a second subscribe, and replayed
+  once in that mode after a reconnect.
+- Not changed: other brokers' adapters were not reviewed for the same pattern.
+
 ### /trading: OI Profile fixes
 
 No database migration and no `update.sh` run are needed. The indicator is
 loaded at runtime, so pulling and reloading the chart is enough.
 
 - **M&M, BAJAJ-AUTO and every other underlying with `&` or `-` in its name**
-  now draw. The overlay stripped those characters and asked for `MM` and
-  `BAJAJAUTO`, which have no expiries, so the profile stayed blank.
+  now draw, on the chart and on `/oiprofile`. The overlay stripped those
+  characters and asked for `MM` and `BAJAJAUTO`, which have no expiries, and
+  the server's own input check refused the real names as "Invalid input
+  format", so the profile stayed blank either way.
 - **MCX underlyings (CRUDEOIL, GOLD and the rest) now draw.** Exchange on Auto
   only ever looked on NFO or BFO. It now falls back to BFO and then MCX when
   its first guess lists no options, and MCX can be chosen by hand.
@@ -25,12 +48,30 @@ loaded at runtime, so pulling and reloading the chart is enough.
 - **One failed network call no longer stops the profile until a page
   reload.** A failed security-token fetch was kept and reused on every later
   refresh.
-- **A status line at the top right** says when the bars were last refreshed,
+- **A status line at the top of the pane**, beside the bars rather than over
+  them, says when the bars were last refreshed,
   or why they are not there: no option expiries found, or a refresh that
   failed and is being retried. Turn it off with **Status Line** in the
   settings.
-- Not changed yet: Max Pain with more than one expiry combined is still
-  computed over the summed open interest, which no single expiry settles at.
+- **Max Pain with expiries combined** is now the nearest expiry's, and the
+  label names it ("Max Pain 23200 (22SEP26)"). It used to be taken over the
+  summed open interest, a blend no contract settles at.
+- **Switching Mode or Previous Session Outline repaints at once.** Both
+  cleared the chart and refetched everything, although the data was usually
+  already loaded.
+- **Live OI streams at most 160 contracts**, those around the strikes on
+  screen, instead of every contract in the profile (up to 1,212 with 50
+  strikes and six expiries, against the broker feed's limit shared with
+  every chart and watchlist). A pan, a zoom or a chain recentred on a new ATM
+  changes only the difference; before, every recentre dropped all live
+  numbers and resubscribed the lot.
+- **The tooltip shows both halves**: the day's change with its percentage
+  under Open Interest, the totals under Change in OI, and the strike's PCR.
+  The status line adds the overall PCR across the strikes fetched.
+- **Bars no longer overlap in a small pane.** A row is never taller than the
+  space between its strike and the next.
+- The OI Profile's tests now run in CI. They existed before and nothing ran
+  them.
 
 ### A Timeframe setting on every chart indicator
 

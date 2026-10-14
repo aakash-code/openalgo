@@ -308,11 +308,11 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
             )
             return
 
-        # Group instrument keys by Upstox mode string ("ltpc" or "full").
-        keys_by_mode: dict[str, list[str]] = {}
-        for sub in queue:
-            mode_str = self._get_upstox_mode(sub["mode"], sub.get("depth_level", 0))
-            keys_by_mode.setdefault(mode_str, []).append(sub["instrument_key"])
+        # Group instrument keys by the Upstox mode ("ltpc" or "full") each must
+        # hold for ALL its subscribers, not by the mode of the subscribe that
+        # queued it. A key whose subscriber left before this fired is skipped.
+        with self.lock:
+            keys_by_mode = self._keys_by_effective_mode(sub["instrument_key"] for sub in queue)
 
         for mode_str, instrument_keys in keys_by_mode.items():
             try:
@@ -341,25 +341,36 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
             correlation_id = f"{symbol}_{exchange}_{mode}"
 
             with self.lock:
-                if correlation_id not in self.subscriptions:
+                removed = self.subscriptions.pop(correlation_id, None)
+                if removed is None:
                     self.logger.debug(f"Not subscribed to {symbol} on {exchange} with mode {mode}")
                     return self._create_success_response(
                         f"Not subscribed to {symbol} on {exchange}"
                     )
+                self._unindex_subscription(correlation_id, removed)
+                remaining = self._effective_upstox_mode(instrument_key)
 
-            success = self.ws_client.unsubscribe([instrument_key])
-
-            if success:
-                with self.lock:
-                    removed = self.subscriptions.pop(correlation_id, None)
-                    if removed:
-                        self._unindex_subscription(correlation_id, removed)
-                self.logger.info(f"Unsubscribed from {symbol} on {exchange}")
-                return self._create_success_response(f"Unsubscribed from {symbol} on {exchange}")
+            # Upstox's `unsub` drops the instrument key whatever mode it is in.
+            # Sent while another mode of the same symbol was still subscribed, it
+            # stopped that subscriber's stream too, and the adapter, still holding
+            # the subscription, answered every resubscribe with "already
+            # subscribed" - a feed that looked live and sent nothing. Seen on
+            # 14-Oct-2026: a chart dropping NIFTY in Quote mode silenced a
+            # strategy's NIFTY LTP. So unsubscribe upstream only when nobody is
+            # left, and otherwise keep the key in the mode the rest still need.
+            if remaining is None:
+                sent = self.ws_client.unsubscribe([instrument_key])
             else:
-                return self._create_error_response(
-                    "UNSUBSCRIBE_FAILED", f"Failed to unsubscribe from {symbol} on {exchange}"
+                sent = self.ws_client.subscribe([instrument_key], remaining)
+            if not sent:
+                # The record is already gone, so a reconnect replays only what is
+                # still wanted; at worst Upstox keeps sending a key nobody reads.
+                self.logger.warning(
+                    f"Upstox did not take the update for {symbol} on {exchange} after "
+                    f"unsubscribe (socket not connected); it is corrected on reconnect"
                 )
+            self.logger.info(f"Unsubscribed from {symbol} on {exchange} (mode {mode})")
+            return self._create_success_response(f"Unsubscribed from {symbol} on {exchange}")
 
         except Exception as e:
             self.logger.error(f"Unsubscribe error: {e}")
@@ -589,6 +600,41 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
             if not index[key]:
                 del index[key]
 
+    def _effective_upstox_mode(self, instrument_key: str) -> str | None:
+        """The Upstox mode `instrument_key` must hold for everyone subscribed to it.
+
+        Upstox keeps ONE mode per instrument key (it has `change_mode` for an
+        already-subscribed key), while OpenAlgo keeps one subscription per
+        (symbol, exchange, mode). So the key carries the richest mode any of
+        them needs: `full` also serves an LTP subscriber, because
+        _extract_tick_ltpc reads ltpc from either branch, but `ltpc` cannot
+        serve a quote or depth subscriber at all. None once nobody holds it.
+
+        Caller holds self.lock.
+        """
+        entries = self._subs_by_instrument.get(instrument_key) or []
+        if not entries:
+            return None
+        modes = {
+            self._get_upstox_mode(info["mode"], info.get("depth_level", 0)) for _, info in entries
+        }
+        return "full" if "full" in modes else "ltpc"
+
+    def _keys_by_effective_mode(self, instrument_keys) -> dict[str, list[str]]:
+        """Group keys by the mode each must hold for all its subscribers.
+
+        Each key appears once. Grouping by the mode of whichever subscribe
+        happened to queue it sent an LTP subscribe for a key a quote client
+        already held in `full`, and Upstox moved the key to `ltpc` under it.
+        Caller holds self.lock.
+        """
+        grouped: dict[str, list[str]] = {}
+        for key in dict.fromkeys(instrument_keys):
+            mode_str = self._effective_upstox_mode(key)
+            if mode_str:
+                grouped.setdefault(mode_str, []).append(key)
+        return grouped
+
     def _create_topic(self, exchange: str, symbol: str, mode: int) -> str:
         """Create ZMQ topic for publishing"""
         mode_map = {1: "LTP", 2: "QUOTE", 3: "DEPTH"}
@@ -621,10 +667,11 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
         if not all_subs or not self.ws_client:
             return
 
-        keys_by_mode: dict[str, list[str]] = {}
-        for sub in all_subs:
-            mode_str = self._get_upstox_mode(sub["mode"], sub.get("depth_level", 0))
-            keys_by_mode.setdefault(mode_str, []).append(sub["instrument_key"])
+        # One message per mode, each key once in the richest mode it needs; a
+        # key held as both LTP and quote replayed in both, and whichever went
+        # second decided what Upstox kept.
+        with self.lock:
+            keys_by_mode = self._keys_by_effective_mode(sub["instrument_key"] for sub in all_subs)
 
         for mode_str, instrument_keys in keys_by_mode.items():
             try:

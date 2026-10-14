@@ -355,19 +355,42 @@ class UpstoxWebSocketClient:
         try:
             for start in range(0, len(keys), limit):
                 chunk = keys[start : start + limit]
-                message = self._create_subscription_message(chunk, mode, "sub")
-                # Send as binary frame — original async code used:
-                # await websocket.send(json.dumps(msg).encode("utf-8"))
-                self.ws.send(
-                    json.dumps(message).encode("utf-8"), opcode=websocket.ABNF.OPCODE_BINARY
-                )
+                # Upstox holds ONE mode per key. A key this connection already
+                # carries in another mode is moved with `change_mode`; only a key
+                # it does not carry at all is a `sub`.
+                held = self._held_in_other_mode(chunk, mode)
+                fresh = [k for k in chunk if k not in held]
+                switch = [k for k in chunk if k in held]
+                for keys_out, method in ((fresh, "sub"), (switch, "change_mode")):
+                    if not keys_out:
+                        continue
+                    message = self._create_subscription_message(keys_out, mode, method)
+                    # Send as binary frame — original async code used:
+                    # await websocket.send(json.dumps(msg).encode("utf-8"))
+                    self.ws.send(
+                        json.dumps(message).encode("utf-8"), opcode=websocket.ABNF.OPCODE_BINARY
+                    )
                 self._subscriptions.update(chunk)
+                # The key now lives in this mode only. Leaving it in the old
+                # mode's set too counted it twice against the caps.
+                for other, other_keys in self._keys_by_mode.items():
+                    if other != mode:
+                        other_keys.difference_update(chunk)
                 self._keys_by_mode.setdefault(mode, set()).update(chunk)
             self.logger.debug(f"Subscribed to {len(keys)} instruments in {mode} mode")
             return True
         except Exception as e:
             self.logger.error(f"Subscribe error: {e}")
             return False
+
+    def _held_in_other_mode(self, instrument_keys: list[str], mode: str) -> set:
+        """The keys this connection already carries in a mode other than `mode`."""
+        return {
+            key
+            for key in instrument_keys
+            for other, held in self._keys_by_mode.items()
+            if other != mode and key in held
+        }
 
     def _enforce_key_limits(self, instrument_keys: list[str], mode: str) -> tuple[list[str], int]:
         """Trim a subscribe request down to what Upstox's caps actually permit.
@@ -410,6 +433,8 @@ class UpstoxWebSocketClient:
                 return [], dropped
 
         # Combined cap: only bites once a second mode is live on this connection.
+        # A key moving between modes is already in the total, so only keys new to
+        # the connection can push it over.
         modes_in_use = set(self._keys_by_mode) | {mode}
         if len(modes_in_use) > 1:
             budget = min(
@@ -417,15 +442,19 @@ class UpstoxWebSocketClient:
                 for m in modes_in_use
             )
             total = sum(len(v) for v in self._keys_by_mode.values())
+            moving = self._held_in_other_mode(new_keys, mode)
+            growing = [k for k in new_keys if k not in moving]
             room = max(budget - total, 0)
-            if len(new_keys) > room:
-                dropped += len(new_keys) - room
+            if len(growing) > room:
+                over = len(growing) - room
+                dropped += over
                 self.logger.error(
                     f"Upstox combined subscription cap reached: {budget} keys total across "
                     f"modes {sorted(modes_in_use)} ({total} already subscribed). Dropping "
-                    f"{len(new_keys) - room} of {len(new_keys)} requested {mode} key(s)."
+                    f"{over} of {len(new_keys)} requested {mode} key(s)."
                 )
-                new_keys = new_keys[:room]
+                keep = set(growing[:room]) | moving
+                new_keys = [k for k in new_keys if k in keep]
 
         return new_keys, dropped
 
@@ -750,7 +779,9 @@ class UpstoxWebSocketClient:
             "method": method,
             "data": {"instrumentKeys": instrument_keys},
         }
-        if mode and method == "sub":
+        # change_mode carries its target mode just as sub does (mandatory per the
+        # V3 feed docs); unsub carries none.
+        if mode and method in ("sub", "change_mode"):
             message["data"]["mode"] = mode
         return message
 
