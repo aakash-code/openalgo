@@ -190,3 +190,6 @@ log/*.log
 log/errors.jsonl
 log/tf_boost_*.md
 log/tf_boost_*.txt
+
+# October desktop — local canvas state
+.october/
