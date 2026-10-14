@@ -419,6 +419,8 @@ export interface TerminalCallbacks {
   onWorkspaceChange?(): void
   onReady(info: { intervalGroups: IntervalGroup[]; interval: string; chartType: string }): void
   onIntervalChange?(interval: string): void
+  /** The chart type changed from inside the terminal, such as an undo or redo. */
+  onChartTypeChange?(chartType: string): void
   onContextMenu?(menu: TerminalContextMenu): void
   onToast(msg: string, kind: ToastKind): void
   onWsState(state: string): void
@@ -7196,6 +7198,7 @@ export class TradingTerminal {
     this.stopReplay()
     this.ctype = v
     this.lsSet('ctype', v)
+    this.cb.onChartTypeChange?.(v)
     if (interval !== this.interval) {
       this.setInterval(interval)
       this.toast(`Using ${interval} bars for ${CHART_TYPES[v].label}`, '')
