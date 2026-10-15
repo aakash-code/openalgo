@@ -9,21 +9,19 @@
  */
 
 import {
-  Activity,
-  Bell,
   Bot,
-  Crosshair,
   FileCode2,
   FlaskConical,
   Layers,
-  List,
+  type LucideIcon,
   Shapes,
   Table2,
   Zap,
 } from 'lucide-react'
 import { useEffect, useRef } from 'react'
+import { ChromeIcon, lineStroke24 } from '@/lib/trading/glyphs'
 import { cn } from '@/lib/utils'
-import { RAIL_BTN, RAIL_BTN_ON, RAIL_ICON_STROKE } from './railStyles'
+import { RAIL_BTN, RAIL_BTN_ON, RAIL_GLYPH_PX } from './railStyles'
 import { Tip } from './Tip'
 
 const PANELS = [
@@ -36,10 +34,14 @@ const PANELS = [
   // Every panel carries a glyph. Objects spelled its label down the rail
   // instead, which made one button twice the height of the three beside it
   // and turned a row of icons into a row with a word in it.
+  //
+  // A string names the engine's chrome glyph, so the right rail is drawn from
+  // the same set as the toolbar and the drawing rail. The four with no fitting
+  // glyph there keep the app's icon, at the same line weight.
   {
     id: 'watchlist',
     label: 'Watchlist',
-    icon: List,
+    icon: 'watchlist',
     hint: 'Your instruments with live prices; click one to chart it',
   },
   {
@@ -65,7 +67,7 @@ const PANELS = [
   {
     id: 'alerts',
     label: 'Alerts',
-    icon: Bell,
+    icon: 'bell',
     hint: 'Alerts on this chart, and every one that fired',
   },
   // The values under the crosshair: the bar and every study on it. With the
@@ -73,7 +75,7 @@ const PANELS = [
   {
     id: 'data',
     label: 'Data window',
-    icon: Crosshair,
+    icon: 'crosshair',
     hint: 'The values under the crosshair, for the bar and every study',
   },
   {
@@ -98,7 +100,7 @@ const PANELS = [
   {
     id: 'strategies',
     label: 'Strategies',
-    icon: Activity,
+    icon: 'trading',
     hint: 'Strategies running on the server, Live or Sandbox',
   },
   {
@@ -138,6 +140,20 @@ export function isPanelId(value: string | null): value is PanelId {
   return PANELS.some((panel) => panel.id === value)
 }
 
+/** A panel's glyph: the engine's when it has one, the app's otherwise, at one weight. */
+function RailGlyph({ icon }: { icon: string | LucideIcon }) {
+  if (typeof icon === 'string') return <ChromeIcon id={icon} size={RAIL_GLYPH_PX} />
+  const Icon = icon
+  return (
+    <Icon
+      width={RAIL_GLYPH_PX}
+      height={RAIL_GLYPH_PX}
+      strokeWidth={lineStroke24(RAIL_GLYPH_PX)}
+      aria-hidden="true"
+    />
+  )
+}
+
 interface Props {
   active: PanelId | null
   onSelect(panel: PanelId | null): void
@@ -163,7 +179,7 @@ export function RightRail({ active, onSelect }: Props) {
   }, [active])
 
   return (
-    <div className="flex w-10 shrink-0 flex-col items-center gap-0.5 no-scrollbar overflow-y-auto border-l bg-background/40 py-1">
+    <div className="oa-rail border-l pb-1.5">
       {PANELS.map(({ id, label, icon: Icon, hint }) => {
         const isOpen = active === id
         return (
@@ -189,7 +205,7 @@ export function RightRail({ active, onSelect }: Props) {
                 // that is not in the document is worse than omitting it.
                 aria-controls={isOpen ? `oa-panel-${id}` : undefined}
               >
-                <Icon className="h-[18px] w-[18px]" strokeWidth={RAIL_ICON_STROKE} />
+                <RailGlyph icon={Icon} />
               </button>
             </div>
           </Tip>

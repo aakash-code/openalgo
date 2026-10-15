@@ -72,6 +72,8 @@ jobs:
             test/test_fyers_index_hsm_mapping.py \
             test/test_stream_oi.py test/test_oi_profile_multi_expiry.py \
             test/test_upstox_get_reset_retry.py \
+            test/test_qty_freeze_unknown_default.py \
+            test/test_migrate_qty_freeze_oct_2026.py \
             -v --timeout=60
 
   # The web server launcher, booted for real. install/openalgo-gunicorn.sh is
@@ -332,6 +334,8 @@ jobs:
           node .claude/skills/chart-indicator/validate.mjs strategies/indicators/open_range_breakout.js
       - name: shipped indicator tests
         run: node --test test/indicators/*.test.mjs
+      - name: toolbar and rail glyphs match the pinned package
+        run: node frontend/scripts/generate-chrome-icons.mjs --check
 
   # The openscript skill documents the openalgo-script compiler that /trading
   # actually pins, and the same reasoning applies: a version bump that leaves the

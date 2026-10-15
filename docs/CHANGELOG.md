@@ -150,6 +150,111 @@ files and OpenScript studies. It works like TradingView's: put a 1h EMA on a
   the broker's monthly or weekly bars disagree with its daily ones, the
   indicator follows the broker's higher bars.
 
+## [2.0.2.8] - 2026-10-15
+
+### Freeze Limits and Full-Screen Terminal Release
+
+13 commits since 2.0.2.7, excluding automated frontend build commits. Full
+notes: [version-2.0.2.8-released.md](releases/version-2.0.2.8-released.md).
+
+**This release requires a database migration.** Run
+`cd upgrade && uv run migrate_all.py` after pulling, then restart. The Ubuntu
+and Windows updaters and a Docker restart run it for you.
+
+### Highlights
+
+- The NSE index freeze limits move to the values in force from 5 October 2026,
+  so large index orders are split into fewer slices, and NIFTYFPI gets a limit
+  of its own instead of NIFTY's.
+- `/trading` takes the whole screen on openalgo-charts 2.6.4, with a slimmer
+  toolbar, a foldable drawing rail, smooth wheel zoom, and Renko and Point &
+  Figure settings.
+- The agent's tool calls work the first time on questions about several
+  instruments, and the `/trading` assistant can place orders behind the same
+  approval card as `/agent`.
+- A cancelled sandbox closing order no longer credits margin it never blocked.
+- Master contract, history and order fixes for Groww, Flattrade, 5 Paisa,
+  Firstock and Tradejini.
+
+### NSE index freeze limits from 5 October 2026
+
+NSE circular NSE/FAOP/76693 raised the quantity freeze limits for index
+futures and options from 5 October 2026. OpenAlgo splits an order larger than
+the freeze limit into several orders, so until this update an install kept
+splitting at the old, smaller limits: more orders than needed, slower to
+complete, with more room for the price to move between slices.
+
+| Index | Old limit | New limit | New limit in lots |
+| --- | --- | --- | --- |
+| NIFTY | 1,800 | 3,510 | 54 |
+| BANKNIFTY | 600 | 1,440 | 48 |
+| FINNIFTY | 1,800 | 3,240 | 54 |
+| MIDCPNIFTY | 2,800 | 5,760 | 48 |
+| NIFTYNXT50 | 600 | 1,125 | 45 |
+| NIFTYFPI | 8,500 | 53,900 | 49 |
+
+**Existing installs run the migration.** `install/update.sh`, the Windows
+updater and a Docker restart run it for you; a manual upgrade runs
+`cd upgrade && uv run migrate_all.py`, then restarts OpenAlgo.
+`uv run migrate_qty_freeze_oct_2026.py --status` shows what it would change.
+It only changes a limit that still holds a value OpenAlgo shipped or NSE
+published before. A limit an admin set to something else on the Freeze
+Quantities page is left alone and listed, so check those against the table
+above. New installs get the new limits from `data/qtyfreeze.csv`.
+
+- NIFTYFPI gets a freeze limit of its own. It had no row, and because its
+  contract symbols start with NIFTY, its orders were split at NIFTY's limit.
+- The API reference examples show NIFTY's new limit of 3,510.
+
+### /trading: a full-screen terminal with a cleaner toolbar and drawing rail
+
+No database migration and no `update.sh` run are needed. Pull and restart
+OpenAlgo; the chart is part of the built frontend.
+
+**What changed for traders**
+
+- /trading uses the whole screen. The app's navigation bar is gone from this
+  page only; a Dashboard button at the left of the toolbar takes you back, and
+  the Live or Analyze badge, the mode switch, the light and dark toggle and your
+  profile menu sit at the right of the same toolbar at every screen width, with
+  the broker name beside them on wider screens.
+- The toolbar is one slim band: borderless controls with thin dividers between
+  groups, a chevron on every control that opens a list, and a soft tint in the
+  mode's colour on whatever is switched on (violet in Analyze mode). One-Click
+  keeps its name at every width and turns red while it is on. The "Chart 1"
+  button is gone; with several charts open, choosing which one the toolbar
+  drives is in the layout menu, and the chosen chart's frame is highlighted.
+- Every icon in the toolbar, the drawing rail, the right rail, the drawing style
+  bar and the chart's right-click menu is drawn at one fine line weight.
+- The drawing rail shows a small caret on a group of tools when you hover it;
+  click the caret to pick another tool of that group. A dot marks a tool held
+  for repeated use, and the magnet shows a solid dot for strong and a ring for
+  weak.
+- Zooming out with the mouse wheel keeps the latest bar at the right edge and
+  compresses history beside it, instead of opening a widening gap after the last
+  bar. Hold Ctrl (Cmd on a Mac) while scrolling to zoom about the pointer.
+- The drawing rail can fold away: the last button hides it and a small tab at
+  the bottom left of the chart brings it back. The choice is remembered, and
+  tools, drawings and shortcuts keep working while it is folded.
+- New chart colours in Live dark, Live light and Analyze mode: a fainter grid,
+  clearer up and down candles, quieter volume bars, crosshair labels in the
+  mode's colour, and a gradient under the area chart.
+
+### /trading: openalgo-charts 2.6.4
+
+No database migration and no `update.sh` run are needed. Pull and restart
+OpenAlgo; the chart is part of the built frontend.
+
+**What changed for traders**
+
+- The mouse wheel and a trackpad zoom the chart in one smooth motion, however
+  fast the wheel turns, instead of a jolt per notch.
+- A logarithmic price scale fills the chart again. It used to leave an empty
+  band under a long series, because its margins were measured in price rather
+  than on the log scale.
+- The drawing tool icons draw a finer line, and the horizontal ray icon is
+  redrawn for it.
+
 ### /trading: Renko and point and figure settings, openalgo-charts 2.6.2
 
 No database migration and no `update.sh` run are needed. Pull and restart
@@ -240,6 +345,56 @@ agent now recovers them.
   of the full notional.
 - Web search requests now run on the web server's own event loop under the
   default eventlet worker, which removes a way they could stall the server.
+
+### Sandbox
+
+- Cancelling a sandbox order that reserved no margin, such as one closing an
+  open position, no longer releases a recalculated margin and raises available
+  funds by an amount that was never taken (#2207).
+
+### Brokers
+
+- **Groww** - SL and SL-M orders use Groww's documented order types and SL
+  orders carry their limit price; cancel and modify report success only when
+  Groww confirms; the order book and trade book read every page, map the
+  exchange correctly (stocks such as ICICIBANK were shown as NFO), cover every
+  Groww status and no longer invent trades when Groww's trades call fails;
+  indices are EQ rows on NSE_INDEX and BSE_INDEX, BSE F&O and NSE commodity
+  symbols use the OpenAlgo format, and SENSEX and BANKEX quotes return data
+  (#2194).
+- **Flattrade** - SENSEX and BANKEX daily charts load (#2196); index rows are
+  typed EQ, stale BSE rows with no exchange are dropped, and history skips
+  invalid candles, the 09:14 pre-open bar and negative closing-session volume
+  that made the chart reject the whole history; a failed master contract
+  refresh keeps the existing symbols (#2198); an empty order book is no longer
+  logged at info level (#2206).
+- **Firstock and Tradejini** - a failed master contract refresh keeps the
+  existing symbols and is reported as failed instead of emptying the table
+  (#2198).
+- **5 Paisa** - duplicate symbol and exchange pairs reduced to one, about 600
+  BE-series stocks typed EQ, and a history range with no sessions returns
+  nothing instead of today's candle (#2195).
+- Option symbols whose underlying contains digits, ampersands or hyphens
+  (M&M, BAJAJ-AUTO, 360ONE) are parsed for Greeks, and a symbol with trailing
+  text is rejected (#2206).
+
+### Dependencies
+
+- `openalgo-charts` 2.6.0 to 2.6.4. No built-in chart id was added or removed.
+- No Python dependencies changed. The pinned `openalgo` SDK stays at 2.0.5.
+
+### Contributors
+
+- **@marketcalls (Rajandran R)** - release management; NSE index freeze limits
+  and their migration (#2218); the full-screen `/trading` terminal on
+  openalgo-charts 2.6.4 (#2216), Renko and Point & Figure settings (#2215) and
+  the restored glyph modules (#2217); reliable agent tool calls and chart
+  orders; the two flaky gthread-migration test fixes.
+- **@Kalaiviswa** - Groww alignment with Groww's API documentation (#2194);
+  5 Paisa master contract and history fixes (#2195); Flattrade BSE index daily
+  charts (#2196), master contract, history and refresh safety with Firstock
+  and Tradejini (#2198); Flattrade log noise and option symbols with special
+  underlyings (#2206); sandbox cancellation of zero-margin orders (#2207).
 
 ## [2.0.2.7] - 2026-10-08
 
