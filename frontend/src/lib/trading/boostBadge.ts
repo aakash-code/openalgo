@@ -5,6 +5,9 @@
  * table is the same hazard on the frontend: the TradeFinder panel and the boost
  * strikes panel must agree on what counts as a badge and what it looks like, or
  * a stock appears in one and not the other.
+ *
+ * Badges are words, not symbols: /trading draws no glyphs of its own, and an
+ * arrow or a diamond told a screen reader nothing.
  */
 
 export interface BadgeStyle {
@@ -19,25 +22,25 @@ export const MOVEMENT_BADGE: Record<string, BadgeStyle> = {
   EXTREME_JUMP: { text: 'JUMP', className: 'text-amber-500' },
   LARGE_JUMP: { text: 'JUMP', className: 'text-amber-400' },
   FAST_CLIMB: { text: 'FAST', className: 'text-emerald-500' },
-  TOP5_ENTRY: { text: '→T5', className: 'text-emerald-500' },
-  TOP10_ENTRY: { text: '→T10', className: 'text-emerald-500' },
-  TOP20_ENTRY: { text: '→T20', className: 'text-emerald-400' },
-  TOP5_RE_ENTRY: { text: '↻T5', className: 'text-emerald-500' },
-  TOP10_RE_ENTRY: { text: '↻T10', className: 'text-emerald-500' },
-  TOP20_RE_ENTRY: { text: '↻T20', className: 'text-emerald-400' },
-  SUSTAINED_TOP5: { text: '◆T5', className: 'text-sky-400' },
-  SUSTAINED_TOP10: { text: '◆T10', className: 'text-sky-400' },
-  SUSTAINED_TOP20: { text: '◆T20', className: 'text-sky-500' },
-  TOP5_EXIT: { text: 'T5×', className: 'text-red-500' },
-  TOP10_EXIT: { text: 'T10×', className: 'text-red-500' },
-  TOP20_EXIT: { text: 'T20×', className: 'text-red-500' },
+  TOP5_ENTRY: { text: 'IN T5', className: 'text-emerald-500' },
+  TOP10_ENTRY: { text: 'IN T10', className: 'text-emerald-500' },
+  TOP20_ENTRY: { text: 'IN T20', className: 'text-emerald-400' },
+  TOP5_RE_ENTRY: { text: 'BACK T5', className: 'text-emerald-500' },
+  TOP10_RE_ENTRY: { text: 'BACK T10', className: 'text-emerald-500' },
+  TOP20_RE_ENTRY: { text: 'BACK T20', className: 'text-emerald-400' },
+  SUSTAINED_TOP5: { text: 'HELD T5', className: 'text-sky-400' },
+  SUSTAINED_TOP10: { text: 'HELD T10', className: 'text-sky-400' },
+  SUSTAINED_TOP20: { text: 'HELD T20', className: 'text-sky-500' },
+  TOP5_EXIT: { text: 'OUT T5', className: 'text-red-500' },
+  TOP10_EXIT: { text: 'OUT T10', className: 'text-red-500' },
+  TOP20_EXIT: { text: 'OUT T20', className: 'text-red-500' },
   FAST_DROP: { text: 'DROP', className: 'text-red-500' },
-  CLEAN_RUN_UP: { text: 'RUN↑', className: 'text-emerald-500' },
+  CLEAN_RUN_UP: { text: 'RUN UP', className: 'text-emerald-500' },
   // The only day measured so far, 17-Sep-2026, was a strongly rising one -- 64
   // of the list up against 15 down -- so its verdict on down runs says more
   // about that day than about the signal. The market does not only go up, so
   // the badge is shown; it is marked untested rather than judged.
-  CLEAN_RUN_DOWN: { text: 'RUN↓', className: 'text-red-500' },
+  CLEAN_RUN_DOWN: { text: 'RUN DOWN', className: 'text-red-500' },
 }
 
 /** Events whose badge is not yet backed by evidence, so the tooltip says so

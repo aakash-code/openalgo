@@ -3,7 +3,7 @@ import { badgeAge, badgedWithin, badgeFor, stampBadgeSightings } from './boostBa
 
 const WINDOW = 15 * 60_000
 const T0 = 1_700_000_000_000
-const RUN_UP = { text: 'RUN↑', className: 'text-emerald-500' }
+const RUN_UP = { text: 'RUN UP', className: 'text-emerald-500' }
 const JUMP = { text: 'JUMP', className: 'text-amber-400' }
 
 describe('badge stickiness', () => {
@@ -82,6 +82,15 @@ describe('badgeFor', () => {
   it('does not badge the non-events, which are most of the list', () => {
     for (const event of ['CLIMBING', 'FALLING', 'NORMAL', 'NEW', 'ABSENT', undefined]) {
       expect(badgeFor(event), String(event)).toBeUndefined()
+    }
+  })
+})
+
+describe('badge text', () => {
+  it('is words, never a symbol standing in for an icon', async () => {
+    const { MOVEMENT_BADGE } = await import('./boostBadge')
+    for (const [event, badge] of Object.entries(MOVEMENT_BADGE)) {
+      expect(badge.text, event).toMatch(/^[A-Z0-9 ]+$/)
     }
   })
 })

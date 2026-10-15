@@ -15,19 +15,7 @@
  * it rather than shown as misleading zeros.
  */
 
-import {
-  ArrowDown,
-  ArrowUp,
-  History,
-  Pin,
-  PinOff,
-  Plus,
-  RefreshCw,
-  Search,
-  Settings2,
-  TrendingDown,
-  TrendingUp,
-} from 'lucide-react'
+import { History, Pin, PinOff, Plus, RefreshCw, Search, Settings2 } from 'lucide-react'
 import { useEffect, useRef, useState } from 'react'
 import { optionChainApi } from '@/api/option-chain'
 import {
@@ -189,8 +177,8 @@ interface Features {
    * hides -- a thin contract is a warning to price in, not a reason to lose
    * sight of a mover. */
   futureLiquidity: boolean
-  /** Shows the server-side "Momentum Setup: Vijay Thakare Option Buying
-   * Scalping Setup" buy/sell signal -- the same triangle the chart indicator
+  /** Shows the server-side Momentum Setup (option buying scalping
+   * setup) buy/sell signal -- the same triangle the chart indicator
    * draws, computed for every row on the list whether or not its chart is
    * open. */
   momentumSetup: boolean
@@ -287,18 +275,34 @@ function ChgCell({ value }: { value: number }) {
   )
 }
 
-/** Score with a direction arrow -- the number alone doesn't say whether the
+/** Score with its direction -- the number alone doesn't say whether the
  * symbol is moving up or down, only how strongly TradeFinder is ranking it. */
 function ScoreCell({ score, direction }: { score: number; direction: 'up' | 'down' | null }) {
   return (
     <span className="flex items-center justify-end gap-0.5 tabular-nums">
       {score.toFixed(1)}
-      {direction === 'up' && (
-        <TrendingUp className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
+      <DirectionWord direction={direction} />
+    </span>
+  )
+}
+
+/**
+ * Up or down as a word in its colour. These were arrow icons, which /trading
+ * no longer draws, and which a screen reader announced as nothing at all.
+ */
+function DirectionWord({ direction }: { direction: 'up' | 'down' | null | undefined }) {
+  if (direction !== 'up' && direction !== 'down') return null
+  return (
+    <span
+      className={cn(
+        'text-[9px] font-medium',
+        direction === 'up'
+          ? 'text-emerald-600 dark:text-emerald-400'
+          : 'text-rose-600 dark:text-rose-400'
       )}
-      {direction === 'down' && (
-        <TrendingDown className="h-3 w-3 shrink-0 text-rose-600 dark:text-rose-400" />
-      )}
+    >
+      <span aria-hidden="true">{direction === 'up' ? 'up' : 'dn'}</span>
+      <span className="sr-only">, moving {direction}</span>
     </span>
   )
 }
@@ -316,12 +320,7 @@ function DirectionalScoreCell({ item }: { item: TfListItem }) {
   return (
     <span className="flex items-center justify-end gap-0.5 tabular-nums" title={title}>
       {item.directional_score.toFixed(0)}
-      {item.directional_direction === 'up' && (
-        <TrendingUp className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
-      )}
-      {item.directional_direction === 'down' && (
-        <TrendingDown className="h-3 w-3 shrink-0 text-rose-600 dark:text-rose-400" />
-      )}
+      <DirectionWord direction={item.directional_direction} />
     </span>
   )
 }
@@ -463,14 +462,15 @@ function formatAgo(date: Date): string {
   return `${Math.round(seconds / 60)}m ago`
 }
 
-/** Rank movement since the previous poll -- a small arrow only, no number,
+/** Rank movement since the previous poll -- the direction only, no number,
  * since "moved up 3 places" matters far less than the direction. */
 function RankDeltaIcon({ delta }: { delta: number | undefined }) {
   if (!delta) return null
-  return delta > 0 ? (
-    <ArrowUp className="h-3 w-3 shrink-0 text-emerald-600 dark:text-emerald-400" />
-  ) : (
-    <ArrowDown className="h-3 w-3 shrink-0 text-rose-600 dark:text-rose-400" />
+  const direction = delta > 0 ? 'up' : 'down'
+  return (
+    <span role="img" aria-label={`rank ${direction} since the last refresh`}>
+      <DirectionWord direction={direction} />
+    </span>
   )
 }
 
@@ -498,7 +498,11 @@ function JwtHealthBadge({ health }: { health: JwtHealthResponse | null }) {
           : 'bg-emerald-500'
 
   return (
-    <output className={cn('h-2 w-2 shrink-0 rounded-full', color)} title={label} aria-label={label} />
+    <output
+      className={cn('h-2 w-2 shrink-0 rounded-full', color)}
+      title={label}
+      aria-label={label}
+    />
   )
 }
 
@@ -531,13 +535,19 @@ function CprDot({ item }: { item: TfListItem }) {
  * this session, so scanning the list finds it without having caught the
  * popup. `detail` carries the specific numbers into the tooltip. */
 function MomentumBadge({ kind, detail }: { kind: 'climb' | 'breakout'; detail: string }) {
-  const Icon = kind === 'climb' ? TrendingUp : ArrowUp
+  // A word, like the movement badges: the arrow icons this used told a
+  // screen reader nothing, and /trading draws no glyphs of its own.
   return (
-    <span title={detail} className="inline-flex shrink-0">
-      <Icon
-        className={cn('h-3 w-3', kind === 'climb' ? 'text-orange-500' : 'text-emerald-500')}
-        aria-hidden="true"
-      />
+    <span
+      title={detail}
+      role="img"
+      aria-label={detail}
+      className={cn(
+        'inline-flex shrink-0 text-[9px] font-semibold',
+        kind === 'climb' ? 'text-orange-500' : 'text-emerald-500'
+      )}
+    >
+      {kind === 'climb' ? 'CLIMB' : 'BREAKOUT'}
     </span>
   )
 }
@@ -637,7 +647,6 @@ function LiquidityChip({ item }: { item: TfListItem }) {
 function MomentumSetupBadge({ item }: { item: TfListItem }) {
   if (!item.momentum_signal) return null
   const buy = item.momentum_signal === 'buy'
-  const Icon = buy ? ArrowUp : ArrowDown
   const priceText = item.momentum_signal_price != null ? ` near ${item.momentum_signal_price}` : ''
   const timeText = item.momentum_signal_bar_time
     ? ` on the ${new Date(item.momentum_signal_bar_time).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' })} candle`
@@ -648,10 +657,15 @@ function MomentumSetupBadge({ item }: { item: TfListItem }) {
       : ''
   return (
     <span
-      title={`${buy ? 'Buy' : 'Sell'} setup fired${priceText}${timeText}${countText} (Momentum Setup: Vijay Thakare scanner, Continuous mode).`}
-      className={cn('inline-flex shrink-0', buy ? 'text-emerald-500' : 'text-rose-500')}
+      title={`${buy ? 'Buy' : 'Sell'} setup fired${priceText}${timeText}${countText} (Momentum Setup indicator, Continuous mode).`}
+      role="img"
+      aria-label={`${buy ? 'Buy' : 'Sell'} setup fired${priceText}${timeText}${countText}`}
+      className={cn(
+        'inline-flex shrink-0 text-[9px] font-semibold',
+        buy ? 'text-emerald-500' : 'text-rose-500'
+      )}
     >
-      <Icon className="h-3 w-3" aria-hidden="true" />
+      {buy ? 'BUY' : 'SELL'}
     </span>
   )
 }
@@ -682,7 +696,7 @@ function MovementBadge({ mv }: { mv: BoostMovementRow }) {
   const stale = age != null && age >= RUN_STALE_MINUTES
   return (
     <span
-      title={`${mv.event.replace(/_/g, ' ')} · ${mv.first_seen_rank}→${mv.current_rank}${vel}${zone}${run}${unproven}`}
+      title={`${mv.event.replace(/_/g, ' ')} · ${mv.first_seen_rank} to ${mv.current_rank}${vel}${zone}${run}${unproven}`}
       className={cn(
         'flex shrink-0 items-center gap-0.5 text-[10px] font-bold tabular-nums',
         badge.className,
@@ -888,7 +902,7 @@ function FeatureSettings({
         onChange={(v) => set('newEntrantAlert', v)}
       />
       <label className="flex items-center justify-between gap-3 py-1 text-[12px]">
-        <span className="text-foreground">Alert on score ≥</span>
+        <span className="text-foreground">Alert on score at least</span>
         <input
           type="number"
           min={0}
@@ -948,7 +962,7 @@ function FeatureSettings({
         onChange={(v) => set('momentumSetup', v)}
       />
       <span className="block pb-1 text-[10px] text-muted-foreground">
-        The chart's own Momentum Setup (Vijay Thakare scalping setup) indicator, run server-side
+        The chart's own Momentum Setup (option buying scalping setup) indicator, run server-side
         against every row's 5-minute candles -- the same buy/sell triangle it draws on a chart,
         without that chart needing to be open.
       </span>

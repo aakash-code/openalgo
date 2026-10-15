@@ -22,6 +22,13 @@ Pull and reload; the watchlist part needs the rebuilt frontend.
   behaviour. The OI Profile's colour setting is stored as `calls-red` instead
   of a platform name. A chart saved with the old value shows the same colours,
   because both fall back to calls red.
+- **TradeFinder and Boost strikes badges are words.** "IN T5", "BACK T5",
+  "HELD T5", "OUT T5", "RUN UP" and "RUN DOWN" replace the arrow, refresh,
+  diamond and cross symbols, and the climb, breakout and buy/sell flags read
+  "CLIMB", "BREAKOUT", "BUY" and "SELL" instead of arrow icons. Score and rank
+  direction show "up" or "dn" in their colour, and a screen reader now hears
+  "moving up" where the arrows said nothing. The Momentum Setup's description
+  no longer carries a person's product name.
 - Checked live after the 2.0.2.8 merge: every right-rail panel (including
   TradeFinder and Boost strikes), the OI Profile toggle and its Both mode,
   watchlist sorting and the per-indicator Timeframe setting all work in the

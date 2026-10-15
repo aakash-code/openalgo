@@ -30,8 +30,8 @@ export interface TfListItem {
    * volume is not, since lot size and price both vary. */
   fut_turnover_cr?: number | null
   fut_tier?: 'tight' | 'ok' | 'wide' | null
-  /** The chart's own "Momentum Setup: Vijay Thakare Option Buying Scalping
-   * Setup" indicator, computed server-side against 5-minute candles so a
+  /** The chart's own Momentum Setup (option buying scalping
+   * setup) indicator, computed server-side against 5-minute candles so a
    * signal shows up without that symbol's chart being open. `buy`/`sell`
    * only while the setup's Continuous-mode trigger is 1 on the most
    * recently closed candle; null once it stops firing, never left stale. */
