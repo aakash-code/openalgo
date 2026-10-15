@@ -148,7 +148,7 @@ loaded at runtime, so pulling and reloading the chart is enough.
 
 Every indicator on the `/trading` chart now has a **Timeframe** setting in its
 settings dialog. That covers the built-ins, your own `strategies/indicators/`
-files and OpenScript studies. It works like TradingView's: put a 1h EMA on a
+files and OpenScript studies. Put a 1h EMA on a
 5m chart and it plots the 1h values as a step across each hour.
 
 - Past periods show their final value, exactly as on the higher chart. The
@@ -157,7 +157,7 @@ files and OpenScript studies. It works like TradingView's: put a 1h EMA on a
   times on the lower chart.
 - Bar replay never shows the future: the higher period under the replay cursor
   is built only from the bars replay has revealed.
-- **Wait for timeframe closes**, as on TradingView: each value appears on the
+- **Wait for timeframe closes**: each value appears on the
   first bar after its period closes and never moves while the next one forms.
 - Only higher timeframes are offered, including W, M, Q and Y. A layout saved
   with a timeframe that is now at or below the chart's, for example after
@@ -170,8 +170,8 @@ files and OpenScript studies. It works like TradingView's: put a 1h EMA on a
   not two. The library's version builds the higher bars only from the bars
   already on the chart, so a long study such as a daily EMA(200) on a 5m chart
   has too few of them, and it never shows the period still forming.
-- Not modelled: a lower timeframe on a higher chart (TradingView refuses it
-  too), and per-bar values "as they stood" inside past periods. A higher
+- Not modelled: a lower timeframe on a higher chart (the study runs on the
+  chart's own bars and says why), and per-bar values "as they stood" inside past periods. A higher
   timeframe always reads the broker's own history for that interval, so where
   the broker's monthly or weekly bars disagree with its daily ones, the
   indicator follows the broker's higher bars.
