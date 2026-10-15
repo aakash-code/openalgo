@@ -47,6 +47,12 @@ chart.
   asks the server only when that is older than a refresh.
 - In a narrow pane the two columns share the space one column would take, so
   the candles stay visible.
+- **Yesterday's dashed outline stays inside its column.** The open interest
+  scale counted only today's figures, so a strike that had unwound since
+  drew its outline past the column, over the change column (CRUDEOIL 9000)
+  or over the candles.
+- **The status line sits under the chart's legend**, not on its first row,
+  where in Both mode it printed over the symbol's OHLC values.
 - **A change that is not known yet now says "loading"** in the tooltip
   ("not available" if the broker has no previous-day figure). It used to read
   "Call Chg: 0 (0.0%)", seen on CRUDEOIL and SENSEX while their previous-day
