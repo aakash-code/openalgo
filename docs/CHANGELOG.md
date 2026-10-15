@@ -29,6 +29,45 @@ database migration.
   once in that mode after a reconnect.
 - Not changed: other brokers' adapters were not reviewed for the same pattern.
 
+### /trading: OI Profile shows open interest and its change together
+
+No database migration and no `update.sh` run are needed. Pull and reload the
+chart.
+
+- **New Mode, "Both, side by side".** The change in OI since the previous
+  session and the open interest are drawn at once, as two labelled columns:
+  change on the left, open interest at the right edge where it always was.
+  Each column has its own scale, so a small change beside a large total is
+  still readable. Both update live from the feed between refreshes, and the
+  tooltip carries both, with the change as a percentage of what the strike
+  carried into the day.
+- **Changing any OI Profile setting no longer blanks the bars.** The
+  settings dialog's Ok replaces the indicator, and the new one started empty
+  and asked for everything again. It now paints the answer already held and
+  asks the server only when that is older than a refresh.
+- In a narrow pane the two columns share the space one column would take, so
+  the candles stay visible.
+- **A change that is not known yet now says "loading"** in the tooltip
+  ("not available" if the broker has no previous-day figure). It used to read
+  "Call Chg: 0 (0.0%)", seen on CRUDEOIL and SENSEX while their previous-day
+  open interest was still being fetched, and an outline was drawn over
+  today's own bar.
+- **Max pain is also in the status line**, so it can be read when its strike
+  is above or below the prices on screen. On M&M it was 2900 with the chart
+  showing 2800-2850, and nothing said so.
+- **The settings dialog's Expiry Used list** now finds M&M and BAJAJ-AUTO
+  (its own copy of the underlying rule turned M&M into "MM") and MCX
+  underlyings such as CRUDEOIL, and says "Loading expiries..." while it looks
+  instead of "No expiries found". This part needs the rebuilt frontend.
+- Accuracy was checked against the broker on NIFTY, BANKNIFTY, RELIANCE,
+  SENSEX (BFO), CRUDEOIL (MCX), BHEL and M&M: open interest per strike, the
+  change against the previous day's close from daily history, PCR and max
+  pain all matched what the chart drew.
+- Not changed: on BFO and MCX the previous day's open interest takes one
+  broker history call per contract (the NSE file covers only NFO), so the
+  change columns for SENSEX or CRUDEOIL fill over a minute or more, and
+  longer while the broker's half-hour request allowance is used up.
+
 ### /trading: OI Profile fixes
 
 No database migration and no `update.sh` run are needed. The indicator is
