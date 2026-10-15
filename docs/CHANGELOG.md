@@ -8,6 +8,25 @@ fix, live in [docs/releases](releases/).
 
 ## [Unreleased]
 
+### /trading: the fork's own parts follow the full-screen terminal's rules
+
+Pull and reload; the watchlist part needs the rebuilt frontend.
+
+- **The watchlist's sorted column says its direction in words** ("Chg% asc",
+  "Chg% desc") instead of arrow icons, which the terminal no longer draws, and
+  each header's label says it too ("Chg%, sorted ascending"), which the arrows
+  never did for a screen reader. Clicking still cycles ascending, descending
+  and back to your own order, with rows that have no value kept at the bottom.
+- **No brand names in /trading.** Comments in the watchlist, the per-indicator
+  Timeframe and the OI Profile named other platforms; they now describe the
+  behaviour. The OI Profile's colour setting is stored as `calls-red` instead
+  of a platform name. A chart saved with the old value shows the same colours,
+  because both fall back to calls red.
+- Checked live after the 2.0.2.8 merge: every right-rail panel (including
+  TradeFinder and Boost strikes), the OI Profile toggle and its Both mode,
+  watchlist sorting and the per-indicator Timeframe setting all work in the
+  full-screen terminal, at 1366px and 1920px, with no console errors.
+
 ### Upstox: one client leaving no longer stops a symbol for everyone
 
 Restart OpenAlgo after pulling; the fix is in the market data feed. No

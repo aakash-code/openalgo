@@ -1,6 +1,6 @@
 /**
- * A per-indicator Timeframe setting, the way TradingView offers one on every
- * study: a 1h EMA on a 5m chart plots the 1h values as a step, the 1h bar still
+ * A per-indicator Timeframe setting, the way charting terminals offer one on
+ * every study: a 1h EMA on a 5m chart plots the 1h values as a step, the 1h bar still
  * forming updates live, and anything a study draws lands at its real time.
  *
  * Done on the host, once, for every registered descriptor (built-ins, the
@@ -8,7 +8,7 @@
  * The descriptor is wrapped: its `calc` runs on higher-timeframe bars and each
  * output column is spread back over the chart bars inside each period.
  *
- * Only coarser timeframes are accepted, as on TradingView. A past period shows
+ * Only coarser timeframes are accepted, as charting terminals do. A past period shows
  * its final value across all of its chart bars, which is what the higher chart
  * itself shows; the period still forming is folded from the chart's own bars,
  * so it moves with every tick without a refetch.
@@ -38,7 +38,7 @@ type Core = Pick<
 
 /** The setting this adds. A descriptor with its own input of that key opts out. */
 export const TF_KEY = 'tf'
-/** TradingView's "Wait for timeframe closes": show only completed periods. */
+/** "Wait for timeframe closes": show only completed periods. */
 export const TF_WAIT_KEY = 'tfWait'
 
 const WRAPPED = Symbol.for('openalgo.indicatorTimeframe')

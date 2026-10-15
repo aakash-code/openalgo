@@ -995,7 +995,7 @@ export function buildOrderTicket(input: {
 const VISIBLE_BARS = 120
 /** Empty bars kept between the newest candle and the price axis. */
 const RIGHT_PAD_BARS = 4
-/** What a chart opens with the very first time this browser has no saved layout, matching TradingView's own default. */
+/** What a chart opens with the very first time this browser has no saved layout: Volume, the usual default. */
 const DEFAULT_INDICATORS: { indicatorId: string; settings: Record<string, unknown> }[] = [
   { indicatorId: 'volume', settings: {} },
 ]
@@ -2904,7 +2904,7 @@ export class TradingTerminal {
       const raw = this.lsGet('indicators')
       // `raw === null` means this browser has never saved a layout at all --
       // distinct from an explicit clear, which persists '[]'. Only the former
-      // gets TradingView's default: Volume on, so a user who deliberately
+      // gets the default: Volume on, so a user who deliberately
       // removed every indicator does not have it reappear on the next load.
       // The stored value still goes through readStoredIndicators (upstream), so
       // a v1 layout is migrated and de-duplicated exactly as it is for everyone.
@@ -3998,8 +3998,8 @@ export class TradingTerminal {
   }
 
   /**
-   * Give every registered indicator a Timeframe setting (TradingView's
-   * per-study timeframe). Last, after every tier has registered, and before a
+   * Give every registered indicator a Timeframe setting (a per-study
+   * timeframe). Last, after every tier has registered, and before a
    * layout is restored, because an instance keeps the descriptor it was added
    * with.
    */

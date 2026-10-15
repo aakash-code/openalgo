@@ -78,7 +78,8 @@ function harness({ settings, fetchImpl, plotWidth = 800, priceToY = (p) => 400 -
     return { texts, rects, outlines, placed }
   }
   const tick = (symbol, oi) => ticks.get(symbol)?.({ symbol, data: { oi, oi_updated_at: Date.now() } })
-  return { teardown, frame, tick, ticks }
+  const draw = (canvas) => primitive.draw(canvas, rc(null))
+  return { teardown, frame, tick, ticks, draw }
 }
 
 const routine = (log = []) => async (url, opts) => {
@@ -293,6 +294,28 @@ test('the status line sits below the first row of the chart legend', async () =>
     const status = h.frame().placed.find((p) => p.t.startsWith('OI Profile: Updated'))
     // The legend's first row (symbol, OHLC) runs to about 22px.
     assert.ok(status.y >= 24, `status drawn at y=${status.y}`)
+  } finally {
+    h.teardown()
+  }
+})
+
+test('a chart saved with the old colour value still draws calls red', async () => {
+  // The scheme was stored as 'sensibull' before it was renamed 'calls-red'.
+  // An unknown value falls back to the default, which is the same scheme.
+  const h = harness({ settings: { mode: 'oi', outline: false, colors: 'sensibull' }, fetchImpl: routine() })
+  try {
+    await waitFor(() => h.frame().rects.some((r) => r.h === 11.5), 'the bars')
+    const fills = []
+    const noop = () => {}
+    const canvas = new Proxy(
+      {
+        measureText: (t) => ({ width: t.length * 6 }),
+        fillRect: function () { fills.push(this.fillStyle) },
+      },
+      { get: (t, k) => (k in t ? t[k] : noop), set: (t, k, v) => { t[k] = v; return true } }
+    )
+    h.draw(canvas)
+    assert.ok(fills.includes('#ef4444'), `calls drawn red: ${[...new Set(fills)].join(', ')}`)
   } finally {
     h.teardown()
   }
