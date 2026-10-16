@@ -14,6 +14,7 @@ services/broker_keepalive_service.py::_keepalive_loop  # benign: the keepalive t
 services/market_data_service.py::MarketDataService._cleanup_loop  # benign: a background cleanup every 5 minutes
 services/whatsapp_bot_service.py::WhatsAppBotService._run_pair  # benign: its own thread during pairing, bounded at 300 s
 services/signal_broadcast_service.py::_drain_worker  # benign: the signal send worker's own thread, pacing Telegram sends
+services/history_service.py::_enforce_rate_limit  # benign: only a background caller loops, giving way to charts for at most _BACKGROUND_YIELD_MAX (10 s) in steps of one turn; the one that runs in a request (the single-symbol Historify download) is held no longer than that
 
 # --- Streams that hold a request thread while they are open ---------------
 services/agent/stream.py::_pump  # benign: under gthread at most 6 agent streams are admitted and a turn ends after 15 minutes; every runtime ends the stream when shutdown begins

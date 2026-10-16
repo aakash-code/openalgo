@@ -5,7 +5,10 @@ Writer Flow API: what option writers did at each strike through the day.
     GET /writerflow/api/flow       the day read strike by strike, for the page and the chart
 
 Reads only db/oi_flow.duckdb, which the OI Flow recorder fills; it makes no
-broker call of its own, so opening the page costs the broker nothing. Answers
+broker call of its own, so opening the page costs the broker nothing. The chart
+also sends its own exchange, and an underlying it shows that is not being
+recorded is handed to the recorder to start (request_recording), which does its
+broker work on the recorder's thread, never in this request. Answers
 are built once per recorded write and shared (services/writer_flow_service.py),
 and sent gzipped to a browser that accepts it.
 """
@@ -15,6 +18,7 @@ from datetime import date, datetime
 from flask import Blueprint, Response, jsonify, request
 
 from database.oi_flow_db import EXPIRY_RE, UNDERLYING_RE, available_sessions
+from services.oi_flow_recorder_service import on_demand_state, request_recording
 from services.writer_flow_service import STEPS, FlowView, flow_answer, recorder_enabled
 from utils.logging import get_logger
 from utils.session import check_session_validity
@@ -24,6 +28,23 @@ logger = get_logger(__name__)
 writer_flow_bp = Blueprint("writer_flow_bp", __name__, url_prefix="/")
 
 _TRUE = ("1", "true", "yes")
+_CHART_EXCHANGES = ("NFO", "BFO", "MCX", "NSE", "BSE", "NSE_INDEX", "BSE_INDEX")
+
+
+def _recording_message(underlying: str, state: str | None) -> str | None:
+    """What to tell a trader whose chart shows an underlying with nothing recorded."""
+    return {
+        "started": f"Started recording {underlying}. Today's earlier minutes are being "
+        "filled from history; the chart fills in by itself within a few minutes.",
+        "recording": f"Recording {underlying}. It shows once its market is open and the "
+        "first minutes are in; earlier minutes are filled from history.",
+        "full": f"Writer Flow is already recording the most charted underlyings it is "
+        f"allowed to. Close another chart's Writer Flow, or raise OI_FLOW_ON_DEMAND_MAX "
+        f"in .env and restart, to record {underlying}.",
+        "no_options": f"{underlying} has no options listed, so there are no writers to show.",
+        "unknown": f"{underlying} was not found in the master contract, so it cannot be "
+        "recorded. Check the symbol, or download the master contract again.",
+    }.get(state or "")
 
 
 def _hhmm(t: datetime) -> str:
@@ -105,6 +126,25 @@ def flow():
                 "message": "Could not read the Writer Flow record. Try again in a moment.",
             }
         ), 500
+
+    # Only the chart sends its exchange, and only for today: the page and a
+    # past day read what is recorded and start nothing.
+    chart_exchange = (request.args.get("exchange") or "").strip().upper()
+    state = None
+    if chart_exchange in _CHART_EXCHANGES and not day and not expiry:
+        state = request_recording(underlying, chart_exchange)
+    elif built.empty:
+        state = on_demand_state(underlying)
+    message = _recording_message(underlying, state) if built.empty else None
+    if message:
+        return jsonify(
+            {
+                "status": "empty",
+                "message": message,
+                "recording": state in ("started", "recording"),
+                "recorder_enabled": recorder_enabled(),
+            }
+        )
 
     zipped = "gzip" in (request.headers.get("Accept-Encoding") or "").lower()
     response = Response(

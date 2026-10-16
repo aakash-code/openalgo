@@ -277,3 +277,61 @@ def test_under_eventlet_greenlets_are_spaced_and_the_hub_keeps_running(tmp_path)
     )
     assert "OK" in result.stdout, result.stdout + result.stderr
     assert "Cannot switch to a different thread" not in result.stderr
+
+
+def test_background_callers_give_way_to_a_chart(monkeypatch):
+    """Historify downloads and the Writer Flow fill run in the background. Booked
+    like everyone else, several of them queued ahead of the trader's next
+    symbol switch; now they book a turn only when the queue is empty."""
+    monkeypatch.setattr(runtime, "gthread_active", lambda: False)
+    busy_for = 1.0
+    monkeypatch.setattr(history_service, "_next_history_slot", time.monotonic() + busy_for)
+    order = []
+    lock = threading.Lock()
+
+    def background():
+        history_service._enforce_rate_limit(background=True)
+        with lock:
+            order.append("background")
+
+    workers = [threading.Thread(target=background) for _ in range(4)]
+    for worker in workers:
+        worker.start()
+    time.sleep(0.1)  # the downloads are already waiting when the chart asks
+
+    started = time.monotonic()
+    history_service._enforce_rate_limit()
+    waited = time.monotonic() - started
+    with lock:
+        order.append("chart")
+    for worker in workers:
+        worker.join(10)
+
+    assert waited < busy_for + 0.25, f"the chart waited {waited:.2f}s behind background calls"
+    assert order[0] == "chart", order
+    assert order.count("background") == 4, "a background caller never got its turn"
+
+
+def test_a_background_caller_gives_way_for_a_bounded_time(monkeypatch):
+    """The single-symbol Historify download runs inside a request; giving way
+    to a queue that never empties must not hold that request forever."""
+    monkeypatch.setattr(runtime, "gthread_active", lambda: False)
+    monkeypatch.setattr(history_service, "_BACKGROUND_YIELD_MAX", 0.5)
+    stop = time.monotonic() + 3
+
+    # Charts keep the queue busy for three seconds.
+    def busy():
+        while time.monotonic() < stop:
+            with history_service._history_slot_lock:
+                history_service._next_history_slot = max(
+                    history_service._next_history_slot, time.monotonic() + 0.2
+                )
+            time.sleep(0.05)
+
+    keeper = threading.Thread(target=busy)
+    keeper.start()
+    started = time.monotonic()
+    history_service._enforce_rate_limit(background=True)
+    waited = time.monotonic() - started
+    keeper.join(5)
+    assert waited < 1.5, f"a background caller was held {waited:.2f}s"

@@ -168,3 +168,25 @@ def test_the_chart_can_leave_out_what_it_does_not_draw(client):
     lite = client.get("/writerflow/api/flow?underlying=NIFTY&step=60&lite=1").get_json()
     assert "heat_cls" in full and "heat_cls" not in lite
     assert {k: v for k, v in full.items() if k != "heat_cls"} == lite
+
+
+def test_only_a_chart_still_open_is_rebuilt_after_a_write(reads, monkeypatch):
+    """A chart asks every minute. A symbol looked at and left is not rebuilt
+    every minute for the next ten: flicking through eight symbols used to cost
+    five to six seconds of CPU a minute."""
+    now = [0.0]
+    monkeypatch.setattr(
+        svc, "_asked", LockedTTLCache(maxsize=64, ttl=svc.WATCHED_SECONDS, timer=lambda: now[0])
+    )
+    open_chart = NIFTY
+    glanced = svc.FlowView(underlying="NIFTY", step="180")
+    svc.flow_answer(open_chart)
+    svc.flow_answer(glanced)
+    for m in range(5, 9):
+        now[0] += 60
+        svc.flow_answer(open_chart)  # the open chart's own minute poll
+        db.insert_samples(minute_rows(m))
+        rebuilt = svc.rebuild_watched({"NIFTY"})
+    assert svc.WATCHED_SECONDS <= 180
+    assert rebuilt == 1
+    assert glanced not in svc._asked and open_chart in svc._asked

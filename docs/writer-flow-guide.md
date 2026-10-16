@@ -19,6 +19,13 @@ page is about reading it.
    BSE_INDEX), or for a commodity the **near-month future**
    (CRUDEOIL19NOV26FUT), which is what MCX options are priced against. Any
    timeframe works.
+   Any other F&O underlying records itself: open its chart (TECHM27OCT26FUT,
+   or the TECHM stock chart) with Writer Flow on and stay on it for 15
+   seconds, and the chart says "Started recording TECHM". Flicking past a
+   symbol for a second or two starts nothing. The earlier part of today is filled from
+   history in a few minutes, and the chart fills in by itself. Up to five
+   charted underlyings record this way at once (`OI_FLOW_ON_DEMAND_MAX`), and
+   each stops half an hour after its last chart closes.
 3. Click **Writer Flow** in the toolbar, next to OI Profile. It adds the chart
    layer and the **Writer Flow Totals** pane together; click again to remove
    both. The gear beside it opens the settings.
@@ -148,10 +155,11 @@ writers have been far busier than call writers today.
 
 ## Limits worth knowing
 
-- Only the recorded underlyings show anything; on any other chart the status
-  line says nothing is recorded for it.
-- A commodity shows only once it is listed in `OI_FLOW_UNDERLYINGS`. On a
-  far-month future the broker often has no bars; use the near month.
+- A charted underlying is recorded only from the moment its chart is first
+  opened with Writer Flow on; the part of today before that comes from
+  history, and earlier days are not filled. List it in `OI_FLOW_UNDERLYINGS`
+  to record it every day whether or not a chart is open.
+- On a far-month future the broker often has no bars; use the near month.
 - Only the nearest expiry is recorded.
 - The session's first minute (09:15, or 09:00 on MCX) can only come from the
   live recorder: one-minute history has no reading of the state at the open.

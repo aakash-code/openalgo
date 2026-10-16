@@ -21,6 +21,12 @@ its shared gate, and rows the live recorder already holds are left alone.
 
 A strike that drifts out of the window as ATM moves keeps what was recorded
 for it; it is simply not sampled again until it is back inside.
+
+Charting an underlying that is not listed (TECHM27OCT26FUT on NFO) starts
+recording it too: request_recording() adds it for as long as a chart keeps
+asking, OI_FLOW_ON_DEMAND_MAX at a time (default 5, 0 turns it off), and
+fills its day so far from history straight away. Each one costs the same one
+option-chain call a minute as a listed one.
 """
 
 from __future__ import annotations
@@ -28,6 +34,7 @@ from __future__ import annotations
 import math
 import os
 import threading
+import time
 from datetime import date, datetime, timedelta
 from datetime import time as dtime
 from zoneinfo import ZoneInfo
@@ -45,6 +52,7 @@ from database.oi_flow_db import (
     release_writer,
 )
 from utils.logging import get_logger
+from utils.thread_safe_cache import LockedTTLCache
 
 logger = get_logger(__name__)
 
@@ -61,6 +69,12 @@ GAP_SETTLE_MINUTES = 2
 GAP_MAX_TRIES = 2
 # Contracts recorded this close to a gap are the window it is filled for.
 GAP_MARGIN_MINUTES = 5
+# History calls share one queue of about three a second with the chart's own
+# history loads. A fill booking its calls back to back put a newly charted
+# underlying's 60-odd calls ahead of the trader's next symbol switch, some 20
+# seconds of waiting. Resting this long after each call keeps the fill to about
+# one a second, so a chart load waits at most one slot behind it.
+FILL_REST_SECONDS = 0.7
 _scheduler: BackgroundScheduler | None = None
 _lock = threading.Lock()
 # (underlying, trade_date) -> expiry, so the expiry list is asked once a day.
@@ -76,6 +90,30 @@ _fill_lock = threading.Lock()
 # cleared when the day changes, so it holds one entry per exchange.
 _sessions: dict[tuple[str, date], tuple[dtime, dtime] | None] = {}
 _sessions_lock = threading.Lock()
+ON_DEMAND_JOB_PREFIX = "oi_flow_on_demand_"
+# A charted underlying is recorded while a chart keeps asking for it (the chart
+# asks every minute), and for half an hour after the last chart closes, so a
+# trader flicking between symbols does not lose the record on the way back.
+ON_DEMAND_TTL_SECONDS = 1800
+# Anything charted beyond this many is refused in words rather than dropping
+# one somebody is still watching.
+ON_DEMAND_CAP = 20
+
+
+def on_demand_max() -> int:
+    try:
+        return max(0, min(ON_DEMAND_CAP, int(os.getenv("OI_FLOW_ON_DEMAND_MAX", "5"))))
+    except ValueError:
+        return 5
+
+
+# underlying -> its quote exchange, for the charted underlyings being recorded.
+_on_demand = LockedTTLCache(maxsize=ON_DEMAND_CAP, ttl=ON_DEMAND_TTL_SECONDS)
+# Underlyings checked and found to have no options today: asked about once.
+_no_options = LockedTTLCache(maxsize=256, ttl=6 * 3600)
+# The full check and the add happen in one hold: two charts asking at once
+# under gthread would otherwise both pass the count and exceed it.
+_on_demand_lock = threading.Lock()
 
 
 def configured_underlyings() -> list[tuple[str, str]]:
@@ -89,6 +127,117 @@ def configured_underlyings() -> list[tuple[str, str]]:
         name, _, exchange = item.partition(":")
         pairs.append((name.strip().upper(), (exchange or "NSE_INDEX").strip().upper()))
     return pairs
+
+
+def recorded_underlyings() -> list[tuple[str, str]]:
+    """The listed underlyings, then the charted ones being recorded on demand."""
+    listed = configured_underlyings()
+    names = {u for u, _ in listed}
+    return listed + [(u, q) for u, q in sorted(_on_demand.items()) if u not in names]
+
+
+def _quote_exchange_for(underlying: str, chart_exchange: str) -> str | None:
+    """Where a charted underlying is quoted: an index if it is one, else the stock.
+
+    The chart says where its own instrument trades (NFO for a stock or index
+    future); the master contract says whether the underlying is an index.
+    """
+    from database.token_db import get_token
+
+    candidates = {
+        "NFO": ("NSE_INDEX", "NSE"),
+        "NSE": ("NSE",),
+        "NSE_INDEX": ("NSE_INDEX",),
+        "BFO": ("BSE_INDEX", "BSE"),
+        "BSE": ("BSE",),
+        "BSE_INDEX": ("BSE_INDEX",),
+    }.get(chart_exchange, ())
+    if chart_exchange == "MCX":
+        return "MCX"
+    for exchange in candidates:
+        try:
+            if get_token(underlying, exchange):
+                return exchange
+        except Exception:
+            logger.exception(f"oi_flow: looking up {underlying} on {exchange} failed")
+            return None
+    return None
+
+
+def request_recording(underlying: str, chart_exchange: str) -> str:
+    """A chart showing `underlying` asked for its Writer Flow. Never raises.
+
+    Answers what the trader should be told: "listed", "recording", "started",
+    "off" (recorder not running, or on demand set to 0), "full",
+    "no_options" or "unknown" (nothing tradable by that name).
+    """
+    underlying = (underlying or "").upper()
+    chart_exchange = (chart_exchange or "").upper()
+    try:
+        if any(u == underlying for u, _ in configured_underlyings()):
+            return "listed"
+        if _scheduler is None or on_demand_max() == 0:
+            return "off"
+        if underlying in _no_options:
+            return "no_options"
+        with _on_demand_lock:
+            held = _on_demand.get(underlying)
+            if held is not None:
+                # Renewed by every ask, so it stays while a chart is open.
+                _on_demand[underlying] = held
+                return "recording"
+            if len(_on_demand) >= on_demand_max():
+                return "full"
+        quote_exchange = _quote_exchange_for(underlying, chart_exchange)
+        if quote_exchange is None:
+            return "unknown"
+        with _on_demand_lock:
+            if underlying in _on_demand:
+                return "recording"
+            if len(_on_demand) >= on_demand_max():
+                return "full"
+            _on_demand[underlying] = quote_exchange
+        scheduler = _scheduler
+        if scheduler is not None:
+            scheduler.add_job(
+                _start_on_demand,
+                trigger=DateTrigger(run_date=datetime.now(IST) + timedelta(seconds=1)),
+                args=(underlying, quote_exchange),
+                id=ON_DEMAND_JOB_PREFIX + underlying,
+                replace_existing=True,
+            )
+        logger.info(f"oi_flow: recording {underlying} ({quote_exchange}) because a chart asked")
+        return "started"
+    except Exception:
+        logger.exception(f"oi_flow: starting to record {underlying} failed")
+        return "off"
+
+
+def on_demand_state(underlying: str) -> str | None:
+    """'recording' or 'no_options' for a charted underlying, else None."""
+    if underlying in _no_options:
+        return "no_options"
+    return "recording" if underlying in _on_demand else None
+
+
+def _start_on_demand(underlying: str, quote_exchange: str) -> None:
+    """First minute and the day so far, for a newly charted underlying. Never raises."""
+    try:
+        api_key = _api_key()
+        if not api_key:
+            return
+        now_ist = datetime.now(IST)
+        if not nearest_expiry(underlying, quote_exchange, api_key, now_ist.date()):
+            with _on_demand_lock:
+                _on_demand.pop(underlying, None)
+            _no_options[underlying] = True
+            logger.info(f"oi_flow: {underlying} has no option expiry listed, not recording it")
+            return
+        if within_session(now_ist, quote_exchange):
+            record_once(now_ist, only=underlying)
+        fill_gaps(now_ist)
+    except Exception:
+        logger.exception(f"oi_flow: first recording of {underlying} failed")
 
 
 def strikes_around_atm() -> int:
@@ -243,13 +392,17 @@ def chain_samples(
     return rows
 
 
-def record_once(now_ist: datetime | None = None) -> int:
-    """One sample of every configured underlying. Never raises: a scheduler job
-    that raised would stop the minute beat for the rest of the day."""
+def record_once(now_ist: datetime | None = None, only: str | None = None) -> int:
+    """One sample of every recorded underlying, or of `only`. Never raises: a
+    scheduler job that raised would stop the minute beat for the rest of the day."""
     now_ist = now_ist or datetime.now(IST)
     # Each underlying records while its own market is open: NIFTY options to
     # 15:40, CRUDEOIL options to 23:55.
-    active = [(u, q) for u, q in configured_underlyings() if within_session(now_ist, q)]
+    active = [
+        (u, q)
+        for u, q in recorded_underlyings()
+        if (only is None or u == only) and within_session(now_ist, q)
+    ]
     if not active:
         return 0
     api_key = _api_key()
@@ -349,13 +502,21 @@ def missing_minutes(
     now: datetime,
     session: tuple[dtime, dtime],
 ) -> list[datetime]:
-    """Session minutes from the open up to GAP_SETTLE_MINUTES ago that hold no sample."""
+    """Session minutes after the open, up to GAP_SETTLE_MINUTES ago, that hold no sample.
+
+    The opening minute itself is never one: a candle is stored at its minute
+    plus one, so the opening minute would need the candle before the open,
+    which does not exist. Asking for it cost one history call per contract,
+    twice a day and again after every restart, some 630 calls a day for five
+    underlyings, every one of them answered with nothing. Only the live beat
+    records it.
+    """
     last = min(
         now.replace(second=0, microsecond=0) - timedelta(minutes=GAP_SETTLE_MINUTES),
         datetime.combine(today, session[1]),
     )
     out = []
-    t = datetime.combine(today, session[0])
+    t = datetime.combine(today, session[0]) + timedelta(minutes=1)
     while t <= last:
         if t not in held:
             out.append(t)
@@ -383,7 +544,7 @@ def fill_gaps(now_ist: datetime | None = None) -> int:
             return 0
         written = 0
         stored: set[str] = set()
-        for underlying, quote_exchange in configured_underlyings():
+        for underlying, quote_exchange in recorded_underlyings():
             try:
                 filled = _fill_underlying(underlying, quote_exchange, api_key, now_ist)
                 written += filled
@@ -472,6 +633,7 @@ def _fill_underlying(underlying: str, quote_exchange: str, api_key: str, now_ist
             written += insert_samples(
                 history_samples(body.get("data") or [], base, spot_by_minute, wanted, session)
             )
+        time.sleep(FILL_REST_SECONDS)
     filled = len(wanted & recorded_minutes(underlying, expiry, today))
     logger.info(
         f"oi_flow: {underlying} {expiry} had {len(missing)} missed minutes, "
@@ -545,8 +707,13 @@ def init_oi_flow_recorder() -> None:
 
 def shutdown_oi_flow_recorder() -> None:
     global _scheduler
+    with _on_demand_lock:
+        _on_demand.clear()
     with _lock:
         if _scheduler is not None:
             _scheduler.shutdown(wait=False)
             _scheduler = None
         release_writer()
+    from services.writer_flow_service import stop_builder
+
+    stop_builder()

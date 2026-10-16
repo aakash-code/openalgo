@@ -332,6 +332,7 @@ jobs:
         run: |
           node .claude/skills/chart-indicator/validate.mjs strategies/indicators/oi_profile_live.js
           node .claude/skills/chart-indicator/validate.mjs strategies/indicators/open_range_breakout.js
+          node .claude/skills/chart-indicator/validate.mjs strategies/indicators/writer_flow_live.js
       - name: shipped indicator tests
         run: node --test test/indicators/*.test.mjs
       - name: toolbar and rail glyphs match the pinned package

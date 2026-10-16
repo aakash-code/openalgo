@@ -267,3 +267,47 @@ def test_the_unit_open_interest_is_quoted_in_is_reported():
     assert analyse(lots, FlowSettings(step_seconds=60))["oi_unit"] == "lots"
     contracts = series(23100.0, "CE", [(1_300_000, 50.0), (1_365_000, 49.0)])
     assert analyse(contracts, FlowSettings(step_seconds=60))["oi_unit"] == "contracts"
+
+
+def test_pausing_steps_aside_without_changing_the_reading():
+    """The Writer Flow builder pauses during a day's analysis so a waiting
+    request runs at once; the pause must have no say in what is read."""
+    import services.oi_flow_analysis as oa
+
+    samples = []
+    for k in range(20):
+        samples += series(
+            23000 + 50 * k,
+            "CE",
+            [(1_000_000 + 9_000 * i * (k % 3 - 1), 100 - i) for i in range(60)],
+        )
+        samples += series(23000 + 50 * k, "PE", [(800_000 + 7_000 * i, 50 + i) for i in range(60)])
+    calls = []
+    paused = analyse(samples, ONE_MIN, pause=lambda: calls.append(1))
+    assert analyse(samples, ONE_MIN) == paused
+    assert len(calls) >= len(samples) // oa.PAUSE_EVERY + 40  # rows, then each strike side
+
+
+def test_the_writer_flow_builder_pauses(tmp_path, monkeypatch):
+    import database.oi_flow_db as db
+    import services.writer_flow_service as svc
+
+    monkeypatch.setenv("OI_FLOW_DATABASE_PATH", str(tmp_path / "oi_flow.duckdb"))
+    db.init_oi_flow_database()
+    rows = [
+        {
+            **s,
+            "trade_date": T0.date(),
+            "underlying": "NIFTY",
+            "exchange": "NFO",
+            "expiry": "19OCT26",
+            "volume": 1,
+            "source": "live",
+        }
+        for s in series(23000, "CE", [(1_000_000 + 1000 * i, 100 - i) for i in range(5)])
+    ]
+    db.insert_samples(rows)
+    calls = []
+    monkeypatch.setattr(svc, "_pause", lambda: calls.append(1))
+    assert svc.flow_payload(svc.FlowView(underlying="NIFTY", step="60"))["status"] == "success"
+    assert calls, "the builder ran a whole day without stepping aside"

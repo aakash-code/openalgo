@@ -211,9 +211,55 @@ Every refresh used to rebuild the whole day (0.5 to 0.9 s at 13:00 on
 16-Oct-2026, growing through the session, repeated for every open chart).
 `services/writer_flow_service.py` keeps each answer, as the bytes sent, until
 its underlying's write count moves; two viewers asking at once wait on one
-build; after each write the recorder rebuilds only the views somebody asked for
-in the last ten minutes. Answers are sent gzipped (160 KB became 30 KB), and the
-chart asks with `lite=1`, leaving out the per-cell readings it does not draw.
+build; after each write the recorder rebuilds only the views a chart asked for
+in the last 150 seconds, which is a chart still open (it asks every minute).
+Answers are sent gzipped (160 KB became 30 KB), and the chart asks with
+`lite=1`, leaving out the per-cell readings it does not draw.
+
+### Flicking through symbols does not stall the platform
+
+A build is still 0.5 to 0.8 s of Python: measured on 16-Oct-2026's full days,
+NIFTY 0.62 s (24,216 rows), BANKNIFTY 0.64 s, SENSEX 0.55 s, CRUDEOIL 0.80 s
+(36,163 rows), NATURALGAS 0.69 s. A cached answer is 0.1 ms. Three things keep
+the cost from reaching the rest of the platform:
+
+- **Only open charts are rebuilt.** Rebuilding every view asked for in the last
+  ten minutes meant eight symbols looked at in passing cost five to six seconds
+  of CPU every minute, all day. Now a symbol looked at and left costs nothing
+  until it is asked for again (then one build, under a second).
+- **Builds run on one real thread, one at a time** (`writer-flow-builder`).
+  Under the production eventlet worker a build run in the request or the
+  recorder's job held the only hub, so orders, charts and ticks waited it out;
+  `test_eventlet_cross_thread_locks.py` measures the hub staying live through
+  a 0.6 s build. One at a time means a burst of switches queues builds rather
+  than running them side by side on the same CPU.
+- **A build steps aside every few milliseconds.** Python lets one thread run
+  at a time, and a request that waits on the network or a database hands the
+  interpreter back each time, then queues for it behind the build: measured,
+  request-shaped work went from 0.5 ms to 15 ms while a build ran, and live
+  on MCX the platform's own requests took up to 573 ms at each minute's
+  rebuild. `analyse()` takes a `pause` hook, called every 400 rows and every
+  strike side, and the builder passes a 1 ms sleep: the same work stays at
+  0.3 ms during a build, and a build takes about 0.16 s longer, in the
+  background.
+- **Recording starts only after the chart stays on a symbol for 15 seconds.**
+  Until then the chart only reads what is recorded. Flicking through ten
+  stocks used to start ten recordings and some 600 history calls.
+
+Two history savings came with it, both measured against the broker queue that
+chart loads share (about three calls a second):
+
+- **Background history calls give way to charts.** Historify downloads and the
+  Writer Flow fill take a turn only when the queue is empty
+  (`services/history_service._enforce_rate_limit`), so a chart's request is
+  never queued behind them. Before, four waiting background calls put a
+  chart's request 2.3 s behind them; now it waits only for the turn already
+  booked. A background caller gives way for at most 10 s
+  (`_BACKGROUND_YIELD_MAX`), because one of them, the single-symbol Historify
+  download, runs inside a request.
+- **The opening minute is never asked of history.** History cannot hold it,
+  and asking cost one call per contract, twice a day and after every restart:
+  about 630 calls a day for five underlyings, every one answered with nothing.
 
 ## For whoever changes the queries
 
@@ -223,6 +269,39 @@ parameters. Measured on one morning's 30K rows: `load_day` took 1.2 s with
 `?` (even with only two of the three values bound) and 40 ms with literals;
 listing the sessions, 1.6 to 6.8 s against 12 ms. An index on (underlying,
 expiry, trade_date) changed nothing (1.94 s against 1.97 s), so there is none.
+
+## Charted underlyings record themselves
+
+An underlying that is not in `OI_FLOW_UNDERLYINGS` starts recording once a
+chart of it has stayed open with Writer Flow on for 15 seconds: a stock future
+(TECHM27OCT26FUT on NFO), the stock itself, or an index or MCX future. The
+chart sends its exchange with its request, and
+`services/oi_flow_recorder_service.request_recording` works out where the
+underlying is quoted (NFO with an index of that name in the master contract
+is the index, otherwise the NSE stock; BFO likewise against BSE), adds it, and
+schedules its first minute and a fill of the day so far on the recorder's own
+thread. The request itself makes no broker call.
+
+- **It stays while a chart asks.** The chart asks every minute; thirty minutes
+  after the last ask the underlying is let go. What was recorded stays.
+- **At most `OI_FLOW_ON_DEMAND_MAX` at a time** (default 5, up to 20, 0 turns
+  it off). One more is refused in words on the chart rather than dropping one
+  somebody is watching. The check and the add happen under one lock, so
+  charts asking at once cannot pass the cap.
+- **No options, no recording.** An underlying with no option expiry listed is
+  dropped after its first check and the chart says why; it is not asked about
+  again for six hours.
+- **The page and past days start nothing.** Only the chart sends its exchange,
+  only after 15 seconds on the symbol, and only a request for today starts a
+  recording.
+
+What it costs while trading: each charted underlying is one more option-chain
+call a minute, the same as a listed one. The first fill is one history call
+per contract (about 60 for a stock at the default window), and history calls
+share one queue of about three a second with the chart's own history loads.
+Booked back to back, a fill would have put a trader's next symbol switch some
+20 seconds behind it, so every fill rests 0.7 s after each call: it runs at
+about one call a second and a chart load waits at most one slot.
 
 ## Not yet
 

@@ -69,6 +69,28 @@ set the recorder on, restart, and reload `/trading`.
 - **MCX open interest is read in lots**, as MCX quotes it; it used to be held
   to a floor meant for contracts and every MCX minute read steady. The unit is
   shown on the chart.
+- **Any F&O underlying, by opening its chart.** A stock future such as
+  TECHM27OCT26FUT (or the stock, an index or an MCX future) not listed in
+  `OI_FLOW_UNDERLYINGS` starts recording the moment its chart is opened with
+  Writer Flow on, and the chart says so. Today's earlier minutes are filled
+  from history within a few minutes. Up to five at once
+  (`OI_FLOW_ON_DEMAND_MAX`, 0 turns it off; a sixth is refused in words), and
+  each stops half an hour after its last chart closes. Each costs one more
+  broker call a minute. History fills now rest between calls, so a fill never
+  makes your own chart's history load wait more than a moment.
+- **Flicking through symbols no longer stalls OpenAlgo.** A Writer Flow
+  answer takes 0.5 to 0.8 s to build. Every symbol looked at in the last ten
+  minutes used to be rebuilt every minute, inside the server's only worker
+  under the production setup, so eight symbols looked at in passing froze
+  orders, charts and ticks for five to six seconds a minute. Now only charts
+  still open are rebuilt, on a thread of their own, one at a time, stepping
+  aside every few milliseconds so other requests are not held up, and a
+  symbol starts recording only after its chart has stayed open 15 seconds.
+- **Chart history loads go first.** Historify downloads and the Writer Flow
+  fill now wait for the broker history queue to be empty before taking a turn,
+  so switching symbols is never queued behind them. The fill also stopped
+  asking history for the opening minute, which history cannot supply: about
+  630 wasted broker calls a day.
 - Not yet: expiries beyond the nearest. The OI Profile is unchanged. See
   [writer-flow.md](writer-flow.md).
 

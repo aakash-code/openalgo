@@ -26,6 +26,11 @@ logger = get_logger(__name__)
 # The lock is a real one because the agent's tools reach this from a real OS
 # thread. It guards two float operations; the sleep happens after it is released.
 _MIN_HISTORY_INTERVAL = 0.35  # 350ms between calls (~3 req/sec, evenly spaced)
+# A background caller gives way to charts for at most this long, then books
+# its turn like anyone else. One of them (the single-symbol Historify download)
+# runs inside a request, and giving way without a bound could hold that
+# request for as long as charts keep the queue busy.
+_BACKGROUND_YIELD_MAX = 10.0
 _next_history_slot: float = 0.0
 _history_slot_lock = real_threading.Lock()
 
@@ -33,22 +38,32 @@ _history_slot_lock = real_threading.Lock()
 def _enforce_rate_limit(*, background: bool = False):
     """Wait for this request's turn (~3 per second).
 
+    A background caller waits until the queue is empty before taking a turn,
+    so a chart's request is never queued behind a download or a fill.
+
     Raises:
         BrokerBusyError: Only under the gthread worker, when the turn would
             come later than the market-data queue ceiling. The check runs
             before the slot is booked, so a refused request delays nobody.
     """
     global _next_history_slot
-    with _history_slot_lock:
-        now = time.monotonic()
-        slot = max(now, _next_history_slot)
-        wait = slot - now
-        # Historify workers are not Gunicorn request threads.  They must share
-        # the booking queue (and therefore the broker's 3 req/s limit), but a
-        # queued background download must be allowed to wait for its turn.
-        if not background:
-            check_queue_wait(wait, kind="data")
-        _next_history_slot = slot + _MIN_HISTORY_INTERVAL
+    give_way_until = time.monotonic() + _BACKGROUND_YIELD_MAX
+    while True:
+        with _history_slot_lock:
+            now = time.monotonic()
+            slot = max(now, _next_history_slot)
+            wait = slot - now
+            # A background caller (Historify downloads, the Writer Flow fill)
+            # books a turn only when the queue is empty, so it is never more
+            # than one turn ahead of a chart. Booked like everyone else, a
+            # restart's 300-call fill sat ahead of the trader's next symbol
+            # switch for the whole of it.
+            if not background or wait <= 0 or now >= give_way_until:
+                if not background:
+                    check_queue_wait(wait, kind="data")
+                _next_history_slot = slot + _MIN_HISTORY_INTERVAL
+                break
+        time.sleep(min(wait, _MIN_HISTORY_INTERVAL))
     if wait > 0:
         time.sleep(wait)
 

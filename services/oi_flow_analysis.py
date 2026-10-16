@@ -33,6 +33,7 @@ from __future__ import annotations
 import math
 import statistics
 from collections import defaultdict
+from collections.abc import Callable
 from dataclasses import dataclass, field
 from datetime import datetime, timedelta
 
@@ -52,6 +53,8 @@ WRITER_CLASSES = (WRITING, COVERING)
 # tick apart. This only absorbs floating-point noise, which keeps the reading
 # right for every exchange without knowing any tick size.
 PRICE_EPSILON = 1e-6
+# Rows between calls to analyse()'s pause hook: about 3 ms of work.
+PAUSE_EVERY = 400
 
 
 # What a sample may be trusted for. A wrong number on screen is worse than a
@@ -222,8 +225,18 @@ def classify(
     return direction_class(oi_change > 0, ltp_change)
 
 
-def analyse(samples: list[dict], settings: FlowSettings | None = None) -> dict:
+def analyse(
+    samples: list[dict],
+    settings: FlowSettings | None = None,
+    pause: Callable[[], None] | None = None,
+) -> dict:
     """Read a day of samples for one underlying and expiry.
+
+    `pause`, if given, is called every PAUSE_EVERY rows and every strike side.
+    The Writer Flow builder passes a 1 ms sleep, so a request thread waiting
+    for the interpreter gets in at once instead of queueing behind a whole
+    day's analysis (measured: request-shaped work went from 0.5 ms to 15 ms
+    while a build ran). It has no say in the result.
 
     `samples` are rows as database.oi_flow_db stores them: sample_time, strike,
     side ('CE'/'PE'), symbol, oi, ltp, spot, lot_size.
@@ -256,7 +269,9 @@ def analyse(samples: list[dict], settings: FlowSettings | None = None) -> dict:
     last: dict[tuple[float, str], dict[datetime, dict]] = defaultdict(dict)
     held: set[tuple[float, str]] = set()
     spot_at: dict[datetime, float] = {}
-    for s in sorted(samples, key=lambda r: r["sample_time"]):
+    for n, s in enumerate(sorted(samples, key=lambda r: r["sample_time"])):
+        if pause is not None and n % PAUSE_EVERY == PAUSE_EVERY - 1:
+            pause()
         key = (float(s["strike"]), s["side"])
         oi = reading_oi(s.get("oi"), key in held)
         t = _step_start(s["sample_time"], step)
@@ -278,6 +293,8 @@ def analyse(samples: list[dict], settings: FlowSettings | None = None) -> dict:
 
     in_lots = in_contracts = 0
     for (strike, side), series in sorted(last.items()):
+        if pause is not None:
+            pause()
         lot = oi_lot(list(series.values()))
         if lot == 1 and int(next(iter(series.values())).get("lot_size") or 1) > 1:
             in_lots += 1

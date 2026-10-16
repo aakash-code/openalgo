@@ -41,6 +41,7 @@ def isolated(tmp_path, monkeypatch):
     rec._sessions.clear()
     monkeypatch.setattr(rec, "_calendar_window", _default_calendar)
     monkeypatch.setattr(rec, "_gap_day", None)
+    monkeypatch.setattr(rec, "FILL_REST_SECONDS", 0)
     db.init_oi_flow_database()
     yield
 
@@ -240,11 +241,20 @@ def test_missed_minutes_stop_short_of_the_live_beat_and_at_the_close():
         _minute(9, 18),
     ]
     late = rec.missing_minutes(set(), date(2026, 10, 16), datetime(2026, 10, 16, 15, 45, 30), nfo)
-    assert late[0] == _minute(9, 15) and late[-1] == _minute(15, 30) and len(late) == 376
+    assert late[0] == _minute(9, 16) and late[-1] == _minute(15, 30) and len(late) == 375
     mcx = rec.missing_minutes(
         set(), date(2026, 10, 16), datetime(2026, 10, 16, 23, 58, 35), (time(9, 0), time(23, 55))
     )
-    assert mcx[0] == _minute(9, 0) and mcx[-1] == _minute(23, 55)
+    assert mcx[0] == _minute(9, 1) and mcx[-1] == _minute(23, 55)
+
+
+def test_the_opening_minute_is_never_asked_of_history(fake_broker):
+    """History cannot hold it, and asking cost a call per contract, twice a day."""
+    nfo = (time(9, 15), time(15, 30))
+    assert rec.missing_minutes(set(), date(2026, 10, 16), _minute(9, 18), nfo) == [_minute(9, 16)]
+    # Everything held except the opening minute: nothing to ask the broker.
+    held = {_minute(9, m) for m in range(16, 60)}
+    assert _minute(9, 15) not in rec.missing_minutes(held, date(2026, 10, 16), _minute(9, 50), nfo)
 
 
 def test_a_gap_mid_session_is_filled_for_the_contracts_recorded_around_it(fake_broker):

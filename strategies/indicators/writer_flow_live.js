@@ -35,6 +35,11 @@ const HOVER_ID = 'writer-flow-strike:'
 const EVENT_ID = 'writer-flow-event:'
 const REFRESH_MS = 60 * 1000
 const SETTINGS_POLL_MS = 1000
+// A symbol that is not recorded yet starts recording only once the chart has
+// stayed on it this long. Flicking through ten stocks would otherwise start
+// ten recordings and some 600 history calls to the broker, for symbols looked
+// at for a second each.
+const START_AFTER_MS = 15 * 1000
 
 // How each reading is said to a trader. `bias` comes from the server: +1 helps
 // the underlying, -1 weighs on it, 0 says nothing about direction.
@@ -134,13 +139,16 @@ function stepOf(settings) {
 const answers = new Map()
 const ANSWERS_MAX = 8
 
-function fetchFlow(underlying, step, maxAgeMs) {
-  const key = `${underlying}|${step}`
+function fetchFlow(underlying, step, maxAgeMs, exchange = '') {
+  const key = `${underlying}|${step}|${exchange}`
   const held = answers.get(key)
   if (held && (held.promise || Date.now() - held.at < maxAgeMs)) return held.promise || Promise.resolve(held.body)
   const url =
     `/writerflow/api/flow?underlying=${encodeURIComponent(underlying)}` +
-    `&step=${encodeURIComponent(step)}&all_strikes=1&lite=1`
+    `&step=${encodeURIComponent(step)}&all_strikes=1&lite=1` +
+    // The chart's own exchange: an underlying it shows that is not being
+    // recorded yet starts recording, with the day so far filled from history.
+    (exchange ? `&exchange=${encodeURIComponent(exchange)}` : '')
   const promise = fetch(url, { credentials: 'same-origin' })
     .then(async (res) => {
       const body = await res.json().catch(() => null)
@@ -175,24 +183,42 @@ function startPolling(ctx, apply, fail) {
   let cancelled = false
   let timer = null
   let watchedKey = ''
+  let keySince = 0
+  let startTimer = null
 
   const keyOf = () => {
     const settings = ctx.settings()
-    return `${resolveUnderlying(settings, ctx.symbol?.())}|${stepOf(settings)}`
+    const exchange = String(ctx.dataContext?.()?.exchange ?? '').toUpperCase().replace(/[^A-Z_]/g, '')
+    return `${resolveUnderlying(settings, ctx.symbol?.())}|${stepOf(settings)}|${exchange}`
   }
 
   const run = async () => {
     const key = keyOf()
+    if (key !== watchedKey) {
+      keySince = Date.now()
+      if (startTimer) clearTimeout(startTimer)
+      // Ask once more when the wait is over, so a recording starts then
+      // rather than at the next minute's beat.
+      startTimer = setTimeout(() => {
+        startTimer = null
+        if (!cancelled && !document.hidden && keyOf() === watchedKey) run()
+      }, START_AFTER_MS + 100)
+    }
     watchedKey = key
-    const [underlying, step] = key.split('|')
+    const [underlying, step, chartExchange] = key.split('|')
     if (!underlying) {
       fail('Choose an underlying in the settings, such as NIFTY.')
       return
     }
+    // Until the wait is over the request only reads what is recorded.
+    const settled = Date.now() - keySince >= START_AFTER_MS
+    const exchange = settled ? chartExchange : ''
     try {
-      const body = await fetchFlow(underlying, step, REFRESH_MS / 2)
+      const body = await fetchFlow(underlying, step, REFRESH_MS / 2, exchange)
       if (cancelled || key !== watchedKey) return
       if (body.status === 'success') apply(body)
+      else if (!settled && chartExchange && body.recorder_enabled)
+        fail(`Not recorded yet. Stay on this chart a few seconds and Writer Flow starts recording ${underlying}.`)
       else fail(body.message || 'Nothing recorded for this yet.')
     } catch {
       if (!cancelled) fail('Could not reach OpenAlgo. Trying again in a minute.')
@@ -220,6 +246,7 @@ function startPolling(ctx, apply, fail) {
   return () => {
     cancelled = true
     if (timer) clearTimeout(timer)
+    if (startTimer) clearTimeout(startTimer)
     clearInterval(watcher)
     document.removeEventListener('visibilitychange', onVisible)
   }

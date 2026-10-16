@@ -584,3 +584,67 @@ def test_real_threading_sleep_is_the_unpatched_one():
         """
     )
     assert "OK" in result.stdout, result.stderr
+
+
+def test_a_writer_flow_build_does_not_freeze_the_hub():
+    """A Writer Flow build is 0.5 to 0.8 s of Python. Run in a request or the
+    recorder's job, it held the only hub: while a trader flicked through
+    symbols, every order, chart and tick waited out each build. It now runs on
+    one real thread while the caller waits cooperatively."""
+    result = run(
+        """
+        import services.writer_flow_service as svc
+
+        BUILD_FOR = 0.6
+
+        def cpu_build(view, gen):
+            end = time.perf_counter() + BUILD_FOR
+            n = 0
+            while time.perf_counter() < end:
+                n += 1
+            return svc.Built(generation=gen, status=200, body=b"{}", gzipped=b"")
+
+        svc._build = cpu_build
+
+        def measure(call):
+            ticks = []
+
+            def hub_alive():
+                while True:
+                    ticks.append(1)
+                    eventlet.sleep(0.02)
+
+            g = eventlet.spawn(hub_alive)
+            eventlet.sleep(0.05)
+            before, t0 = len(ticks), time.monotonic()
+            out = call()
+            took, during = time.monotonic() - t0, len(ticks) - before
+            g.kill()
+            return out, took, during
+
+        # The defect: the same build run on the hub freezes it.
+        _, _, ticks = measure(lambda: cpu_build(None, 0))
+        assert ticks <= 1, f"expected a build on the hub to freeze it, got {ticks} ticks"
+
+        built, took, ticks = measure(lambda: svc.flow_answer(svc.FlowView(underlying="NIFTY")))
+        assert built.body == b"{}", "the answer did not come back"
+        assert took < BUILD_FOR + 1.0, f"answer came back late, after {took:.2f}s"
+        assert ticks > 5, f"the build froze the hub: only {ticks} ticks"
+
+        # A failed build reaches the caller as the error, not as a hang.
+        def broken(view, gen):
+            raise ValueError("record unreadable")
+
+        svc._build = broken
+        svc.forget_views()
+        try:
+            svc.flow_answer(svc.FlowView(underlying="BANKNIFTY"))
+        except ValueError:
+            pass
+        else:
+            raise AssertionError("the build error was swallowed")
+        svc.stop_builder()
+        print("OK")
+        """
+    )
+    assert "OK" in result.stdout, result.stderr
