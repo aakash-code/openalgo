@@ -58,9 +58,9 @@ def reads(tmp_path, monkeypatch):
     calls = []
     real = svc.load_day
 
-    def counted(*args):
+    def counted(*args, **kwargs):
         calls.append(args)
-        return real(*args)
+        return real(*args, **kwargs)
 
     monkeypatch.setattr(svc, "load_day", counted)
     return calls

@@ -86,6 +86,18 @@ set the recorder on, restart, and reload `/trading`.
   still open are rebuilt, on a thread of their own, one at a time, stepping
   aside every few milliseconds so other requests are not held up, and a
   symbol starts recording only after its chart has stayed open 15 seconds.
+- **No more pauses of up to 1.5 s across the whole platform.** Python's full
+  garbage collection walked every object OpenAlgo holds for the day (the symbol
+  cache, the master contract, over 600,000 objects) every 15 to 20 seconds and
+  stopped every thread while it did: measured live, 246 to 1,483 ms each, and
+  every request caught behind one took that much longer. Those objects are now
+  set aside once startup and each master contract load have finished
+  (`utils/gc_freeze.py`), and full collections stay under 70 ms. They are still
+  freed as usual when the next day's contracts replace them.
+- **TradeFinder's background lookups give way to your chart.** The CPR, first
+  candle, directional score and momentum setup fills (about 190 history calls
+  every few minutes with the panels open) now queue behind chart loads instead
+  of beside them.
 - **Chart history loads go first.** Historify downloads and the Writer Flow
   fill now wait for the broker history queue to be empty before taking a turn,
   so switching symbols is never queued behind them. The fill also stopped

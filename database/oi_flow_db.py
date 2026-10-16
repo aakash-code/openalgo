@@ -16,6 +16,7 @@ from __future__ import annotations
 import os
 import re
 import time
+from collections.abc import Callable
 from contextlib import contextmanager
 from datetime import date, datetime, timedelta
 
@@ -242,8 +243,20 @@ def _day_filter(underlying: str, expiry: str, trade_date: date) -> str:
     )
 
 
-def load_day(underlying: str, expiry: str, trade_date: date) -> list[dict]:
-    """Every sample for one underlying and expiry on one day, oldest first."""
+# Rows read per batch when load_day is given a pause hook.
+LOAD_BATCH = 2000
+
+
+def load_day(
+    underlying: str, expiry: str, trade_date: date, pause: Callable[[], None] | None = None
+) -> list[dict]:
+    """Every sample for one underlying and expiry on one day, oldest first.
+
+    With `pause`, rows are read LOAD_BATCH at a time and `pause` is called
+    between batches. A whole day (38,000 rows for CRUDEOIL by evening) read in
+    one call held the interpreter for its length: request-shaped work on other
+    threads went from 0.3 ms to 11 ms while it ran.
+    """
     where = _day_filter(underlying, expiry, trade_date)
     with get_connection() as conn:
         cur = conn.execute(
@@ -253,7 +266,13 @@ def load_day(underlying: str, expiry: str, trade_date: date) -> list[dict]:
             ORDER BY sample_time, strike, side
             """
         )
-        return [dict(zip(SAMPLE_COLUMNS, row, strict=True)) for row in cur.fetchall()]
+        if pause is None:
+            return [dict(zip(SAMPLE_COLUMNS, row, strict=True)) for row in cur.fetchall()]
+        out: list[dict] = []
+        while batch := cur.fetchmany(LOAD_BATCH):
+            out.extend(dict(zip(SAMPLE_COLUMNS, row, strict=True)) for row in batch)
+            pause()
+        return out
 
 
 def recorded_minutes(underlying: str, expiry: str, trade_date: date) -> set[datetime]:

@@ -225,7 +225,7 @@ def flow_payload(view: FlowView) -> dict:
         return {"status": "empty", "message": reason, "recorder_enabled": recorder_enabled()}
     chosen = held[0]
     out = analyse(
-        load_day(view.underlying, chosen["expiry"], chosen["trade_date"]),
+        load_day(view.underlying, chosen["expiry"], chosen["trade_date"], pause=_pause),
         pause=_pause,
         settings=FlowSettings(
             step_seconds=STEPS[view.step],

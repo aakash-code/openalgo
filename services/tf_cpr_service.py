@@ -64,6 +64,8 @@ def _compute_cpr_data(
             auth_token=auth_token,
             broker=broker,
             source="api",
+            # A cache fill on its own thread: chart loads go first.
+            background=True,
         )
     except Exception as e:
         logger.debug(f"tf_cpr_service: history fetch failed for {symbol}: {e}")

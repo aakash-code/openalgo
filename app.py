@@ -1132,6 +1132,12 @@ def _restore_caches_background():
         except Exception as e:
             logger.debug(f"NSE open interest warm-up skipped: {e}")
 
+    # The symbol cache and the rest of startup's state are in place: keep full
+    # garbage collections from walking them again (utils/gc_freeze.py).
+    from utils.gc_freeze import freeze_long_lived
+
+    freeze_long_lived("startup")
+
 
 threading.Thread(target=_restore_caches_background, daemon=True).start()
 

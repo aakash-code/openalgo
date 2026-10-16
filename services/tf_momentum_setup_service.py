@@ -175,6 +175,8 @@ def _compute_momentum_setup(
             auth_token=auth_token,
             broker=broker,
             source="api",
+            # A cache fill on its own thread: chart loads go first.
+            background=True,
         )
     except Exception as e:
         logger.debug(f"tf_momentum_setup_service: history fetch failed for {fetch_symbol}: {e}")

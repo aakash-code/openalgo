@@ -311,3 +311,29 @@ def test_the_writer_flow_builder_pauses(tmp_path, monkeypatch):
     monkeypatch.setattr(svc, "_pause", lambda: calls.append(1))
     assert svc.flow_payload(svc.FlowView(underlying="NIFTY", step="60"))["status"] == "success"
     assert calls, "the builder ran a whole day without stepping aside"
+
+
+def test_a_paused_read_returns_the_same_day_in_batches(tmp_path, monkeypatch):
+    import database.oi_flow_db as db
+
+    monkeypatch.setenv("OI_FLOW_DATABASE_PATH", str(tmp_path / "oi_flow.duckdb"))
+    monkeypatch.setattr(db, "LOAD_BATCH", 7)
+    db.init_oi_flow_database()
+    rows = [
+        {
+            **s,
+            "trade_date": T0.date(),
+            "underlying": "NIFTY",
+            "exchange": "NFO",
+            "expiry": "19OCT26",
+            "volume": 1,
+            "source": "live",
+        }
+        for k in range(3)
+        for s in series(23000 + 50 * k, "CE", [(1_000_000 + 1000 * i, 100 - i) for i in range(10)])
+    ]
+    db.insert_samples(rows)
+    calls = []
+    paused = db.load_day("NIFTY", "19OCT26", T0.date(), pause=lambda: calls.append(1))
+    assert paused == db.load_day("NIFTY", "19OCT26", T0.date())
+    assert len(paused) == 30 and len(calls) == 5  # 7 + 7 + 7 + 7 + 2

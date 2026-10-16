@@ -99,6 +99,8 @@ def _compute_directional_score(
             auth_token=auth_token,
             broker=broker,
             source="api",
+            # A cache fill on its own thread: chart loads go first.
+            background=True,
         )
     except Exception as e:
         logger.debug(f"tf_directional_score_service: history fetch failed for {symbol}: {e}")

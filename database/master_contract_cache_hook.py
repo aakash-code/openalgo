@@ -51,6 +51,12 @@ def load_symbols_to_cache(broker: str) -> bool:
                 f"in {load_time:.2f} seconds"
             )
 
+            # The new contracts are long-lived: set them aside from full
+            # garbage collections, as startup does (utils/gc_freeze.py).
+            from utils.gc_freeze import freeze_long_lived
+
+            freeze_long_lived("loading the master contract")
+
             # Emit success event to frontend
             socketio.emit(
                 "cache_loaded",
