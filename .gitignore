@@ -35,6 +35,8 @@ tmp/
 *.db
 *.duckdb
 *.duckdb.wal
+# The Writer Flow recorder's single-writer lock, held while OpenAlgo runs.
+*.duckdb.writer
 *.sqlite
 *.log
 *.jsonl

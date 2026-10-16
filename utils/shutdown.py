@@ -158,6 +158,13 @@ def _stop_historify_scheduler() -> None:
         module.get_historify_scheduler().shutdown()
 
 
+def _stop_oi_flow_recorder() -> None:
+    """Stop the OI Flow recorder's minute beat."""
+    module = _imported("services.oi_flow_recorder_service")
+    if module is not None:
+        module.shutdown_oi_flow_recorder()
+
+
 def _stop_historify_downloads() -> None:
     """Wake Historify workers before executor/interpreter shutdown begins."""
     module = _imported("services.historify_service")
@@ -440,6 +447,7 @@ def shutdown_runtime() -> None:
         _stop_flow_scheduler,
         _stop_historify_scheduler,
         _stop_historify_downloads,
+        _stop_oi_flow_recorder,
         _stop_chartink_scheduler,
         _stop_python_strategy_scheduler,
         _stop_squareoff_scheduler,

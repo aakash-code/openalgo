@@ -19,6 +19,7 @@ const fake = vi.hoisted(() => ({
     openAlerts: ReturnType<typeof vi.fn>
     openIndicatorSettings: ReturnType<typeof vi.fn>
     removeIndicatorById: ReturnType<typeof vi.fn>
+    addIndicatorById: ReturnType<typeof vi.fn>
     moveStudyPane: ReturnType<typeof vi.fn>
     setStudyPaneCollapsed: ReturnType<typeof vi.fn>
     historyPress: ReturnType<typeof vi.fn>
@@ -57,6 +58,7 @@ vi.mock('@/lib/trading/terminal', () => ({
     openAlerts = vi.fn(async () => true)
     openIndicatorSettings = vi.fn()
     removeIndicatorById = vi.fn()
+    addIndicatorById = vi.fn(async () => {})
     moveStudyPane = vi.fn(() => true)
     setStudyPaneCollapsed = vi.fn(() => true)
     historyPress = vi.fn(() => true)
@@ -407,5 +409,67 @@ describe('study rows and Alerts in the chart menu', () => {
     expect(await view.findByRole('tooltip')).toHaveTextContent('Orders are never undone')
     fireEvent.click(undo)
     expect(owner.historyPress).toHaveBeenCalledWith('undo')
+  })
+})
+
+describe('the Writer Flow toolbar button', () => {
+  const serve = (files: string[]) =>
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (url: string) =>
+        String(url).includes('/custom-indicators/index.json')
+          ? new Response(JSON.stringify(files.map((file) => ({ file }))))
+          : new Response('[]')
+      )
+    )
+  afterEach(() => vi.unstubAllGlobals())
+
+  it('is absent when the module is not installed', async () => {
+    serve(['oi_profile_live.js'])
+    const { view } = await mount(null)
+    await view.findByRole('button', { name: 'OI Profile' })
+    expect(view.queryByRole('button', { name: 'Writer Flow' })).toBeNull()
+  })
+
+  it('turns the strips and the totals pane on together, and off together', async () => {
+    serve(['oi_profile_live.js', 'writer_flow_live.js'])
+    const { view, owner } = await mount(null)
+    const button = await view.findByRole('button', { name: 'Writer Flow' })
+    expect(button).toHaveAttribute('aria-pressed', 'false')
+    expect(view.queryByRole('button', { name: 'Writer Flow settings' })).toBeNull()
+
+    await act(async () => fireEvent.click(button))
+    expect(owner.addIndicatorById.mock.calls).toEqual([
+      ['writer-flow-live'],
+      ['writer-flow-totals'],
+    ])
+
+    act(() =>
+      owner.options.callbacks.onIndicatorsChange?.([
+        { id: 'wf-1', indicatorId: 'writer-flow-live', name: 'Writer Flow' },
+        { id: 'wft-1', indicatorId: 'writer-flow-totals', name: 'Writer Flow Totals' },
+      ])
+    )
+    expect(button).toHaveAttribute('aria-pressed', 'true')
+    fireEvent.click(view.getByRole('button', { name: 'Writer Flow settings' }))
+    expect(owner.openIndicatorSettings).toHaveBeenCalledWith('wf-1')
+
+    await act(async () => fireEvent.click(button))
+    expect(owner.removeIndicatorById.mock.calls).toEqual([['wf-1'], ['wft-1']])
+    expect(owner.addIndicatorById).toHaveBeenCalledTimes(2)
+  })
+
+  it('with only the totals pane left on, a click takes it off rather than adding more', async () => {
+    serve(['writer_flow_live.js'])
+    const { view, owner } = await mount(null)
+    const button = await view.findByRole('button', { name: 'Writer Flow' })
+    act(() =>
+      owner.options.callbacks.onIndicatorsChange?.([
+        { id: 'wft-1', indicatorId: 'writer-flow-totals', name: 'Writer Flow Totals' },
+      ])
+    )
+    await act(async () => fireEvent.click(button))
+    expect(owner.removeIndicatorById.mock.calls).toEqual([['wft-1']])
+    expect(owner.addIndicatorById).not.toHaveBeenCalled()
   })
 })

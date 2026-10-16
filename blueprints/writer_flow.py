@@ -1,0 +1,116 @@
+"""
+Writer Flow API: what option writers did at each strike through the day.
+
+    GET /writerflow/api/sessions   underlyings and expiries recorded, newest day first
+    GET /writerflow/api/flow       the day read strike by strike, for the page and the chart
+
+Reads only db/oi_flow.duckdb, which the OI Flow recorder fills; it makes no
+broker call of its own, so opening the page costs the broker nothing. Answers
+are built once per recorded write and shared (services/writer_flow_service.py),
+and sent gzipped to a browser that accepts it.
+"""
+
+from datetime import date, datetime
+
+from flask import Blueprint, Response, jsonify, request
+
+from database.oi_flow_db import EXPIRY_RE, UNDERLYING_RE, available_sessions
+from services.writer_flow_service import STEPS, FlowView, flow_answer, recorder_enabled
+from utils.logging import get_logger
+from utils.session import check_session_validity
+
+logger = get_logger(__name__)
+
+writer_flow_bp = Blueprint("writer_flow_bp", __name__, url_prefix="/")
+
+_TRUE = ("1", "true", "yes")
+
+
+def _hhmm(t: datetime) -> str:
+    return t.strftime("%H:%M")
+
+
+@writer_flow_bp.route("/writerflow/api/sessions", methods=["GET"])
+@check_session_validity
+def sessions():
+    try:
+        rows = available_sessions()
+        return jsonify(
+            {
+                "status": "success",
+                "recorder_enabled": recorder_enabled(),
+                "sessions": [
+                    {
+                        **r,
+                        "trade_date": r["trade_date"].isoformat(),
+                        "last_sample": _hhmm(r["last_sample"]),
+                    }
+                    for r in rows
+                ],
+            }
+        )
+    except Exception:
+        logger.exception("Writer Flow: listing recorded sessions failed")
+        return jsonify(
+            {
+                "status": "error",
+                "message": "Could not read the Writer Flow record. Try again in a moment.",
+            }
+        ), 500
+
+
+@writer_flow_bp.route("/writerflow/api/flow", methods=["GET"])
+@check_session_validity
+def flow():
+    underlying = (request.args.get("underlying") or "").strip().upper()
+    expiry = (request.args.get("expiry") or "").strip().upper()
+    day_text = (request.args.get("date") or "").strip()
+    step_text = (request.args.get("step") or "auto").strip().lower()
+    if not UNDERLYING_RE.match(underlying):
+        return jsonify({"status": "error", "message": "Choose an underlying, such as NIFTY."}), 400
+    if expiry and not EXPIRY_RE.match(expiry):
+        return jsonify({"status": "error", "message": "The expiry should look like 19OCT26."}), 400
+    if step_text not in STEPS:
+        return jsonify(
+            {"status": "error", "message": "The step can be Auto, 1, 3 or 5 minutes."}
+        ), 400
+    try:
+        day = date.fromisoformat(day_text) if day_text else None
+        noise_pct = float(request.args.get("noise_pct", 0.5))
+        noise_lots = int(request.args.get("noise_lots", 5))
+        quiet = float(request.args.get("quiet_minutes", 5.0))
+    except ValueError:
+        return jsonify({"status": "error", "message": "One of the settings is not a number."}), 400
+    if not (0 <= noise_pct <= 50 and 0 <= noise_lots <= 10000 and 1 <= quiet <= 60):
+        return jsonify({"status": "error", "message": "One of the settings is out of range."}), 400
+
+    view = FlowView(
+        underlying=underlying,
+        expiry=expiry,
+        day=day,
+        step=step_text,
+        noise_pct=noise_pct,
+        noise_lots=noise_lots,
+        quiet_minutes=quiet,
+        all_strikes=(request.args.get("all_strikes") or "").strip().lower() in _TRUE,
+        lite=(request.args.get("lite") or "").strip().lower() in _TRUE,
+    )
+    try:
+        built = flow_answer(view)
+    except Exception:
+        logger.exception(f"Writer Flow: reading {underlying} failed")
+        return jsonify(
+            {
+                "status": "error",
+                "message": "Could not read the Writer Flow record. Try again in a moment.",
+            }
+        ), 500
+
+    zipped = "gzip" in (request.headers.get("Accept-Encoding") or "").lower()
+    response = Response(
+        built.gzipped if zipped else built.body, status=built.status, mimetype="application/json"
+    )
+    if zipped:
+        response.headers["Content-Encoding"] = "gzip"
+    response.headers["Vary"] = "Accept-Encoding"
+    return response

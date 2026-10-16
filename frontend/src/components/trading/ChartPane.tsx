@@ -147,6 +147,12 @@ import {
 // than any single study, and every terminal that offers one puts it here.
 const OI_PROFILE_ID = 'oi-profile-live'
 const OI_PROFILE_FILE = 'oi_profile_live.js'
+// Writer Flow sits beside it for the same reason. One module registers both
+// halves, the strips on the price and the totals pane, and the button turns
+// them on and off together.
+const WRITER_FLOW_ID = 'writer-flow-live'
+const WRITER_FLOW_TOTALS_ID = 'writer-flow-totals'
+const WRITER_FLOW_FILE = 'writer_flow_live.js'
 
 // The forms a chart opens on request: none is needed to paint it. Mounted only
 // while open, so their code is fetched on the first opening rather than with
@@ -424,6 +430,7 @@ export function ChartPane({
   // the toolbar button only exists when the file does - a control that toasts
   // "not found" is worse than no control.
   const [oiProfileInstalled, setOiProfileInstalled] = useState(false)
+  const [writerFlowInstalled, setWriterFlowInstalled] = useState(false)
   const [comparisons, setComparisons] = useState<TerminalComparisonState>({
     mode: 'price',
     items: [],
@@ -776,9 +783,10 @@ export function ChartPane({
       .then((r) => (r.ok ? r.json() : null))
       .then((modules: { file?: string }[] | null) => {
         if (!alive) return
-        setOiProfileInstalled(
-          Array.isArray(modules) && modules.some((m) => m?.file === OI_PROFILE_FILE)
-        )
+        const has = (file: string) =>
+          Array.isArray(modules) && modules.some((m) => m?.file === file)
+        setOiProfileInstalled(has(OI_PROFILE_FILE))
+        setWriterFlowInstalled(has(WRITER_FLOW_FILE))
       })
       .catch(() => {})
     return () => {
@@ -801,6 +809,30 @@ export function ChartPane({
       else await t.addIndicatorById(OI_PROFILE_ID)
     } finally {
       oiProfileToggling.current = false
+    }
+  }
+
+  const writerFlow = indicators.find((i) => i.indicatorId === WRITER_FLOW_ID)
+  const writerFlowTotals = indicators.find((i) => i.indicatorId === WRITER_FLOW_TOTALS_ID)
+  const writerFlowOn = Boolean(writerFlow || writerFlowTotals)
+
+  // On adds both halves; off removes whichever is on, so a pane removed by
+  // hand does not leave the button stuck half on.
+  const writerFlowToggling = useRef(false)
+  const toggleWriterFlow = async () => {
+    const t = terminalRef.current
+    if (!t || writerFlowToggling.current) return
+    writerFlowToggling.current = true
+    try {
+      if (writerFlowOn) {
+        if (writerFlow) t.removeIndicatorById(writerFlow.id)
+        if (writerFlowTotals) t.removeIndicatorById(writerFlowTotals.id)
+      } else {
+        await t.addIndicatorById(WRITER_FLOW_ID)
+        await t.addIndicatorById(WRITER_FLOW_TOTALS_ID)
+      }
+    } finally {
+      writerFlowToggling.current = false
     }
   }
 
@@ -1394,6 +1426,45 @@ export function ChartPane({
                     className={cn(TB_BTN, TB_ICON)}
                     aria-label="OI Profile settings"
                     onClick={() => terminalRef.current?.openIndicatorSettings(oiProfile.id)}
+                  >
+                    <ChromeIcon id="settings" />
+                  </button>
+                </Tip>
+              )}
+            </div>
+          )}
+
+          {/* Writer Flow. Where option writers are adding, covering or holding,
+            strike by strike through the day: drawn behind the candles, with a
+            totals pane. Hidden unless the indicator is installed. */}
+          {writerFlowInstalled && (
+            <div className="flex shrink-0 items-center gap-0.5">
+              <Tip
+                tip={{
+                  title: writerFlowOn ? 'Hide Writer Flow' : 'Writer Flow',
+                  sub: 'Where option writers are adding or covering, strike by strike',
+                }}
+              >
+                <button
+                  type="button"
+                  className={cn(TB_BTN, writerFlowOn && TB_ON)}
+                  aria-label="Writer Flow"
+                  aria-pressed={writerFlowOn}
+                  onClick={() => void toggleWriterFlow()}
+                >
+                  <ChromeIcon id="chart-histogram" />
+                  <span className={TB_LABEL_2XL}>Writer Flow</span>
+                </button>
+              </Tip>
+              {writerFlow && (
+                <Tip
+                  tip={{ title: 'Writer Flow settings', sub: 'Step, calls or puts, and layers' }}
+                >
+                  <button
+                    type="button"
+                    className={cn(TB_BTN, TB_ICON)}
+                    aria-label="Writer Flow settings"
+                    onClick={() => terminalRef.current?.openIndicatorSettings(writerFlow.id)}
                   >
                     <ChromeIcon id="settings" />
                   </button>

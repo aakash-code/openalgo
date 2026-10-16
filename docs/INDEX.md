@@ -49,6 +49,8 @@ need → drill into the specific file. Don't load everything at once.
 | Intraday Boost: a trading day | [tf-boost-monday-runbook.md](tf-boost-monday-runbook.md) |
 | OI Profile: where Change in OI is anchored | [oi-profile-anchors.md](oi-profile-anchors.md) |
 | OI Profile: live open interest from the broker feed, per-broker capability | [oi-profile-live-oi.md](oi-profile-live-oi.md) |
+| Writer Flow: where option writers added, covered or held, strike by strike through the day | [writer-flow.md](writer-flow.md) |
+| Writer Flow: how to read it on the chart (colours, streak bars, markers, totals, what to look for) | [writer-flow-guide.md](writer-flow-guide.md) |
 | WhatsApp alerts | [whatsapp.md](whatsapp.md) |
 | Telegram chart rendering | [telegram-chart-rendering.md](telegram-chart-rendering.md) |
 | Health monitoring | [HEALTH_MONITORING_IMPLEMENTATION.md](HEALTH_MONITORING_IMPLEMENTATION.md) · [HEALTH_MONITOR_REACT_FRONTEND.md](HEALTH_MONITOR_REACT_FRONTEND.md) |

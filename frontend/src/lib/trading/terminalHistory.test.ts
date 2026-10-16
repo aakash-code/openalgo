@@ -609,6 +609,25 @@ describe('selected candle readout', () => {
     )
   })
 
+  it('does not call a study starved while the data it fetches in attach is on its way', async () => {
+    const { state, terminal } = mount()
+    const toast = vi.fn()
+    const host = terminal as unknown as {
+      cb: { onToast: typeof toast }
+      warnIfStarved(inst: unknown, descriptor?: unknown): void
+    }
+    host.cb.onToast = toast
+    await import('openalgo-charts/indicators')
+    const study = state.chart.addIndicator('sma', { length: 100 })
+    host.warnIfStarved(study, { plots: [{ style: {} }], attach: () => () => {} })
+    expect(toast).not.toHaveBeenCalled()
+    host.warnIfStarved(study, { plots: [{ style: {} }] })
+    expect(toast).toHaveBeenCalledWith(
+      expect.stringMatching(/has nothing to plot on the 4 bars loaded/),
+      ''
+    )
+  })
+
   it('repaints the saved OI readout after asynchronous settings restoration', async () => {
     const { state, terminal, legendEl } = mount()
     state.rawBars = state.rawBars.map((bar) => ({ ...bar, oi: 12000 }))

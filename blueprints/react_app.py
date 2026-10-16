@@ -357,6 +357,11 @@ def react_oiprofile():
     return serve_react_app()
 
 
+@react_bp.route("/writerflow")
+def react_writerflow():
+    return serve_react_app()
+
+
 # Arbitrage - Futures calendar-spread scanner
 @react_bp.route("/arbitrage")
 def react_arbitrage():

@@ -1,0 +1,726 @@
+/**
+ * Writer Flow on the chart: what option writers did at each strike, through
+ * the day, drawn where it happened.
+ *
+ * A strike is a price and the record is minute by minute, so the picture lines
+ * up with the candles without any translation:
+ *
+ * - Behind the candles, a band at each strike price, one cell per step. Green
+ *   is flow that helps the underlying (call writers covering, put writers
+ *   adding), red is flow that weighs on it (call writers adding, put writers
+ *   covering). The stronger the colour, the more open interest moved.
+ * - At the right edge, each strike's current streak: a bar as long as the open
+ *   interest it has moved, coloured the same way, with how many minutes it has
+ *   run. Hover a strike for the reading in words.
+ * - Diamonds where a writing or covering streak reached 10, 15 and 20 minutes.
+ *
+ * Writer Flow Totals, in its own pane: the call and put open interest change
+ * since the record began, and the net of the two for every bar.
+ *
+ * Everything comes from /writerflow/api/flow, which reads the OI Flow
+ * recorder's database (OI_FLOW_RECORDER_ENABLED in .env). Opening the chart
+ * makes no broker call. Separate from the OI Profile; neither reads the other.
+ *
+ * Strikes sit at their own price, so on a futures chart, which trades at a
+ * premium to the index, the bands sit that premium below where an index chart
+ * would put them. The index chart is the one these read best on.
+ */
+
+const RED = '#ef4444'
+const GREEN = '#22c55e'
+const NEUTRAL = '#94a3b8'
+const TOOLTIP_BG = 'rgba(23, 23, 23, 0.94)'
+const TOOLTIP_FG = '#f8fafc'
+const HOVER_ID = 'writer-flow-strike:'
+const EVENT_ID = 'writer-flow-event:'
+const REFRESH_MS = 60 * 1000
+const SETTINGS_POLL_MS = 1000
+
+// How each reading is said to a trader. `bias` comes from the server: +1 helps
+// the underlying, -1 weighs on it, 0 says nothing about direction.
+const READING = {
+  writing: 'writers adding',
+  covering: 'writers covering',
+  buying: 'buyers adding',
+  unwinding: 'buyers exiting',
+  adding: 'open interest rising',
+  reducing: 'open interest falling',
+  steady: 'no change',
+}
+
+function formatLakh(value) {
+  const n = Number(value) || 0
+  const sign = n > 0 ? '+' : n < 0 ? '-' : ''
+  const abs = Math.abs(n)
+  if (abs >= 1e7) return `${sign}${(abs / 1e7).toFixed(2)}Cr`
+  if (abs >= 1e5) return `${sign}${(abs / 1e5).toFixed(2)}L`
+  if (abs >= 1e3) return `${sign}${(abs / 1e3).toFixed(1)}K`
+  return `${sign}${Math.round(abs)}`
+}
+
+// One colour per action, so call writers adding and put writers adding are
+// never the same green or red at a glance. Calls warm and cold (red adding,
+// sky blue covering), puts green and amber; buyers violet and pink; a move
+// with no premium change grey.
+const ACTION_COLORS = {
+  'CE:writing': '#ef4444',
+  'CE:covering': '#38bdf8',
+  'PE:writing': '#22c55e',
+  'PE:covering': '#f59e0b',
+  buying: '#a78bfa',
+  unwinding: '#f472b6',
+  adding: '#64748b',
+  reducing: '#64748b',
+}
+
+// The legend, in the order a trader reads it.
+const LEGEND = [
+  ['CE:writing', 'Call writers adding'],
+  ['CE:covering', 'Call writers covering'],
+  ['PE:writing', 'Put writers adding'],
+  ['PE:covering', 'Put writers covering'],
+  ['buying', 'Buyers adding'],
+  ['unwinding', 'Buyers exiting'],
+  ['adding', 'OI moving, side unclear'],
+]
+
+// The words on a streak bar: who, what, how long. "Call cover 8m".
+const SHORT = {
+  writing: 'write',
+  covering: 'cover',
+  buying: 'buy',
+  unwinding: 'exit',
+  adding: '+OI',
+  reducing: '-OI',
+}
+
+function actionColor(side, cls) {
+  return ACTION_COLORS[`${side}:${cls}`] ?? ACTION_COLORS[cls] ?? NEUTRAL
+}
+
+// Open interest as the exchange quotes it: lakh contracts on NSE and BSE,
+// lots on MCX (the server reads which from the data, oi_unit).
+function formatOi(value, unit) {
+  if (unit !== 'lots') return formatLakh(value)
+  const n = Math.round(Number(value) || 0)
+  return `${n > 0 ? '+' : ''}${n.toLocaleString('en-IN')} lots`
+}
+
+function biasColor(bias) {
+  return bias > 0 ? GREEN : bias < 0 ? RED : NEUTRAL
+}
+
+/** The chart's own symbol is the default: NIFTY30OCT25FUT -> NIFTY. */
+function resolveUnderlying(settings, symbol) {
+  const typed = String(settings.underlying ?? '').trim().toUpperCase()
+  if (typed) return typed.replace(/[^A-Z0-9&-]/g, '')
+  return String(symbol ?? '')
+    .toUpperCase()
+    .replace(/\d{2}[A-Z]{3}\d{2}FUT$/, '')
+    .replace(/\d{2}[A-Z]{3}\d{2}[\d.]*(?:CE|PE)$/, '')
+    .replace(/[^A-Z0-9&-]/g, '')
+}
+
+function stepOf(settings) {
+  const s = String(settings.step ?? 'auto')
+  return ['auto', '60', '180', '300'].includes(s) ? s : 'auto'
+}
+
+/**
+ * One request per underlying and step, shared by every instance and both
+ * indicators: the heatmap and the totals pane on one chart, or two charts of
+ * NIFTY, ask the server once a beat between them. Bounded, oldest dropped.
+ */
+const answers = new Map()
+const ANSWERS_MAX = 8
+
+function fetchFlow(underlying, step, maxAgeMs) {
+  const key = `${underlying}|${step}`
+  const held = answers.get(key)
+  if (held && (held.promise || Date.now() - held.at < maxAgeMs)) return held.promise || Promise.resolve(held.body)
+  const url =
+    `/writerflow/api/flow?underlying=${encodeURIComponent(underlying)}` +
+    `&step=${encodeURIComponent(step)}&all_strikes=1&lite=1`
+  const promise = fetch(url, { credentials: 'same-origin' })
+    .then(async (res) => {
+      const body = await res.json().catch(() => null)
+      if (!body) throw new Error('unreadable answer')
+      return body
+    })
+    .then((body) => {
+      answers.delete(key)
+      answers.set(key, { at: Date.now(), body, promise: null })
+      while (answers.size > ANSWERS_MAX) answers.delete(answers.keys().next().value)
+      return body
+    })
+    .catch((err) => {
+      answers.delete(key)
+      throw err
+    })
+  answers.set(key, { at: 0, body: null, promise })
+  return promise
+}
+
+/** Drops every shared answer. For tests, which each expect a cold start. */
+export function forgetFlowAnswers() {
+  answers.clear()
+}
+
+/**
+ * The poll loop both indicators share in shape: ask now, ask again every beat
+ * while the tab is in front, start over when the underlying or step changes.
+ * `apply(body)` receives each answer; `fail(message)` a reason in words.
+ */
+function startPolling(ctx, apply, fail) {
+  let cancelled = false
+  let timer = null
+  let watchedKey = ''
+
+  const keyOf = () => {
+    const settings = ctx.settings()
+    return `${resolveUnderlying(settings, ctx.symbol?.())}|${stepOf(settings)}`
+  }
+
+  const run = async () => {
+    const key = keyOf()
+    watchedKey = key
+    const [underlying, step] = key.split('|')
+    if (!underlying) {
+      fail('Choose an underlying in the settings, such as NIFTY.')
+      return
+    }
+    try {
+      const body = await fetchFlow(underlying, step, REFRESH_MS / 2)
+      if (cancelled || key !== watchedKey) return
+      if (body.status === 'success') apply(body)
+      else fail(body.message || 'Nothing recorded for this yet.')
+    } catch {
+      if (!cancelled) fail('Could not reach OpenAlgo. Trying again in a minute.')
+    }
+  }
+
+  const beat = () => {
+    if (cancelled) return
+    if (!document.hidden) run()
+    timer = setTimeout(beat, REFRESH_MS)
+  }
+
+  const watcher = setInterval(() => {
+    if (cancelled || keyOf() === watchedKey) return
+    run()
+  }, SETTINGS_POLL_MS)
+
+  const onVisible = () => {
+    if (!document.hidden) run()
+  }
+  document.addEventListener('visibilitychange', onVisible)
+  run()
+  timer = setTimeout(beat, REFRESH_MS)
+
+  return () => {
+    cancelled = true
+    if (timer) clearTimeout(timer)
+    clearInterval(watcher)
+    document.removeEventListener('visibilitychange', onVisible)
+  }
+}
+
+/** Value of one heatmap cell for the chosen view, signed by bias. */
+/** The size that reads as full colour: the 95th percentile, so one outlier does not wash out the rest. */
+function heatScale(body, view) {
+  const all = []
+  const sides = view === 'calls' ? ['ce'] : view === 'puts' ? ['pe'] : ['ce', 'pe']
+  for (const side of sides) {
+    for (const row of body.heat[side]) {
+      for (const v of row) if (v) all.push(Math.abs(v))
+    }
+  }
+  if (!all.length) return 1
+  all.sort((a, b) => a - b)
+  return all[Math.min(all.length - 1, Math.floor(all.length * 0.95))] || 1
+}
+
+function strikeGap(strikes) {
+  const gaps = []
+  for (let i = 1; i < strikes.length; i++) gaps.push(strikes[i] - strikes[i - 1])
+  gaps.sort((a, b) => a - b)
+  return gaps.length ? gaps[Math.floor(gaps.length / 2)] : 50
+}
+
+function sideText(label, side, unit) {
+  if (!side) return `${label}: not recorded`
+  if (!side.observed) return `${label}: out of the recorded window since ${side.last_seen ?? '-'}`
+  if (side.cls === 'steady') return `${label}: no change for ${Math.round(side.steady_minutes)} min`
+  return `${label}: ${READING[side.cls] ?? side.cls} for ${Math.round(side.streak_minutes)} min, ${formatOi(side.streak_oi_change, unit)}`
+}
+
+export default function ({ registerIndicator, nulls }) {
+  const underlyingInput = {
+    key: 'underlying', type: 'text', label: 'Underlying', default: '', group: 'Instrument',
+    tooltip: "Left blank, the chart's own symbol is used: NIFTY futures read NIFTY.",
+  }
+  const stepInput = {
+    key: 'step', type: 'select', label: 'Step', default: 'auto', group: 'Instrument',
+    tooltip: 'Auto follows how often the exchange updates open interest for this underlying.',
+    options: [
+      { label: 'Auto', value: 'auto' },
+      { label: '1 minute', value: '60' },
+      { label: '3 minutes', value: '180' },
+      { label: '5 minutes', value: '300' },
+    ],
+  }
+
+  registerIndicator({
+    id: 'writer-flow-live',
+    name: 'Writer Flow',
+    category: 'Custom',
+    placement: 'onchart',
+    // Each cell is placed by its own time, so it needs no Timeframe row.
+    noTimeframe: true,
+
+    inputs: [
+      underlyingInput,
+      stepInput,
+      {
+        key: 'view', type: 'select', label: 'Show', default: 'both', group: 'Display',
+        options: [
+          { label: 'Calls and puts', value: 'both' },
+          { label: 'Calls only', value: 'calls' },
+          { label: 'Puts only', value: 'puts' },
+        ],
+      },
+      { key: 'heatmap', type: 'boolean', label: 'Flow Behind Candles', default: true, group: 'Display' },
+      { key: 'streaks', type: 'boolean', label: 'Current Streaks At Right Edge', default: true, group: 'Display' },
+      { key: 'events', type: 'boolean', label: 'Streak Markers (10, 15, 20 min)', default: true, group: 'Display' },
+      { key: 'opacity', type: 'number', label: 'Flow Opacity (%)', default: 35, min: 10, max: 100, step: 5, group: 'Display' },
+      {
+        key: 'minStreak', type: 'number', label: 'Label Streaks From (min)', default: 5, min: 1, max: 60, step: 1, group: 'Display',
+        tooltip: 'Shorter streaks are drawn without their minutes, so the column stays readable.',
+      },
+      { key: 'barWidth', type: 'number', label: 'Max Streak Bar Width (px)', default: 110, min: 30, max: 300, step: 10, group: 'Display' },
+      {
+        key: 'colours', type: 'select', label: 'Streak Colours', default: 'action', group: 'Display',
+        tooltip: 'By action: a colour each for call writers adding or covering and put writers adding or covering. By direction: green helps the index, red weighs on it.',
+        options: [
+          { label: 'By action', value: 'action' },
+          { label: 'By direction (green / red)', value: 'direction' },
+        ],
+      },
+      { key: 'legend', type: 'boolean', label: 'Colour Key', default: true, group: 'Display' },
+    ],
+
+    // The contract needs one plot; the drawing is the two primitives below.
+    plots: [{ key: 'wf', type: 'line', title: 'Writer Flow', style: { visible: false } }],
+
+    calc(bars) {
+      return { wf: nulls(new Array(bars.length).fill(NaN)) }
+    },
+
+    attach(ctx) {
+      const state = { body: null, scale: 1, scaleFor: '', problem: null, updatedAt: 0 }
+      let hoverPoint = null
+
+      const timeX = (rc, t) => rc.timeScale.indexToX(rc.dataLayer.timeToIndexFloat(t))
+
+      const scaleFor = (view) => {
+        const key = `${state.updatedAt}|${view}`
+        if (state.scaleFor !== key && state.body) {
+          state.scale = heatScale(state.body, view)
+          state.scaleFor = key
+        }
+        return state.scale
+      }
+
+      // Each strike as a pair of strips hugging its line: calls just above,
+      // puts just below. Capped, so a chart zoomed in to a few strikes keeps
+      // its candles readable instead of turning into blocks of colour.
+      const STRIP_MAX_PX = 16
+      const bands = (rc) => {
+        const body = state.body
+        if (!body) return []
+        const gap = strikeGap(body.strikes)
+        const out = []
+        for (let i = 0; i < body.strikes.length; i++) {
+          const strike = body.strikes[i]
+          const y = rc.priceScale.priceToY(strike)
+          if (y == null || Number.isNaN(y)) continue
+          const gapPx = Math.abs(rc.priceScale.priceToY(strike + gap) - y)
+          const strip = Math.max(1, Math.min(STRIP_MAX_PX, gapPx * 0.4))
+          if (y + strip < 0 || y - strip > rc.plotHeight) continue
+          out.push({ i, strike, y, strip, top: y - strip, bottom: y + strip })
+        }
+        return out
+      }
+
+      // Where a side is drawn in a band: calls above the line, puts below,
+      // and a single view centred on it.
+      const sideRect = (b, side, view) => {
+        if (view !== 'both') return { top: b.y - b.strip / 2, h: b.strip }
+        return side === 'ce' ? { top: b.y - b.strip, h: b.strip - 0.5 } : { top: b.y + 0.5, h: b.strip - 0.5 }
+      }
+
+      const streakLayout = (rc, settings) => {
+        const body = state.body
+        if (!body || settings.streaks === false) return null
+        const width = Math.max(30, Math.floor(Number(settings.barWidth) || 110))
+        const right = rc.plotWidth - 4
+        const view = String(settings.view || 'both')
+        let max = 1
+        for (const row of body.ladder) {
+          for (const side of ['ce', 'pe']) {
+            const s = row[side]
+            if (s?.observed && s.cls !== 'steady') max = Math.max(max, Math.abs(s.streak_oi_change || 0))
+          }
+        }
+        const byStrike = new Map(body.ladder.map((r) => [r.strike, r]))
+        const rows = []
+        for (const b of bands(rc)) {
+          const row = byStrike.get(b.strike)
+          if (!row || !row.observed) continue
+          rows.push({ ...b, row })
+        }
+        return { rows, right, left: right - width, width, max, view }
+      }
+
+      const heatPrimitive = {
+        zOrder() {
+          return 'bottom'
+        },
+        draw(c, rc) {
+          const settings = ctx.settings()
+          const body = state.body
+          if (!body || settings.heatmap === false) return
+          const dpr = rc.dpr || 1
+          const view = String(settings.view || 'both')
+          const scale = scaleFor(view)
+          const alpha = Math.min(1, Math.max(0.1, (Number(settings.opacity) || 35) / 100))
+          const half = rc.timeScale.barSpacing / 2
+          const times = body.times_epoch
+          const stepS = Number(body.step_seconds) || 60
+          // x for every step once, not once per strike.
+          const xs = times.map((t) => timeX(rc, t) - half)
+          const xEnd = timeX(rc, times[times.length - 1] + stepS) - half
+          const sides = view === 'calls' ? ['ce'] : view === 'puts' ? ['pe'] : ['ce', 'pe']
+          // Below this a move is noise against the day's flow and is left
+          // out, so the strips show where something happened.
+          const floor = scale * 0.08
+          c.save()
+          for (const b of bands(rc)) {
+            for (const side of sides) {
+              const row = body.heat[side][b.i]
+              if (!row) continue
+              const { top, h } = sideRect(b, side, view)
+              for (let j = 0; j < times.length; j++) {
+                const v = row[j]
+                if (!v || Math.abs(v) < floor) continue
+                const x0 = xs[j]
+                const x1 = j + 1 < times.length ? xs[j + 1] : xEnd
+                if (x1 < 0 || x0 > rc.plotWidth || !(x1 > x0)) continue
+                c.globalAlpha = alpha * Math.min(1, 0.25 + (0.75 * Math.abs(v)) / scale)
+                c.fillStyle = v > 0 ? GREEN : RED
+                c.fillRect(x0 * dpr, top * dpr, Math.max(1, x1 - x0) * dpr, h * dpr)
+              }
+            }
+          }
+          c.restore()
+        },
+      }
+
+      const drawTooltip = (c, rc, lines) => {
+        if (!hoverPoint) return
+        const dpr = rc.dpr || 1
+        const fontPx = 11
+        const pad = 6
+        c.font = `${fontPx * dpr}px sans-serif`
+        const w = Math.max(...lines.map((l) => c.measureText(l).width / dpr))
+        const h = lines.length * (fontPx + 4) + pad * 2
+        const x = Math.max(4, hoverPoint.x - w - pad * 2 - 14)
+        const y = Math.min(rc.plotHeight - h - 4, Math.max(4, hoverPoint.y - h / 2))
+        c.globalAlpha = 1
+        c.fillStyle = TOOLTIP_BG
+        c.beginPath()
+        c.roundRect(x * dpr, y * dpr, (w + pad * 2) * dpr, h * dpr, 4 * dpr)
+        c.fill()
+        c.fillStyle = TOOLTIP_FG
+        c.textBaseline = 'top'
+        lines.forEach((l, k) => c.fillText(l, (x + pad) * dpr, (y + pad + k * (fontPx + 4)) * dpr))
+      }
+
+      // Where each visible streak marker sits this frame.
+      const visibleEvents = (rc, settings) => {
+        const body = state.body
+        if (!body || settings.events === false) return []
+        const view = String(settings.view || 'both')
+        const out = []
+        body.events.forEach((e, index) => {
+          if (view === 'calls' && e.side !== 'CE') return
+          if (view === 'puts' && e.side !== 'PE') return
+          const x = timeX(rc, e.epoch)
+          const y = rc.priceScale.priceToY(e.strike)
+          if (y == null || Number.isNaN(y) || x < 0 || x > rc.plotWidth || y < 0 || y > rc.plotHeight) return
+          out.push({ e, index, x, y, r: e.minutes >= 20 ? 6 : e.minutes >= 15 ? 4.5 : 3 })
+        })
+        return out
+      }
+
+      const eventAt = (rc, settings, x, y) => {
+        let best = null
+        for (const v of visibleEvents(rc, settings)) {
+          const d = Math.hypot(x - v.x, y - v.y)
+          if (d <= v.r + 3 && (!best || d < best.distance)) best = { index: v.index, distance: d }
+        }
+        return best
+      }
+
+      const streakColor = (settings, side, s) =>
+        settings.colours === 'direction' ? biasColor(s.bias) : actionColor(side, s.cls)
+
+      const overlayPrimitive = {
+        zOrder() {
+          return 'top'
+        },
+        hitTest(x, y, rc) {
+          const settings = ctx.settings()
+          // A streak marker under the pointer names itself.
+          const ev = eventAt(rc, settings, x, y)
+          if (ev) {
+            hoverPoint = { x, y }
+            return { externalId: `${EVENT_ID}${ev.index}`, zOrder: 'top', distance: ev.distance }
+          }
+          const geom = streakLayout(rc, settings)
+          if (!geom || x < geom.left || x > geom.right) return null
+          const hit = geom.rows.find((r) => y >= r.top && y <= r.bottom)
+          if (!hit) return null
+          hoverPoint = { x, y }
+          return { externalId: `${HOVER_ID}${hit.strike}`, zOrder: 'top', distance: Math.abs(y - hit.y) }
+        },
+        draw(c, rc) {
+          const settings = ctx.settings()
+          const dpr = rc.dpr || 1
+          const body = state.body
+          c.save()
+          c.textBaseline = 'middle'
+
+          for (const { e, x, y, r } of visibleEvents(rc, settings)) {
+            {
+              c.fillStyle = streakColor(settings, e.side.toLowerCase() === 'ce' ? 'CE' : 'PE', { cls: e.kind, bias: e.bias })
+              c.strokeStyle = rc.theme?.background || '#ffffff'
+              c.lineWidth = dpr
+              c.beginPath()
+              c.moveTo(x * dpr, (y - r) * dpr)
+              c.lineTo((x + r) * dpr, y * dpr)
+              c.lineTo(x * dpr, (y + r) * dpr)
+              c.lineTo((x - r) * dpr, y * dpr)
+              c.closePath()
+              c.fill()
+              c.stroke()
+            }
+          }
+
+          const geom = streakLayout(rc, settings)
+          if (geom) {
+            const minStreak = Math.max(1, Number(settings.minStreak) || 5)
+            const sides = geom.view === 'calls' ? ['ce'] : geom.view === 'puts' ? ['pe'] : ['ce', 'pe']
+            c.font = `${10 * dpr}px sans-serif`
+            for (const r of geom.rows) {
+              sides.forEach((key) => {
+                const s = r.row[key]
+                if (!s || !s.observed) return
+                const { top, h } = sideRect(r, key, geom.view)
+                const mid = Math.min(rc.plotHeight - 6, Math.max(6, top + h / 2))
+                if (s.cls === 'steady') {
+                  c.globalAlpha = 0.6
+                  c.fillStyle = NEUTRAL
+                  c.fillRect((geom.right - 3) * dpr, (mid - 1) * dpr, 3 * dpr, 2 * dpr)
+                  return
+                }
+                const len = Math.max(3, (geom.width * Math.abs(s.streak_oi_change || 0)) / geom.max)
+                c.globalAlpha = 0.85
+                c.fillStyle = streakColor(settings, key.toUpperCase(), s)
+                c.fillRect((geom.right - len) * dpr, top * dpr, len * dpr, h * dpr)
+                if (s.streak_minutes >= minStreak && h >= 5) {
+                  const text = `${key === 'ce' ? 'Call' : 'Put'} ${SHORT[s.cls] ?? s.cls} ${Math.round(s.streak_minutes)}m`
+                  const tw = c.measureText(text).width / dpr
+                  c.globalAlpha = 1
+                  c.fillStyle = rc.theme?.axisText || TOOLTIP_FG
+                  c.fillText(text, (geom.right - len - tw - 4) * dpr, mid * dpr)
+                }
+              })
+            }
+
+            const hovered = rc.hoverId && String(rc.hoverId).startsWith(HOVER_ID)
+              ? Number(String(rc.hoverId).slice(HOVER_ID.length))
+              : null
+            const row = hovered != null ? body.ladder.find((r) => r.strike === hovered) : null
+            if (row) {
+              drawTooltip(c, rc, [
+                `${row.strike}${row.atm ? '  (ATM)' : ''}`,
+                sideText('Calls', row.ce, body.oi_unit),
+                sideText('Puts', row.pe, body.oi_unit),
+              ])
+            }
+          }
+
+          const evHover = rc.hoverId && String(rc.hoverId).startsWith(EVENT_ID)
+            ? body?.events[Number(String(rc.hoverId).slice(EVENT_ID.length))]
+            : null
+          if (evHover) {
+            drawTooltip(c, rc, [
+              `${evHover.time}  ${evHover.strike} ${evHover.side === 'CE' ? 'call' : 'put'}`,
+              `${evHover.side === 'CE' ? 'Call' : 'Put'} ${READING[evHover.kind] ?? evHover.kind} for ${evHover.minutes} minutes in a row`,
+              `Open interest moved ${formatOi(evHover.oi_change, body.oi_unit)} over the streak`,
+              'Marker size: small 10 min, medium 15 min, large 20 min',
+            ])
+          }
+
+          // The colour key, just above the status line.
+          if (body && settings.legend !== false) {
+            const items = settings.colours === 'direction'
+              ? [[GREEN, 'Helps the index'], [RED, 'Weighs on the index'], [NEUTRAL, 'Side unclear']]
+              : LEGEND.map(([k, label]) => [ACTION_COLORS[k], label])
+            c.font = `${10 * dpr}px sans-serif`
+            c.textBaseline = 'middle'
+            let lx = 8
+            const ly = rc.plotHeight - 30
+            c.globalAlpha = 0.75
+            c.fillStyle = TOOLTIP_BG
+            const total = items.reduce((w, [, label]) => w + 16 + c.measureText(label).width / dpr + 10, 0)
+            c.beginPath()
+            c.roundRect(4 * dpr, (ly - 9) * dpr, (total + 8) * dpr, 18 * dpr, 4 * dpr)
+            c.fill()
+            c.globalAlpha = 1
+            for (const [color, label] of items) {
+              c.fillStyle = color
+              c.fillRect(lx * dpr, (ly - 4) * dpr, 10 * dpr, 8 * dpr)
+              c.fillStyle = TOOLTIP_FG
+              c.fillText(label, (lx + 14) * dpr, ly * dpr)
+              lx += 16 + c.measureText(label).width / dpr + 10
+            }
+          }
+
+          // The one line of words: what is drawn, or why nothing is.
+          const text = state.problem
+            ? `Writer Flow: ${state.problem}`
+            : body
+              ? `Writer Flow ${body.underlying} ${body.expiry}, ${Math.round((body.step_seconds || 60) / 60)} min steps, OI in ${body.oi_unit === 'lots' ? 'lots' : 'lakh contracts'}, ${body.times[body.times.length - 1] ?? ''}`
+              : 'Writer Flow: loading'
+          c.font = `${11 * dpr}px sans-serif`
+          c.globalAlpha = 0.8
+          c.fillStyle = state.problem ? '#eab308' : rc.theme?.axisText || NEUTRAL
+          c.textBaseline = 'bottom'
+          c.fillText(text, 8 * dpr, (rc.plotHeight - 6) * dpr)
+          c.restore()
+        },
+      }
+
+      ctx.addPrimitive(heatPrimitive)
+      ctx.addPrimitive(overlayPrimitive)
+
+      const stop = startPolling(
+        ctx,
+        (body) => {
+          state.body = body
+          state.problem = null
+          state.updatedAt = Date.now()
+          ctx.requestRecompute()
+        },
+        (message) => {
+          state.problem = message
+          ctx.requestRecompute()
+        },
+      )
+
+      return () => {
+        stop()
+        ctx.removePrimitive(heatPrimitive)
+        ctx.removePrimitive(overlayPrimitive)
+      }
+    },
+  })
+
+  registerIndicator({
+    id: 'writer-flow-totals',
+    name: 'Writer Flow Totals',
+    category: 'Custom',
+    placement: 'pane',
+    noTimeframe: true,
+
+    inputs: [underlyingInput, stepInput],
+
+    plots: [
+      { key: 'calls', type: 'line', title: 'Call OI added since open', style: { color: RED, lineWidth: 2 } },
+      { key: 'puts', type: 'line', title: 'Put OI added since open', style: { color: GREEN, lineWidth: 2 } },
+      {
+        key: 'net',
+        type: 'histogram',
+        title: 'This bar: put OI minus call OI',
+        // Its own hidden scale: a bar's change is a sliver of the running totals,
+        // and on theirs it would not show at all. Only right, left, '' and
+        // overlay:<name> are scales; any other name is dropped without a word.
+        priceScaleId: 'overlay:writer-flow-net',
+        style: { color: GREEN, base: 0 },
+        colorBy: ({ value }) => (value >= 0 ? GREEN : RED),
+      },
+    ],
+
+    // Bars before the record began, or after its last step, are gaps.
+    calc(bars, settings, store) {
+      const n = bars.length
+      const calls = new Array(n).fill(null)
+      const puts = new Array(n).fill(null)
+      const net = new Array(n).fill(null)
+      const totals = store?.writerFlowTotals
+      if (!Array.isArray(totals) || totals.length === 0) return { calls, puts, net }
+      // Lakh contracts on NSE and BSE; lots, as MCX quotes them, on MCX.
+      const scale = store?.writerFlowUnit === 'lots' ? 1 : 1e5
+      const first = totals[0].epoch
+      const last = totals[totals.length - 1].epoch
+      let k = 0
+      let ceSum = 0
+      let peSum = 0
+      for (let i = 0; i < n; i++) {
+        const start = bars[i].time
+        const end = i + 1 < n ? bars[i + 1].time : Number.POSITIVE_INFINITY
+        if (end <= first || start > last) {
+          // Skip steps that fall before this bar, without counting them.
+          while (k < totals.length && totals[k].epoch < start) {
+            ceSum += totals[k].ce_change || 0
+            peSum += totals[k].pe_change || 0
+            k++
+          }
+          continue
+        }
+        let ce = 0
+        let pe = 0
+        while (k < totals.length && totals[k].epoch < end) {
+          if (totals[k].epoch >= start) {
+            ce += totals[k].ce_change || 0
+            pe += totals[k].pe_change || 0
+          }
+          ceSum += totals[k].ce_change || 0
+          peSum += totals[k].pe_change || 0
+          k++
+        }
+        calls[i] = ceSum / scale
+        puts[i] = peSum / scale
+        net[i] = (pe - ce) / scale
+      }
+      return { calls, puts, net }
+    },
+
+    attach(ctx) {
+      return startPolling(
+        ctx,
+        (body) => {
+          ctx.store.writerFlowTotals = body.totals
+          ctx.store.writerFlowUnit = body.oi_unit
+          ctx.requestRecompute()
+        },
+        () => {
+          ctx.store.writerFlowTotals = null
+          ctx.requestRecompute()
+        },
+      )
+    },
+  })
+}

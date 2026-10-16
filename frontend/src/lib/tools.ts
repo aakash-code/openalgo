@@ -67,6 +67,13 @@ export const tools: Tool[] = [
     color: 'bg-blue-500',
   },
   {
+    title: 'Writer Flow',
+    description:
+      'Where option writers are adding, covering or holding, strike by strike through the day, with how long each has lasted',
+    href: '/writerflow',
+    color: 'bg-emerald-500',
+  },
+  {
     title: 'OI Range',
     description:
       'Open Interest by strike for a custom range with ATM-relative quick selectors and optional 1-minute auto-refresh',

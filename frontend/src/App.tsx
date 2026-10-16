@@ -78,6 +78,7 @@ const VolSurface = lazy(() => import('@/pages/VolSurface'))
 const GEXDashboard = lazy(() => import('@/pages/GEXDashboard'))
 const IVSmile = lazy(() => import('@/pages/IVSmile'))
 const OIProfile = lazy(() => import('@/pages/OIProfile'))
+const WriterFlow = lazy(() => import('@/pages/WriterFlow'))
 const Arbitrage = lazy(() => import('@/pages/Arbitrage'))
 const Screener = lazy(() => import('@/pages/Screener'))
 const StrategyBuilder = lazy(() => import('@/pages/StrategyBuilder'))
@@ -233,6 +234,7 @@ function App() {
                 <Route path="/gex" element={<GEXDashboard />} />
                 <Route path="/ivsmile" element={<IVSmile />} />
                 <Route path="/oiprofile" element={<OIProfile />} />
+                <Route path="/writerflow" element={<WriterFlow />} />
                 <Route path="/arbitrage" element={<Arbitrage />} />
                 <Route path="/screener" element={<Screener />} />
                 <Route path="/strategybuilder" element={<StrategyBuilder />} />

@@ -5595,7 +5595,7 @@ export class TradingTerminal {
       values(): Record<string, unknown>
       series(plotKey: string): unknown
     },
-    descriptor?: { plots?: readonly { style?: { visible?: boolean } }[] }
+    descriptor?: { plots?: readonly { style?: { visible?: boolean } }[]; attach?: unknown }
   ): void {
     const loaded = this.rawBars.length
     if (!loaded) return
@@ -5603,6 +5603,10 @@ export class TradingTerminal {
     // OI Profile does): an empty placeholder column is not starvation.
     const plots = descriptor?.plots
     if (plots?.length && plots.every((p) => p.style?.visible === false)) return
+    // One that fetches its own data in `attach` has asked for it and cannot
+    // have it yet: this runs straight after the add. Writer Flow Totals drew
+    // its lines a second later, under a toast saying it never would.
+    if (typeof descriptor?.attach === 'function') return
     const cols = Object.entries(inst.values())
       .filter(([key, col]) => Array.isArray(col) && inst.series(key) !== undefined)
       .map(([, col]) => col as unknown[])

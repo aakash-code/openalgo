@@ -80,6 +80,7 @@ from blueprints.master_contract_status import (
     master_contract_status_bp,  # Import the master contract status blueprint
 )
 from blueprints.oiprofile import oiprofile_bp  # Import the OI Profile blueprint
+from blueprints.writer_flow import writer_flow_bp  # Writer Flow: option writers strike by strike
 from blueprints.oitracker import oitracker_bp  # Import the OI tracker blueprint
 from blueprints.openscript import openscript_bp  # Trader authored OpenScript sources
 from blueprints.openscript_runner import openscript_runner_bp  # Runs one saved strategy
@@ -351,6 +352,7 @@ def create_app():
     app.register_blueprint(gex_bp)  # Register GEX blueprint
     app.register_blueprint(ivsmile_bp)  # Register IV Smile blueprint
     app.register_blueprint(oiprofile_bp)  # Register OI Profile blueprint
+    app.register_blueprint(writer_flow_bp)  # Register Writer Flow blueprint
     app.register_blueprint(tradefinder_proxy_bp)  # Register tradefinder proxy blueprint
     app.register_blueprint(arbitrage_bp)  # Register Arbitrage blueprint
     app.register_blueprint(flow_bp)  # Register Flow blueprint
@@ -914,6 +916,16 @@ def setup_environment(app):
                     logger.debug("TF Boost snapshot scheduler initialized")
                 except Exception as e:
                     logger.error(f"Failed to initialize TF Boost snapshot scheduler: {e}")
+
+            # Writer Flow's minute record of option OI and premium. Opt-in: it
+            # spends one broker call per configured underlying per minute.
+            if os.getenv("OI_FLOW_RECORDER_ENABLED", "false").lower() == "true":
+                try:
+                    from services.oi_flow_recorder_service import init_oi_flow_recorder
+
+                    init_oi_flow_recorder()
+                except Exception:
+                    logger.exception("Could not start the OI Flow recorder")
 
             # Opt-in inside the service itself (SIGNAL_SUMMARY_ENABLED), so the
             # periodic channel summary never starts by accident.

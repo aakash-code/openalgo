@@ -8,6 +8,70 @@ fix, live in [docs/releases](releases/).
 
 ## [Unreleased]
 
+### Writer Flow: where option writers are adding, covering or holding, on the chart
+
+No database migration: the record is a new, separate file. Off by default. Pull,
+set the recorder on, restart, and reload `/trading`.
+
+- **On the `/trading` chart**: the *Writer Flow* button beside OI Profile
+  turns on both halves, the strips on the price and the Totals pane (both are
+  also in Indicators), with a gear for its settings. Behind the candles, each strike carries a thin strip per minute,
+  calls just above the strike line and puts just below: green where the flow
+  helps the index (call writers covering, put writers adding), red where it
+  weighs on it, stronger for a bigger move. At the right edge, each strike's
+  current streak as a bar with its minutes ("C 8m"); hover a strike for the
+  reading in words ("Calls: writers covering for 18 min, -23.4L"). Diamonds
+  mark streaks reaching 10, 15 and 20 minutes. The Totals pane draws the call
+  and put OI change since 09:15 and, per bar, puts minus calls. Read it on the
+  index chart: on a futures chart the strikes sit the futures premium off the
+  candles.
+- **A full page** at Tools > Writer Flow (`/writerflow`): the strike ladder,
+  the strike-by-time picture and the totals with the price line. It shows the
+  strikes the recorder is watching now; a strike that drifted out of the
+  window is no longer shown as steady.
+- **A recorder** (`OI_FLOW_RECORDER_ENABLED=true` in `.env`) stores the open
+  interest and premium of every option within `OI_FLOW_STRIKES_AROUND_ATM`
+  strikes of ATM, every minute from 09:15 to 15:30 IST, for the underlyings in
+  `OI_FLOW_UNDERLYINGS`, into `db/oi_flow.duckdb`. One broker call per
+  underlying per minute; opening the chart or the page costs the broker
+  nothing. Minutes it missed (started mid-session, restarted, or held back by
+  a machine short of CPU) are filled from one-minute history within five
+  minutes, for the strikes that were near the money at the time, without
+  overwriting what it recorded live. Each missed minute is asked for twice at
+  most; with nothing missing, no broker call is made.
+- **An analysis** that reads each strike side as writing, covering, buying,
+  unwinding or steady, from OI and premium together, and reports how long each
+  has lasted and how long a strike has been steady. The step follows how often
+  the exchange updates OI: one minute for NIFTY, three for SENSEX.
+- Also in `/trading`: a study that fetches its own data no longer gets a
+  "has nothing to plot" toast the moment it is added, before its data could
+  have arrived.
+- **Colours that say who is acting.** Streak bars and markers take a colour
+  each for call writers adding (red), call writers covering (sky blue), put
+  writers adding (green) and put writers covering (amber), with buyers in
+  violet and pink; *Streak Colours* switches back to plain green and red. Bars
+  read "Call cover 8m" instead of "C 8m", a colour key sits in the corner, and
+  hovering a streak marker explains it. How to read all of it:
+  [writer-flow-guide.md](writer-flow-guide.md).
+- **No wrong numbers from missing data.** A quote that did not come back, a
+  contract not traded yet, a strike returning to the window, and history
+  minutes filed a minute early each used to draw a move that never happened.
+  Each is now a gap, an unclear side, or a correctly timed minute. Only one
+  OpenAlgo process writes the record.
+- **Faster refreshes.** Each answer is built once per recorded minute and
+  shared by every open chart and page, and sent compressed.
+- **MCX and the F&O close.** Each underlying records while its own market is
+  open, by the market calendar: CRUDEOIL and NATURALGAS through MCX's session
+  to 23:55 (add them to `OI_FLOW_UNDERLYINGS` as `CRUDEOIL:MCX`), and NIFTY,
+  BANKNIFTY and SENSEX options to 15:40, the closing auction's end, which the
+  fixed 15:30 window used to cut off. Holidays, the MCX evening session on an
+  NSE holiday and special sessions come from the same calendar.
+- **MCX open interest is read in lots**, as MCX quotes it; it used to be held
+  to a floor meant for contracts and every MCX minute read steady. The unit is
+  shown on the chart.
+- Not yet: expiries beyond the nearest. The OI Profile is unchanged. See
+  [writer-flow.md](writer-flow.md).
+
 ### /trading: the fork's own parts follow the full-screen terminal's rules
 
 Pull and reload; the watchlist part needs the rebuilt frontend.
