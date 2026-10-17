@@ -137,6 +137,11 @@ function stepOf(settings) {
  * NIFTY, ask the server once a beat between them. Bounded, oldest dropped.
  */
 const answers = new Map()
+// The loader's server-event listener (lib/serverEvents.ts), if this OpenAlgo
+// has one. The server announces each recorded minute with UPDATE_EVENT, and an
+// open chart fetches it at once instead of at its next 60-second poll.
+let onServerEvent = null
+const UPDATE_EVENT = 'writer_flow_update'
 const ANSWERS_MAX = 8
 
 function fetchFlow(underlying, step, maxAgeMs, exchange = '') {
@@ -192,7 +197,7 @@ function startPolling(ctx, apply, fail) {
     return `${resolveUnderlying(settings, ctx.symbol?.())}|${stepOf(settings)}|${exchange}`
   }
 
-  const run = async () => {
+  const run = async ({ fresh = false } = {}) => {
     const key = keyOf()
     if (key !== watchedKey) {
       keySince = Date.now()
@@ -214,7 +219,9 @@ function startPolling(ctx, apply, fail) {
     const settled = Date.now() - keySince >= START_AFTER_MS
     const exchange = settled ? chartExchange : ''
     try {
-      const body = await fetchFlow(underlying, step, REFRESH_MS / 2, exchange)
+      // A fresh ask follows the server's word that a new minute is in, so a
+      // shared answer from moments ago is not good enough.
+      const body = await fetchFlow(underlying, step, fresh ? 0 : REFRESH_MS / 2, exchange)
       if (cancelled || key !== watchedKey) return
       if (body.status === 'success') apply(body)
       else if (!settled && chartExchange && body.recorder_enabled)
@@ -240,6 +247,21 @@ function startPolling(ctx, apply, fail) {
     if (!document.hidden) run()
   }
   document.addEventListener('visibilitychange', onVisible)
+
+  // A new minute for this chart's underlying: fetch it now, and push the
+  // poll back a full beat, since it would only fetch the same minute again.
+  // The poll stays as the safety net for a missed announcement.
+  const stopHearing =
+    typeof onServerEvent === 'function'
+      ? onServerEvent(UPDATE_EVENT, (data) => {
+          if (cancelled || document.hidden) return
+          if (!data || data.underlying !== watchedKey.split('|')[0]) return
+          run({ fresh: true })
+          if (timer) clearTimeout(timer)
+          timer = setTimeout(beat, REFRESH_MS)
+        })
+      : null
+
   run()
   timer = setTimeout(beat, REFRESH_MS)
 
@@ -249,6 +271,7 @@ function startPolling(ctx, apply, fail) {
     if (startTimer) clearTimeout(startTimer)
     clearInterval(watcher)
     document.removeEventListener('visibilitychange', onVisible)
+    stopHearing?.()
   }
 }
 
@@ -281,7 +304,8 @@ function sideText(label, side, unit) {
   return `${label}: ${READING[side.cls] ?? side.cls} for ${Math.round(side.streak_minutes)} min, ${formatOi(side.streak_oi_change, unit)}`
 }
 
-export default function ({ registerIndicator, nulls }) {
+export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
+  onServerEvent = typeof listen === 'function' ? listen : null
   const underlyingInput = {
     key: 'underlying', type: 'text', label: 'Underlying', default: '', group: 'Instrument',
     tooltip: "Left blank, the chart's own symbol is used: NIFTY futures read NIFTY.",

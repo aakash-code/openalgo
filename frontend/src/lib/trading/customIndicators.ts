@@ -27,6 +27,7 @@
  */
 
 import { subscribeQuotes } from '@/lib/MarketDataManager'
+import { onServerEvent } from '@/lib/serverEvents'
 
 /** One module the server is offering. `mtime` busts the browser module cache. */
 interface CustomModule {
@@ -405,6 +406,7 @@ function registerOnce(mod: CustomModule, onProblem: ProblemReporter): Promise<Ou
       await register({
         ...api,
         subscribeQuotes,
+        onServerEvent,
         registerIndicator: (descriptor: Record<string, unknown>) => {
           if (typeof descriptor !== 'object' || descriptor === null) {
             throw new Error('registerIndicator needs a descriptor object')

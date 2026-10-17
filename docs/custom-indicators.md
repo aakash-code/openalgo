@@ -508,6 +508,38 @@ where the broker's feed carries it. A field the packet did not carry is absent,
 not 0. Check `typeof subscribeQuotes === 'function'` before calling it if the
 file must also load on an older OpenAlgo.
 
+### Server announcements: `onServerEvent`
+
+An indicator that polls the server for data the server produces on its own
+schedule can hear the moment it is ready instead. The loader hands in
+`onServerEvent(name, handler)` beside `subscribeQuotes`; it rides the app's
+existing Socket.IO connection (`frontend/src/lib/serverEvents.ts`) and carries
+the listener across reconnects. It returns the function that stops listening.
+
+Only broadcasts about shared data can be heard, never account or session
+events. Today that is one:
+
+| Event | Payload | Sent |
+|---|---|---|
+| `writer_flow_update` | `{ underlying }` | after each recorded Writer Flow minute, once its answer is rebuilt |
+
+```js
+export default function ({ registerIndicator, onServerEvent }) {
+  registerIndicator({
+    // ...
+    attach(ctx) {
+      const stop = typeof onServerEvent === 'function'
+        ? onServerEvent('writer_flow_update', ({ underlying }) => { /* fetch now */ })
+        : null
+      return () => stop?.()
+    },
+  })
+}
+```
+
+Keep a slower poll as well: an announcement sent while the connection was
+reconnecting is not replayed.
+
 ---
 
 ## Shipped example: OI Profile

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { io, type Socket } from 'socket.io-client'
 import { toast } from 'sonner'
+import { serverEventSocket, setServerEventSocket } from '@/lib/serverEvents'
 import { type AlertCategories, useAlertStore } from '@/stores/alertStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useSessionStore } from '@/stores/sessionStore'
@@ -159,6 +160,8 @@ export function useSocket() {
 
     const socket = socketRef.current
     setSocketInstance(socket)
+    // Chart indicators listen through lib/serverEvents, outside React.
+    setServerEventSocket(socket)
 
     // Force logout from another device
     socket.on('force_logout', (data: { message: string }) => {
@@ -333,6 +336,7 @@ export function useSocket() {
     return () => {
       socket.disconnect()
       setSocketInstance(null)
+      if (serverEventSocket() === socket) setServerEventSocket(null)
       ;['click', 'touchstart', 'keydown'].forEach((eventType) => {
         document.removeEventListener(eventType, handleInteraction)
       })

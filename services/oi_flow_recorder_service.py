@@ -440,13 +440,35 @@ def record_once(now_ist: datetime | None = None, only: str | None = None) -> int
     return written
 
 
+# The Socket.IO event an open chart listens for: a new minute is recorded.
+UPDATE_EVENT = "writer_flow_update"
+
+
 def _rebuild_watched(underlyings: set[str]) -> None:
-    """Rebuild the Writer Flow views someone is watching, so their next refresh is served from memory."""
+    """After a write: rebuild the views someone is watching, then tell open charts.
+
+    The rebuild comes first, so the fetch a chart makes on hearing the event is
+    served from memory. Charts used to find a new minute only at their own
+    60-second poll, anywhere from 5 to 60 seconds after it was recorded.
+    """
     if not underlyings:
         return
     from services.writer_flow_service import rebuild_watched
 
     rebuild_watched(underlyings)
+    _announce(underlyings)
+
+
+def _announce(underlyings: set[str]) -> None:
+    """Tell open charts which underlyings have a new minute. Never raises."""
+    try:
+        from extensions import emit_from_any_thread
+
+        for underlying in sorted(underlyings):
+            emit_from_any_thread(UPDATE_EVENT, {"underlying": underlying})
+    except Exception:
+        # A chart that misses this still finds the minute at its next poll.
+        logger.exception("oi_flow: could not announce the new minute to open charts")
 
 
 def history_samples(

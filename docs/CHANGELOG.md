@@ -81,6 +81,12 @@ set the recorder on, restart, and reload `/trading`.
   each stops half an hour after its last chart closes. Each costs one more
   broker call a minute. History fills now rest between calls, so a fill never
   makes your own chart's history load wait more than a moment.
+- **A new Writer Flow minute reaches the chart within about a second.** The
+  server announces each recorded minute and an open chart fetches it at once.
+  It used to wait for the chart's own once-a-minute check, which could land
+  anywhere up to a minute after the reading. Custom chart indicators can hear
+  the same announcement through `onServerEvent`
+  ([custom-indicators.md](custom-indicators.md)).
 - **Flicking through symbols no longer stalls OpenAlgo.** A Writer Flow
   answer takes 0.5 to 0.8 s to build. Every symbol looked at in the last ten
   minutes used to be rebuilt every minute, inside the server's only worker

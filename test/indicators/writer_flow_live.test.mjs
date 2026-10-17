@@ -32,8 +32,18 @@ async function advance(ms) {
   }
 }
 
-function harness(symbol) {
+function harness(symbol, { serverEvents = true } = {}) {
   const asked = []
+  // The loader's onServerEvent, as lib/serverEvents.ts hands it in.
+  const heard = new Map()
+  const onServerEvent = (name, fn) => {
+    if (!heard.has(name)) heard.set(name, new Set())
+    heard.get(name).add(fn)
+    return () => heard.get(name).delete(fn)
+  }
+  const announce = (underlying) => {
+    for (const fn of [...(heard.get('writer_flow_update') ?? [])]) fn({ underlying })
+  }
   const shown = []
   globalThis.document = { hidden: false, addEventListener() {}, removeEventListener() {} }
   globalThis.fetch = async (url) => {
@@ -41,7 +51,11 @@ function harness(symbol) {
     return { json: async () => empty }
   }
   const descriptors = []
-  indicator.default({ registerIndicator: (d) => descriptors.push(d), nulls: (a) => a })
+  indicator.default({
+    registerIndicator: (d) => descriptors.push(d),
+    nulls: (a) => a,
+    ...(serverEvents ? { onServerEvent } : {}),
+  })
   const totals = descriptors.find((d) => d.id === 'writer-flow-totals')
   const chart = { symbol }
   const store = {}
@@ -52,7 +66,8 @@ function harness(symbol) {
     store,
     requestRecompute: () => shown.push(store.writerFlowTotals),
   })
-  return { asked, chart, stop, starts: () => asked.filter((u) => u.includes('&exchange=')) }
+  const listeners = () => heard.get('writer_flow_update')?.size ?? 0
+  return { asked, chart, stop, announce, listeners, starts: () => asked.filter((u) => u.includes('&exchange=')) }
 }
 
 test('a chart starts recording only after staying on the symbol', async () => {
@@ -96,4 +111,43 @@ test('a closed chart asks for nothing more', async () => {
   h.stop()
   await advance(20_000)
   assert.equal(h.asked.length, 1)
+})
+
+test('a new minute announced for this chart is fetched at once, not at the next poll', async () => {
+  const h = harness('NIFTY27OCT26FUT')
+  await settle()
+  assert.equal(h.asked.length, 1)
+  await advance(5_000)
+  h.announce('NIFTY')
+  await settle()
+  assert.equal(h.asked.length, 2, 'the announcement did not fetch')
+  // The poll is pushed back a full beat: no second read of the same minute
+  // 55 s later, where the old beat would have fallen. (The one ask at 15 s
+  // that starts a recording is a different request, and is left out.)
+  await advance(56_000)
+  assert.equal(h.asked.filter((u) => !u.includes('&exchange=')).length, 2)
+  h.stop()
+})
+
+test('an announcement for another underlying is ignored', async () => {
+  const h = harness('NIFTY27OCT26FUT')
+  await settle()
+  h.announce('BANKNIFTY')
+  await settle()
+  assert.equal(h.asked.length, 1)
+  h.stop()
+})
+
+test('a closed chart stops listening, and an older OpenAlgo still polls', async () => {
+  const h = harness('NIFTY27OCT26FUT')
+  await settle()
+  assert.equal(h.listeners(), 1)
+  h.stop()
+  assert.equal(h.listeners(), 0)
+
+  const old = harness('NIFTY27OCT26FUT', { serverEvents: false })
+  await settle()
+  await advance(61_000)
+  assert.equal(old.asked.length, 2, 'without server events the 60 s poll still runs')
+  old.stop()
 })

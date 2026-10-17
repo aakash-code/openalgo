@@ -216,6 +216,21 @@ in the last 150 seconds, which is a chart still open (it asks every minute).
 Answers are sent gzipped (160 KB became 30 KB), and the chart asks with
 `lite=1`, leaving out the per-cell readings it does not draw.
 
+### A new minute reaches the chart within about a second
+
+After each write the recorder rebuilds the views being watched and then
+announces `writer_flow_update` with the underlying over Socket.IO
+(`services/oi_flow_recorder_service._announce`). The chart indicator hears it
+through `onServerEvent` and fetches at once, served from memory because the
+rebuild came first. Before, it found the minute at its own 60-second poll,
+counted from when the chart was opened: anywhere from 5 to 60 seconds after
+the reading. The poll stays as the safety net and is pushed back a full beat
+after each announcement, so an announced minute is not fetched twice. A
+failed announcement is logged and never stops the minute beat.
+
+The exchange itself updates open interest about once a minute (every three
+for SENSEX), so this is as current as the data gets.
+
 ### Flicking through symbols does not stall the platform
 
 A build is still 0.5 to 0.8 s of Python: measured on 16-Oct-2026's full days,

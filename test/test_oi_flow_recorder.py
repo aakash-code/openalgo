@@ -437,3 +437,55 @@ def test_two_threads_asking_for_the_hours_read_the_calendar_once(monkeypatch):
         t.join(5)
     assert answers == [(time(9, 15), time(15, 40))] * 2
     assert reads == ["NFO"]
+
+
+def test_open_charts_are_told_of_a_new_minute_after_it_is_rebuilt(fake_broker, monkeypatch):
+    """A chart used to find a new minute only at its own 60-second poll."""
+    import extensions
+    import services.writer_flow_service as svc
+
+    order = []
+    monkeypatch.setattr(svc, "rebuild_watched", lambda u: order.append(("rebuild", sorted(u))))
+    monkeypatch.setattr(
+        extensions, "emit_from_any_thread", lambda event, data, **_: order.append((event, data))
+    )
+    rec.record_once(FRIDAY_1031)
+    assert order == [
+        ("rebuild", ["NIFTY"]),
+        (rec.UPDATE_EVENT, {"underlying": "NIFTY"}),
+    ]
+
+
+def test_a_failed_announcement_never_stops_the_minute_beat(fake_broker, monkeypatch):
+    import extensions
+
+    def broken(*_a, **_k):
+        raise RuntimeError("no socket server")
+
+    monkeypatch.setattr(extensions, "emit_from_any_thread", broken)
+    assert rec.record_once(FRIDAY_1031) > 0
+
+
+def test_the_announcement_reaches_a_connected_socketio_client(monkeypatch):
+    """End to end through Flask-SocketIO: what the recorder emits is what a
+    browser connected to the app receives, under the name the chart listens for."""
+    from flask import Flask
+    from flask_socketio import SocketIO
+
+    import extensions
+
+    app = Flask(__name__)
+    app.config["SECRET_KEY"] = "writer-flow-announce-test"
+    server = SocketIO(app, async_mode="threading")
+    monkeypatch.setattr(extensions, "socketio", server)
+    client = server.test_client(app)
+    assert client.is_connected()
+
+    rec._announce({"CRUDEOIL", "NIFTY"})
+
+    received = [(m["name"], m["args"][0]) for m in client.get_received()]
+    assert received == [
+        ("writer_flow_update", {"underlying": "CRUDEOIL"}),
+        ("writer_flow_update", {"underlying": "NIFTY"}),
+    ]
+    client.disconnect()
