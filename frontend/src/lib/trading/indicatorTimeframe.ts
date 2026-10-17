@@ -42,6 +42,9 @@ export const TF_KEY = 'tf'
 export const TF_WAIT_KEY = 'tfWait'
 
 const WRAPPED = Symbol.for('openalgo.indicatorTimeframe')
+// The descriptor a wrapped one was built from, so a caller can ask about the
+// study itself rather than about the Timeframe wrapper around it.
+const INNER = Symbol.for('openalgo.indicatorTimeframe.inner')
 const STORE_KEY = '__mtf'
 /**
  * Whether the last calc ran on transformed bars (Renko and the like), and the
@@ -470,7 +473,19 @@ export function withTimeframe(core: Core, original: IndicatorDescriptor): Indica
   }
 
   ;(wrapped as unknown as Record<symbol, unknown>)[WRAPPED] = true
+  ;(wrapped as unknown as Record<symbol, unknown>)[INNER] = d
   return wrapped
+}
+
+/**
+ * Whether the study itself has an `attach` hook, which is how a study that
+ * fetches its own data (Writer Flow Totals) starts. Every wrapped descriptor
+ * has one for the Timeframe input, so asking the wrapper says yes for `sma`.
+ */
+export function hasOwnAttach(descriptor: { attach?: unknown } | undefined): boolean {
+  if (!descriptor) return false
+  const inner = (descriptor as unknown as Record<symbol, { attach?: unknown } | undefined>)[INNER]
+  return typeof (inner ?? descriptor).attach === 'function'
 }
 
 /** Wrap every registered descriptor not yet wrapped. Safe to call repeatedly. */

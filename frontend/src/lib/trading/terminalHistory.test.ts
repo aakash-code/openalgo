@@ -16,7 +16,7 @@ import {
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { quietVolumeStyle } from './chartTheme'
 import { CHART_TYPES } from './chartTypes'
-import { applyTimeframeToAll } from './indicatorTimeframe'
+import { applyTimeframeToAll, withTimeframe } from './indicatorTimeframe'
 import { type SymbolView, TradingTerminal } from './terminal'
 import { WorkspaceReplayCoordinator } from './workspaceReplay'
 
@@ -626,6 +626,41 @@ describe('selected candle readout', () => {
       expect.stringMatching(/has nothing to plot on the 4 bars loaded/),
       ''
     )
+  })
+
+  it('asks the study about attach, not the Timeframe wrapper every built-in wears', async () => {
+    const { state, terminal } = mount()
+    const toast = vi.fn()
+    const host = terminal as unknown as {
+      cb: { onToast: typeof toast }
+      warnIfStarved(inst: unknown, descriptor?: unknown): void
+    }
+    host.cb.onToast = toast
+    const core = await import('openalgo-charts')
+    await import('openalgo-charts/indicators')
+    const study = state.chart.addIndicator('sma', { length: 100 })
+    const base = { id: 'probe', name: 'Probe', inputs: [], plots: [{ key: 'v', style: {} }] }
+    // A built-in, wrapped: the wrapper's attach is not the study fetching data.
+    const wrappedBuiltIn = withTimeframe(core as never, { ...base, calc: () => ({}) } as never)
+    expect(typeof (wrappedBuiltIn as { attach?: unknown }).attach).toBe('function')
+    host.warnIfStarved(study, wrappedBuiltIn)
+    expect(toast).toHaveBeenCalledWith(
+      expect.stringMatching(/has nothing to plot on the 4 bars loaded/),
+      ''
+    )
+    // A study with its own attach, wrapped the same way, is still left alone.
+    toast.mockClear()
+    const fetchesOwn = withTimeframe(
+      core as never,
+      {
+        ...base,
+        id: 'probe-own',
+        calc: () => ({}),
+        attach: () => () => {},
+      } as never
+    )
+    host.warnIfStarved(study, fetchesOwn)
+    expect(toast).not.toHaveBeenCalled()
   })
 
   it('repaints the saved OI readout after asynchronous settings restoration', async () => {

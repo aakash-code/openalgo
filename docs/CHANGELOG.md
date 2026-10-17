@@ -45,7 +45,10 @@ set the recorder on, restart, and reload `/trading`.
   the exchange updates OI: one minute for NIFTY, three for SENSEX.
 - Also in `/trading`: a study that fetches its own data no longer gets a
   "has nothing to plot" toast the moment it is added, before its data could
-  have arrived.
+  have arrived. Ordinary studies still get it: the check
+  asked whether a study had an `attach` hook, and every built-in now has one
+  for its Timeframe setting, so an SMA too long for the bars loaded said
+  nothing at all. It now asks the study, not the wrapper around it.
 - **Colours that say who is acting.** Streak bars and markers take a colour
   each for call writers adding (red), call writers covering (sky blue), put
   writers adding (green) and put writers covering (amber), with buyers in

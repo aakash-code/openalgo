@@ -268,7 +268,12 @@ import {
 } from './drawingScope'
 import { DRAW_TOOL_METADATA } from './drawingToolMetadata'
 import { fmtPrice, money, priceDp, snapTick, tickSize } from './format'
-import { applyTimeframeToAll, safeIntervalSeconds, TF_KEY } from './indicatorTimeframe'
+import {
+  applyTimeframeToAll,
+  hasOwnAttach,
+  safeIntervalSeconds,
+  TF_KEY,
+} from './indicatorTimeframe'
 import { factsFor } from './instrumentFacts'
 import {
   type IntervalData,
@@ -5605,8 +5610,10 @@ export class TradingTerminal {
     if (plots?.length && plots.every((p) => p.style?.visible === false)) return
     // One that fetches its own data in `attach` has asked for it and cannot
     // have it yet: this runs straight after the add. Writer Flow Totals drew
-    // its lines a second later, under a toast saying it never would.
-    if (typeof descriptor?.attach === 'function') return
+    // its lines a second later, under a toast saying it never would. Asked of
+    // the study, not of the Timeframe wrapper every built-in now wears, or
+    // `sma` on four bars said nothing either.
+    if (hasOwnAttach(descriptor)) return
     const cols = Object.entries(inst.values())
       .filter(([key, col]) => Array.isArray(col) && inst.series(key) !== undefined)
       .map(([, col]) => col as unknown[])
