@@ -15,6 +15,7 @@ services/market_data_service.py::MarketDataService._cleanup_loop  # benign: a ba
 services/whatsapp_bot_service.py::WhatsAppBotService._run_pair  # benign: its own thread during pairing, bounded at 300 s
 services/signal_broadcast_service.py::_drain_worker  # benign: the signal send worker's own thread, pacing Telegram sends
 services/history_service.py::_enforce_rate_limit  # benign: only a background caller loops, giving way to charts for at most _BACKGROUND_YIELD_MAX (10 s) in steps of one turn; the one that runs in a request (the single-symbol Historify download) is held no longer than that
+services/history_service.py::_wait_for_background_budget  # benign: background history only, sleeping at most 1 s per step with no lock held; a caller inside a request (the single-symbol Historify download) waits at most _BACKGROUND_YIELD_MAX (10 s), scheduler threads wait their turn in the broker's per-minute budget, and every caller returns once OpenAlgo is stopping
 
 # --- Streams that hold a request thread while they are open ---------------
 services/agent/stream.py::_pump  # benign: under gthread at most 6 agent streams are admitted and a turn ends after 15 minutes; every runtime ends the stream when shutdown begins
