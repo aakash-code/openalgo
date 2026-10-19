@@ -729,6 +729,60 @@ function FeatureRow({
   )
 }
 
+/** TradeFinder's background work on or off, stored on the server. Off, the
+ * 30-second snapshot stops and badges keep what was already computed; the
+ * lists themselves still load. Each badge refresh is broker history calls, and
+ * on a broker with a tight allowance those queue in front of charts. */
+export function BackgroundSwitch() {
+  const [on, setOn] = useState<boolean | null>(null)
+  const [saving, setSaving] = useState(false)
+  useEffect(() => {
+    let live = true
+    tradefinderApi
+      .getBackgroundSetting()
+      .then((r) => {
+        if (live && typeof r.background_enabled === 'boolean') setOn(r.background_enabled)
+      })
+      .catch(() => {})
+    return () => {
+      live = false
+    }
+  }, [])
+  const change = async (next: boolean) => {
+    setSaving(true)
+    try {
+      const r = await tradefinderApi.setBackgroundSetting(next)
+      if (typeof r.background_enabled !== 'boolean') throw new Error(r.message)
+      setOn(r.background_enabled)
+      showToast.success(
+        r.background_enabled ? 'TradeFinder updates are on' : 'TradeFinder updates are off'
+      )
+    } catch {
+      showToast.error('Could not save the TradeFinder setting. Try again in a moment.')
+    } finally {
+      setSaving(false)
+    }
+  }
+  return (
+    <div className="mb-2 border-b pb-2">
+      <label className="flex items-center justify-between gap-3 py-1 text-[12px]">
+        <span className="text-foreground">Background updates</span>
+        <Switch
+          checked={on === true}
+          disabled={on === null || saving}
+          onCheckedChange={change}
+          className="scale-90"
+          aria-label="TradeFinder background updates"
+        />
+      </label>
+      <p className="text-[10px] leading-snug text-muted-foreground">
+        The 30-second snapshot and the CPR, first candle, steadiness and momentum badges. Off saves
+        broker calls for charts and quotes; the lists still load.
+      </p>
+    </div>
+  )
+}
+
 /** A section header that names its scope explicitly -- every setting under
  * it applies to exactly the view(s) named here, nothing wider or narrower. */
 function ScopeHeader({ title, scope }: { title: string; scope: string }) {
@@ -1866,6 +1920,7 @@ export function TradeFinderPanel({ apiKey, onPick, activeSymbol }: Props) {
             </Button>
           </PopoverTrigger>
           <PopoverContent align="end" className="max-h-[80vh] w-64 overflow-y-auto p-3">
+            <BackgroundSwitch />
             <FeatureSettings features={features} onChange={setFeatures} />
           </PopoverContent>
         </Popover>

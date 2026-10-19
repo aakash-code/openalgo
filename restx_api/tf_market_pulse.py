@@ -21,6 +21,7 @@ from services.tf_momentum_setup_service import (
     ensure_momentum_setup_cache,
     momentum_signals_today,
 )
+from services.tf_settings import background_enabled
 from services.tradefinder_service import fetch_market_pulse
 from utils.logging import get_logger
 
@@ -75,19 +76,25 @@ class TfMarketPulse(Resource):
             # Narrow-CPR enrichment: cache fill is non-blocking (background thread),
             # attach_cpr() serves whatever is cached so far (null until computed).
             boost_symbols = [it["symbol"] for it in result.get("intraday_boost", [])]
+            # Switched off from the panel, nothing more is fetched for the
+            # enrichments: each attach_* below serves what was already computed.
+            fetch = background_enabled()
             if boost_symbols:
-                ensure_cpr_cache(boost_symbols, auth_token, broker)
+                if fetch:
+                    ensure_cpr_cache(boost_symbols, auth_token, broker)
                 attach_cpr(result["intraday_boost"])
 
                 # First-candle shock enrichment: same non-blocking cache-fill
                 # pattern as CPR above (see services/tf_first_candle_service.py).
-                ensure_first_candle_cache(boost_symbols, auth_token, broker)
+                if fetch:
+                    ensure_first_candle_cache(boost_symbols, auth_token, broker)
                 attach_first_candle(result["intraday_boost"])
 
                 # Directional steadiness enrichment: same non-blocking
                 # cache-fill pattern, but refreshed every 5 minutes rather
                 # than once per day (see services/tf_directional_score_service.py).
-                ensure_directional_score_cache(boost_symbols, auth_token, broker)
+                if fetch:
+                    ensure_directional_score_cache(boost_symbols, auth_token, broker)
                 attach_directional_score(result["intraday_boost"])
 
                 # Current-month future tradeability: same non-blocking pattern,
@@ -95,13 +102,15 @@ class TfMarketPulse(Resource):
                 # Unlike the three above, the whole list is ONE broker call --
                 # the multiquote path batches (see the service's module docstring
                 # for why this reads the live book and not the bhavcopy).
-                ensure_future_liquidity_cache(boost_symbols, auth_token, broker)
+                if fetch:
+                    ensure_future_liquidity_cache(boost_symbols, auth_token, broker)
                 attach_future_liquidity(result["intraday_boost"])
 
                 # Momentum Setup (Vijay Thakare scalping setup) enrichment:
                 # same non-blocking pattern, but candle-close-aligned rather
                 # than a wall-clock TTL (see services/tf_momentum_setup_service.py).
-                ensure_momentum_setup_cache(boost_symbols, auth_token, broker)
+                if fetch:
+                    ensure_momentum_setup_cache(boost_symbols, auth_token, broker)
                 attach_momentum_setup(result["intraday_boost"])
 
             result["momentum_signals_today"] = momentum_signals_today()

@@ -7,6 +7,7 @@ from marshmallow import ValidationError
 from database.auth_db import get_auth_token_broker
 from limiter import limiter
 from services.tf_cpr_service import attach_cpr, ensure_cpr_cache
+from services.tf_settings import background_enabled
 from services.tradefinder_service import fetch_sector_scope, has_tf_jwt
 from utils.logging import get_logger
 
@@ -16,7 +17,7 @@ API_RATE_LIMIT = os.getenv("API_RATE_LIMIT", "10 per second")
 api = Namespace(
     "tfsectorscope",
     description="TradeFinder Sector Scope (daily-index + all_sector) via the server's "
-                 "own auto-refreshing JWT — no client-pasted token needed",
+    "own auto-refreshing JWT — no client-pasted token needed",
 )
 
 logger = get_logger(__name__)
@@ -75,7 +76,8 @@ class TfSectorScope(Resource):
                 for stock in all_stock_dicts:
                     stock["symbol"] = stock["Symbol"]
                 symbols = list({stock["Symbol"] for stock in all_stock_dicts})
-                ensure_cpr_cache(symbols, auth_token, broker)
+                if background_enabled():  # off: serve what is cached
+                    ensure_cpr_cache(symbols, auth_token, broker)
                 attach_cpr(all_stock_dicts)
 
             return make_response(jsonify({"status": "success", "data": result}), 200)

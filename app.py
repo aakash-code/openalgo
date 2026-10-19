@@ -87,7 +87,9 @@ from blueprints.openscript_runner import openscript_runner_bp  # Runs one saved 
 from blueprints.orders import orders_bp
 from blueprints.platforms import platforms_bp
 from blueprints.playground import playground_bp  # Import the API playground blueprint
-from blueprints.tradefinder_proxy import tradefinder_proxy_bp  # Import the tradefinder proxy blueprint
+from blueprints.tradefinder_proxy import (
+    tradefinder_proxy_bp,
+)  # Import the tradefinder proxy blueprint
 from blueprints.pnltracker import pnltracker_bp  # Import the pnl tracker blueprint
 from blueprints.postback import postback_bp  # Import broker postback (order updates) blueprint
 from blueprints.python_strategy import initialize_with_app_context as init_python_strategy
@@ -288,6 +290,7 @@ def create_app():
     # Warming here means the first backtest does not pay it and boot does not
     # block on it.
     from portfolio import warm_analytics
+
     warm_analytics()
 
     # Exempt API endpoints from CSRF protection (they use API key authentication)
@@ -580,9 +583,7 @@ def create_app():
 
         from utils.url_redaction import redact_url_credentials
 
-        logger.warning(
-            f"CSRF Error on {redact_url_credentials(request.path)}: {error_description}"
-        )
+        logger.warning(f"CSRF Error on {redact_url_credentials(request.path)}: {error_description}")
 
         # Check if it's a CSRF error
         if "CSRF" in error_description or "csrf" in error_description.lower():
@@ -670,8 +671,7 @@ def create_app():
         from utils.url_redaction import redact_url_credentials
 
         logger.warning(
-            f"Rate limit exceeded for {request.remote_addr}: "
-            f"{redact_url_credentials(request.path)}"
+            f"Rate limit exceeded for {request.remote_addr}: {redact_url_credentials(request.path)}"
         )
 
         # For API requests, return JSON response
@@ -899,25 +899,16 @@ def setup_environment(app):
             except Exception as e:
                 logger.error(f"Failed to initialize Historify scheduler: {e}")
 
-            if os.getenv("TF_BOOST_SNAPSHOT_ENABLED", "false").lower() == "true":
-                try:
-                    from services.tf_boost_snapshot_service import (
-                        init_tf_boost_daily_jobs,
-                        init_tf_boost_snapshot,
-                        init_tf_boost_watchdog,
-                    )
+            # TradeFinder's background work: on or off from the TradeFinder panel
+            # (services.tf_settings), TF_BOOST_SNAPSHOT_ENABLED until first used.
+            try:
+                from services.tf_settings import background_enabled, start_background
 
-                    init_tf_boost_snapshot()
-                    # The morning check and the post-close behaviour study ride
-                    # on the same scheduler: a day that is captured should also
-                    # be verified and studied without anyone remembering to.
-                    init_tf_boost_daily_jobs()
-                    # A machine that sleeps through the open takes the scheduler
-                    # with it and does not bring it back; the watchdog does.
-                    init_tf_boost_watchdog()
+                if background_enabled():
+                    start_background()
                     logger.debug("TF Boost snapshot scheduler initialized")
-                except Exception as e:
-                    logger.error(f"Failed to initialize TF Boost snapshot scheduler: {e}")
+            except Exception as e:
+                logger.error(f"Failed to initialize TF Boost snapshot scheduler: {e}")
 
             # Writer Flow's minute record of option OI and premium. Opt-in: it
             # spends one broker call per configured underlying per minute.

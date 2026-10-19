@@ -1,4 +1,4 @@
-import { apiClient } from './client'
+import { apiClient, webClient } from './client'
 
 /** One ranked-list entry. CPR/first-candle fields only ever arrive on
  * `intraday_boost` -- the server enriches that list alone before responding. */
@@ -175,7 +175,27 @@ export interface BoostMovementResponse {
   message?: string
 }
 
+/** TradeFinder's background work: the 30-second snapshot and the history it
+ * fetches for the badges. Switched from the panel, applied at once. */
+export interface TfBackgroundSetting {
+  status: 'success' | 'error'
+  background_enabled?: boolean
+  message?: string
+}
+
 export const tradefinderApi = {
+  getBackgroundSetting: async (): Promise<TfBackgroundSetting> => {
+    const response = await webClient.get<TfBackgroundSetting>('/trading/tradefinder/settings')
+    return response.data
+  },
+
+  setBackgroundSetting: async (on: boolean): Promise<TfBackgroundSetting> => {
+    const response = await webClient.post<TfBackgroundSetting>('/trading/tradefinder/settings', {
+      background_enabled: on,
+    })
+    return response.data
+  },
+
   getMarketPulse: async (apiKey: string): Promise<MarketPulseResponse> => {
     const response = await apiClient.post<MarketPulseResponse>('/tfmarketpulse', {
       apikey: apiKey,

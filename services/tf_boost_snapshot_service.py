@@ -24,6 +24,7 @@ whether a straight-line climber behaves differently from a chopper.
 
 from __future__ import annotations
 
+import functools
 import os
 import subprocess
 import sys
@@ -46,6 +47,24 @@ IST = ZoneInfo("Asia/Kolkata")
 TF_SNAPSHOT_JOB_ID = "tf_boost_snapshot_tick"
 
 _scheduler: BackgroundScheduler | None = None
+
+
+def _only_when_on(job):
+    """Skip a scheduled job while TradeFinder's background work is switched off
+    (services.tf_settings), without taking it off the scheduler."""
+
+    @functools.wraps(job)
+    def run(*args, **kwargs):
+        from services.tf_settings import background_enabled
+
+        if not background_enabled():
+            logger.debug(f"tf_boost: {job.__name__} skipped, background work is off")
+            return None
+        return job(*args, **kwargs)
+
+    return run
+
+
 _lock = threading.Lock()
 
 
@@ -109,6 +128,7 @@ def _enrich_boost_items(items: list[dict]) -> None:
         logger.warning(f"tf_boost_snapshot: enrichment skipped: {e}")
 
 
+@_only_when_on
 def _run_snapshot_tick():
     """APScheduler job callable — must never raise, or crash the scheduler
     thread. The CronTrigger already narrows to hours 9-15 (mon-fri); this
@@ -341,6 +361,7 @@ def _append(now_ist: datetime, line: str) -> None:
         logger.warning(f"tf_boost daily log write failed: {e}")
 
 
+@_only_when_on
 def _run_morning_check():
     """09:25 IST: is the day actually being recorded? Written down, not guessed."""
     now_ist = datetime.now(IST)
@@ -395,6 +416,7 @@ def _wait_or_kill(proc, timeout: int) -> int:
         raise
 
 
+@_only_when_on
 def _run_daily_study():
     """15:45 IST: the post-close behaviour study, for both entry windows.
 
@@ -440,6 +462,7 @@ def _run_daily_study():
             _append(datetime.now(IST), f"ATTENTION {label} failed: {e}")
 
 
+@_only_when_on
 def _run_latency_check():
     """09:35: prove the badge reaches a client inside the 40s budget.
 
@@ -536,6 +559,7 @@ def _study_already_done(day) -> bool:
         return False
 
 
+@_only_when_on
 def _startup_catchup():
     """Make starting the app enough, whenever in the day it happens.
 
@@ -703,6 +727,12 @@ def _watchdog_loop(stop_event) -> None:
             _check_token(now_ist)
 
             if not _within_market_window(now_ist) or now_ist.weekday() >= 5:
+                continue
+            # Switched off from the panel: no heartbeat is the expected state,
+            # not a stalled recorder to restart.
+            from services.tf_settings import background_enabled
+
+            if not background_enabled():
                 continue
             age = _heartbeat_age_seconds(now_ist)
             # No heartbeat at all yet is only alarming once the session has been

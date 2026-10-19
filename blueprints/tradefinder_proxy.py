@@ -8,6 +8,7 @@ hitting CORS.
 
 Endpoints:
     GET /trading/tradefinder/moneyflow - Get the options money-flow histogram
+    GET, POST /trading/tradefinder/settings - TradeFinder's background work on or off
 """
 
 from flask import Blueprint, jsonify, request, session
@@ -66,3 +67,31 @@ def money_flow():
         return jsonify(
             {"status": "error", "message": "An error occurred processing your request"}
         ), 500
+
+
+@tradefinder_proxy_bp.route("/trading/tradefinder/settings", methods=["GET", "POST"])
+@check_session_validity
+def tradefinder_settings():
+    """Read or switch TradeFinder's background work (services.tf_settings)."""
+    if not session.get("user"):
+        return jsonify({"status": "error", "message": "Authentication required"}), 401
+    from services.tf_settings import background_enabled, set_background_enabled
+
+    if request.method == "POST":
+        body = request.get_json(silent=True) or {}
+        on = body.get("background_enabled")
+        if not isinstance(on, bool):
+            return jsonify(
+                {"status": "error", "message": "Choose on or off for TradeFinder updates."}
+            ), 400
+        try:
+            set_background_enabled(on)
+        except Exception:
+            logger.exception("TradeFinder: could not save the background switch")
+            return jsonify(
+                {
+                    "status": "error",
+                    "message": "Could not save the TradeFinder setting. Try again in a moment.",
+                }
+            ), 500
+    return jsonify({"status": "success", "background_enabled": background_enabled()}), 200

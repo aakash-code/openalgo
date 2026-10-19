@@ -9,9 +9,19 @@ its rows.
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+import pytest
+
 import services.tf_boost_snapshot_service as svc
+import services.tf_settings as tf_settings
 
 IST = ZoneInfo("Asia/Kolkata")
+
+
+@pytest.fixture(autouse=True)
+def background_on(monkeypatch):
+    # These pin what the tick and the watchdog do while TradeFinder's
+    # background work is on; test_tf_settings.py pins what happens while off.
+    monkeypatch.setattr(tf_settings, "_enabled", True)
 
 
 class _Recorder:
@@ -289,3 +299,16 @@ def test_a_refresh_already_running_is_not_interrupted(monkeypatch):
     )
     svc._check_token(datetime.now(IST))
     assert restarted == []
+
+
+def test_the_watchdog_leaves_a_recorder_switched_off_alone(monkeypatch):
+    # Switched off from the panel, no heartbeat is the expected state. Read as
+    # a stall, the watchdog would start the work the trader just stopped.
+    monkeypatch.setattr(tf_settings, "_enabled", False)
+    restarts = []
+    monkeypatch.setattr(svc, "_restart_scheduler", lambda: restarts.append(True))
+    monkeypatch.setattr(svc, "_append", lambda *a, **k: None)
+    monkeypatch.setattr(svc, "_within_market_window", lambda _now: True)
+    monkeypatch.setattr(svc, "_heartbeat_age_seconds", lambda _now: 240.0)
+    _run_watchdog_once(monkeypatch)
+    assert restarts == []

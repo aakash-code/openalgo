@@ -287,6 +287,23 @@ files and OpenScript studies. Put a 1h EMA on a
   the broker's monthly or weekly bars disagree with its daily ones, the
   indicator follows the broker's higher bars.
 
+### TradeFinder: background updates switch on and off from the panel
+
+- TradeFinder's background work, the 30-second snapshot of its lists and the
+  broker history it fetches for the CPR, first candle, steadiness and momentum
+  badges, now has a **Background updates** switch in the TradeFinder panel's
+  settings on `/trading`. It applies at once, with no restart, and is
+  remembered across restarts.
+- Off: the snapshot skips its ticks, the morning and evening checks stand
+  down, the watchdog no longer restarts the snapshot for having written
+  nothing, and the panel's own requests show the badges already computed
+  instead of fetching more. The TradeFinder lists themselves still load.
+- `TF_BOOST_SNAPSHOT_ENABLED` in `.env` now only sets the starting value for an
+  install that has never used the switch. Before, it was the only way to stop
+  this work, and changing it meant restarting OpenAlgo in the middle of a
+  session, as on 19-Oct-2026 when the badges' history calls took Upstox's whole
+  allowance and charts and quotes waited minutes behind them.
+
 ### Upstox: background history no longer uses up the broker's allowance
 
 - Upstox allows 2,000 standard requests per 30 minutes for everything: quotes,

@@ -666,3 +666,32 @@ def get_boost_rank_timeline_fine(
     for symbol, day, min_of_day, rank in rows:
         timeline.setdefault(symbol, {}).setdefault(day, []).append([float(min_of_day), int(rank)])
     return timeline
+
+
+# TradeFinder's own settings, one row per key. Created on first use rather
+# than by init_tf_boost_database(), which only runs once the snapshot is on:
+# the switch that turns it on must be readable before that.
+_SETTINGS_TABLE = "CREATE TABLE IF NOT EXISTS tf_settings (key VARCHAR PRIMARY KEY, value VARCHAR)"
+
+
+def read_tf_setting(key: str) -> str | None:
+    """A stored TradeFinder setting, or None if it was never set."""
+    # An install that has never used TradeFinder has no file; reading must not
+    # create one.
+    if not os.path.exists(get_db_path()):
+        return None
+    with get_connection() as conn:
+        conn.execute(_SETTINGS_TABLE)
+        row = conn.execute("SELECT value FROM tf_settings WHERE key = ?", [key]).fetchone()
+    return row[0] if row else None
+
+
+def write_tf_setting(key: str, value: str) -> None:
+    """Store a TradeFinder setting, replacing any earlier value."""
+    with get_connection() as conn:
+        conn.execute(_SETTINGS_TABLE)
+        conn.execute(
+            "INSERT INTO tf_settings (key, value) VALUES (?, ?) "
+            "ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+            [key, value],
+        )
