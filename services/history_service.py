@@ -1,5 +1,6 @@
 import importlib
 import time
+from collections import deque
 from typing import Any
 
 import pandas as pd
@@ -34,6 +35,17 @@ _BACKGROUND_YIELD_MAX = 10.0
 _next_history_slot: float = 0.0
 _history_slot_lock = real_threading.Lock()
 
+# Background calls started in the last minute, guarded by _history_slot_lock.
+# Giving way decides who goes first, never how many go: on 19-Oct-2026
+# TradeFinder's enrichment and the Writer Flow fill, all background, took every
+# free turn of the pacer above, about 3,600 calls in 30 minutes against an
+# Upstox allowance of 2,000 requests, and once that ran out every Upstox call
+# waited minutes: quotes, the sandbox position book, charts, the minute beat.
+# A broker whose allowance is counted over minutes declares how many background
+# calls per minute it can afford (BACKGROUND_HISTORY_PER_MINUTE in its data
+# module); a broker that declares nothing is not capped.
+_background_starts: deque[float] = deque()
+
 
 def _enforce_rate_limit(*, background: bool = False):
     """Wait for this request's turn (~3 per second).
@@ -66,6 +78,36 @@ def _enforce_rate_limit(*, background: bool = False):
         time.sleep(min(wait, _MIN_HISTORY_INTERVAL))
     if wait > 0:
         time.sleep(wait)
+
+
+def _wait_for_background_budget(per_minute: int, max_wait: float | None = None) -> None:
+    """Wait until fewer than `per_minute` background calls started in the last minute.
+
+    `max_wait` bounds the wait for a caller a trader is waiting on (a Historify
+    download inside a request); scheduler work passes None and waits its turn.
+    """
+    deadline = None if max_wait is None else time.monotonic() + max_wait
+    while True:
+        with _history_slot_lock:
+            now = time.monotonic()
+            while _background_starts and now - _background_starts[0] >= 60.0:
+                _background_starts.popleft()
+            if len(_background_starts) < per_minute or (deadline is not None and now >= deadline):
+                _background_starts.append(now)
+                return
+            wait = 60.0 - (now - _background_starts[0])
+        if deadline is not None:
+            wait = min(wait, max(deadline - now, 0.0))
+        time.sleep(min(max(wait, 0.05), 1.0))
+
+
+def _background_budget(broker: str | None) -> int | None:
+    """The background history calls per minute `broker` declares, or None."""
+    if not broker:
+        return None
+    module = import_broker_module(broker)
+    per_minute = getattr(module, "BACKGROUND_HISTORY_PER_MINUTE", None) if module else None
+    return per_minute if isinstance(per_minute, int) and per_minute > 0 else None
 
 
 def validate_symbol_exchange(symbol: str, exchange: str) -> tuple[bool, str | None]:
@@ -317,6 +359,16 @@ def get_history(
     # Enforce 3 requests/second rate limit for broker history calls
     try:
         if background:
+            broker_for_budget = broker
+            if not broker_for_budget and api_key:
+                broker_for_budget = get_auth_token_broker(api_key)[-1]
+            per_minute = _background_budget(broker_for_budget)
+            if per_minute:
+                from flask import has_request_context
+
+                _wait_for_background_budget(
+                    per_minute, max_wait=_BACKGROUND_YIELD_MAX if has_request_context() else None
+                )
             _enforce_rate_limit(background=True)
         else:
             _enforce_rate_limit()

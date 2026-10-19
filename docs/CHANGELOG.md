@@ -287,6 +287,26 @@ files and OpenScript studies. Put a 1h EMA on a
   the broker's monthly or weekly bars disagree with its daily ones, the
   indicator follows the broker's higher bars.
 
+### Upstox: background history no longer uses up the broker's allowance
+
+- Upstox allows 2,000 standard requests per 30 minutes for everything: quotes,
+  history, positions, funds and option chains together. Background history
+  (TradeFinder's enrichment, the Writer Flow gap fill, Historify downloads)
+  gave way to charts but took every other free turn, about 3,600 history calls
+  in 30 minutes on 19-Oct-2026. The allowance was gone by 09:20, and from then
+  every Upstox call waited for minutes: quotes, the sandbox position book
+  (up to 74 seconds), chart history (up to 135 seconds) and the Writer Flow
+  minute beat, which then missed minutes and its gap fill spent more.
+- Background history now starts at most 15 calls a minute on Upstox, at most
+  900 requests per 30 minutes, leaving the rest for charts, quotes and orders.
+  A broker sets its own figure with `BACKGROUND_HISTORY_PER_MINUTE` in its data
+  module; brokers that set none are unchanged. A Historify download a trader
+  is waiting on waits at most 10 seconds for a turn.
+- What this costs: background work that needs more than 15 calls a minute
+  takes longer. TradeFinder's momentum setup for about 190 symbols takes about
+  13 minutes per refresh instead of 5, and a Writer Flow fill after a restart
+  takes about 20 minutes for five underlyings.
+
 ### Writer Flow: open interest is labelled as quantity, and MCX shows lots on the page
 
 - Writer Flow labelled NSE and BSE open interest "lakh contracts". It is

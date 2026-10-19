@@ -37,6 +37,14 @@ logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 _CHUNK_CACHE: "OrderedDict[tuple, tuple[float, pd.DataFrame]]" = OrderedDict()
 _CHUNK_CACHE_LOCK = threading.Lock()
+
+# Background history calls (TradeFinder's enrichment, the Writer Flow fill,
+# Historify downloads) that services.history_service lets through per minute.
+# Upstox allows 2,000 standard requests per 30 minutes for everything, and a
+# history call is up to two of them: 15 a minute is at most 900 per 30 minutes,
+# leaving the rest for charts, quotes, positions and the option chains. On
+# 19-Oct-2026, uncapped, background history used the whole allowance by 09:20.
+BACKGROUND_HISTORY_PER_MINUTE = 15
 _CHUNK_CACHE_MAX_ENTRIES = 512
 _CHUNK_TTL_TODAY = 15.0  # seconds — chunk includes live (still-forming) candles
 _CHUNK_TTL_PAST = 6 * 3600.0  # seconds — finalized candles; bounded for safety
@@ -563,18 +571,22 @@ class BrokerData:
         for ind_key in indicator_keys:
             original = key_map.pop(ind_key)
             try:
-                indicator_results.append({
-                    "symbol": original["symbol"],
-                    "exchange": original["exchange"],
-                    "data": self._get_indicator_ltp(ind_key),
-                })
+                indicator_results.append(
+                    {
+                        "symbol": original["symbol"],
+                        "exchange": original["exchange"],
+                        "data": self._get_indicator_ltp(ind_key),
+                    }
+                )
             except Exception as e:
                 logger.warning(f"Failed to fetch LTP for indicator {ind_key}: {e}")
-                indicator_results.append({
-                    "symbol": original["symbol"],
-                    "exchange": original["exchange"],
-                    "error": str(e),
-                })
+                indicator_results.append(
+                    {
+                        "symbol": original["symbol"],
+                        "exchange": original["exchange"],
+                        "error": str(e),
+                    }
+                )
 
         # Return early if only indicators were requested
         if not instrument_keys:
@@ -761,12 +773,13 @@ class BrokerData:
 
                     except Exception as chunk_error:
                         if attempt < 2:
-                            wait = 2 ** attempt
+                            wait = 2**attempt
                             logger.warning(
                                 f"Chunk {chunk_count} failed (attempt {attempt + 1}): "
                                 f"{chunk_error}, retry in {wait}s"
                             )
                             import time
+
                             time.sleep(wait)
                         else:
                             logger.error(
@@ -844,8 +857,9 @@ class BrokerData:
             # weekly/monthly requests (the current week/month candle is still
             # forming even in "past" ranges), use the short TTL.
             cache_key = (instrument_key, unit, interval_value, from_date, to_date, interval)
-            chunk_is_final = (
-                end_date.date() < current_date.date() and unit not in ("weeks", "months")
+            chunk_is_final = end_date.date() < current_date.date() and unit not in (
+                "weeks",
+                "months",
             )
             cache_ttl = _CHUNK_TTL_PAST if chunk_is_final else _CHUNK_TTL_TODAY
             cached_df = _chunk_cache_get(cache_key, cache_ttl)
@@ -1081,9 +1095,11 @@ class BrokerData:
                 # Convert to Unix timestamp (seconds since epoch) - following Angel's pattern
                 # Use apply to safely handle any remaining mixed types
                 df["timestamp"] = df["timestamp"].apply(
-                    lambda x: int(x.timestamp())
-                    if hasattr(x, "timestamp")
-                    else int(pd.to_datetime(x).timestamp())
+                    lambda x: (
+                        int(x.timestamp())
+                        if hasattr(x, "timestamp")
+                        else int(pd.to_datetime(x).timestamp())
+                    )
                 )
                 logger.info(f"Successfully converted {len(df)} timestamps to Unix timestamps")
             except Exception as e:
