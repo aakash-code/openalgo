@@ -287,6 +287,21 @@ files and OpenScript studies. Put a 1h EMA on a
   the broker's monthly or weekly bars disagree with its daily ones, the
   indicator follows the broker's higher bars.
 
+### Stopping OpenAlgo takes a second again, not minutes
+
+- Ctrl+C or a stop from a service manager could leave OpenAlgo running for
+  minutes: on 19-Oct-2026 one stop took 8 minutes, and for 3 of them the old
+  copy kept recording alongside the new one, held the Writer Flow database the
+  new one needed, and spent the broker's allowance a second time. Every other
+  restart that day needed a forced stop.
+- The cause: Python waits for scheduler threads before it exits, and the Writer
+  Flow minute beat and gap fill ran on them through hundreds of option legs,
+  each waiting its turn for history, without ever checking whether OpenAlgo was
+  stopping. Both now stop at the next leg or underlying, and background history
+  waiting for its turn gives up without calling the broker.
+- Measured after the fix, with a gap fill running: the process exited 1.0
+  second after Ctrl+C, with nothing left behind.
+
 ### TradeFinder: background updates switch on and off from the panel
 
 - TradeFinder's background work, the 30-second snapshot of its lists and the

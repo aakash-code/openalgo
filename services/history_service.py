@@ -8,7 +8,7 @@ import pandas as pd
 from database.auth_db import get_auth_token_broker
 from database.token_db import get_token
 from services.broker_busy import BrokerBusyError, broker_busy_result
-from utils import real_threading
+from utils import real_threading, stream_registry
 from utils.broker_backpressure import check_queue_wait
 from utils.constants import VALID_EXCHANGES
 from utils.logging import get_logger
@@ -88,6 +88,10 @@ def _wait_for_background_budget(per_minute: int, max_wait: float | None = None) 
     """
     deadline = None if max_wait is None else time.monotonic() + max_wait
     while True:
+        # Scheduler threads are joined before Python exits: a wait that outlived
+        # the stop signal kept OpenAlgo running for minutes on 19-Oct-2026.
+        if stream_registry.should_stop():
+            return
         with _history_slot_lock:
             now = time.monotonic()
             while _background_starts and now - _background_starts[0] >= 60.0:
@@ -358,6 +362,10 @@ def get_history(
     # Source: 'api' (default) - Fetch from broker API
     # Enforce 3 requests/second rate limit for broker history calls
     try:
+        if background and stream_registry.should_stop():
+            # Nothing waits for background work once OpenAlgo is stopping, and a
+            # call sent now would hold the exit for as long as the broker takes.
+            return False, {"status": "error", "message": "OpenAlgo is stopping"}, 503
         if background:
             broker_for_budget = broker
             if not broker_for_budget and api_key:

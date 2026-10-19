@@ -98,3 +98,41 @@ def test_a_background_call_with_an_api_key_finds_its_broker(clock, monkeypatch):
     monkeypatch.setattr(hs, "get_history_with_auth", lambda *a: (True, {"data": []}, 200))
     hs.get_history("SBIN", "NSE", "1m", "2026-10-19", "2026-10-19", api_key="k", background=True)
     assert seen == ["upstox"]
+
+
+def test_a_background_wait_ends_when_openalgo_is_stopping(clock):
+    # Scheduler threads are joined before Python exits, so a wait for a turn
+    # that outlives the stop signal keeps OpenAlgo running.
+    from utils import stream_registry
+
+    for _ in range(2):
+        hs._wait_for_background_budget(2)
+    stream_registry.STOP.set()
+    try:
+        hs._wait_for_background_budget(2)
+    finally:
+        stream_registry.STOP.clear()
+    assert clock.now[0] < 1002.0
+
+
+def test_a_background_call_is_not_sent_once_openalgo_is_stopping(clock, monkeypatch):
+    from utils import stream_registry
+
+    sent = []
+    monkeypatch.setattr(hs, "get_history_with_auth", lambda *a: sent.append(a) or (True, {}, 200))
+    stream_registry.STOP.set()
+    try:
+        ok, body, status = hs.get_history(
+            "SBIN",
+            "NSE",
+            "1m",
+            "2026-10-19",
+            "2026-10-19",
+            auth_token="t",
+            broker="upstox",
+            background=True,
+        )
+    finally:
+        stream_registry.STOP.clear()
+    assert (ok, sent) == (False, [])
+    assert "stopping" in body["message"]

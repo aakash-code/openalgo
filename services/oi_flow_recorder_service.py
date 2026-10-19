@@ -51,6 +51,7 @@ from database.oi_flow_db import (
     recorded_minutes,
     release_writer,
 )
+from utils import stream_registry
 from utils.logging import get_logger
 from utils.thread_safe_cache import LockedTTLCache
 
@@ -415,6 +416,8 @@ def record_once(now_ist: datetime | None = None, only: str | None = None) -> int
     written = 0
     stored: set[str] = set()
     for underlying, quote_exchange in active:
+        if stream_registry.should_stop():
+            break  # this runs on a scheduler thread, which Python waits for at exit
         try:
             expiry = nearest_expiry(underlying, quote_exchange, api_key, sample_time.date())
             if not expiry:
@@ -567,6 +570,8 @@ def fill_gaps(now_ist: datetime | None = None) -> int:
         written = 0
         stored: set[str] = set()
         for underlying, quote_exchange in recorded_underlyings():
+            if stream_registry.should_stop():
+                break  # a scheduler thread: Python waits for it before exiting
             try:
                 filled = _fill_underlying(underlying, quote_exchange, api_key, now_ist)
                 written += filled
@@ -639,6 +644,10 @@ def _fill_underlying(underlying: str, quote_exchange: str, api_key: str, now_ist
     wanted = set(missing)
     written = 0
     for leg in legs:
+        # Hundreds of legs, each waiting its turn for history: a fill that
+        # ignored the stop signal kept OpenAlgo alive for minutes after it.
+        if stream_registry.should_stop():
+            break
         base = {
             "underlying": underlying,
             "exchange": leg["exchange"],

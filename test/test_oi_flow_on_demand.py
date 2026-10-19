@@ -277,3 +277,42 @@ def test_the_chart_is_told_recording_started_and_the_page_starts_nothing(isolate
     # A past day is read, never started.
     client.get("/writerflow/api/flow?underlying=INFY&step=60&date=2026-10-15&exchange=NFO")
     assert "INFY" not in dict(rec.recorded_underlyings())
+
+
+def test_the_history_fill_stops_when_openalgo_is_stopping(isolated, fake_broker, monkeypatch):
+    # The fill runs on a scheduler thread, which Python waits for before it
+    # exits. Live on 19-Oct-2026 a stop signal left OpenAlgo running for minutes
+    # while a fill worked through its legs, holding the Writer Flow database
+    # the next start needed.
+    from utils import stream_registry
+
+    monkeypatch.setattr(rec.time, "sleep", lambda s: None)
+    import services.history_service as hs
+
+    asked = []
+    original = hs.get_history
+
+    def stop_after_first(*a, **k):
+        asked.append(a[0])
+        if len(asked) == 2:  # the spot, then one leg
+            stream_registry.STOP.set()
+        return original(*a, **k)
+
+    monkeypatch.setattr(hs, "get_history", stop_after_first)
+    rec.request_recording("TECHM", "NFO")
+    try:
+        rec.fill_gaps(FRIDAY_1031)
+    finally:
+        stream_registry.STOP.clear()
+    assert len(asked) == 2, f"the fill went on after the stop: {asked}"
+
+
+def test_the_minute_beat_stops_when_openalgo_is_stopping(isolated, fake_broker, monkeypatch):
+    from utils import stream_registry
+
+    stream_registry.STOP.set()
+    try:
+        rec.record_once(FRIDAY_1031)
+    finally:
+        stream_registry.STOP.clear()
+    assert fake_broker["chain"] == []
