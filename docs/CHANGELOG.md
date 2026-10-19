@@ -287,6 +287,14 @@ files and OpenScript studies. Put a 1h EMA on a
   the broker's monthly or weekly bars disagree with its daily ones, the
   indicator follows the broker's higher bars.
 
+### Back to upstream: the market data WebSocket keepalive
+
+- The WebSocket server's keepalive default is upstream's again: a ping every
+  20 seconds, and a client with no reply in 20 seconds is closed. The fork had
+  shortened it to 5 seconds in code, but `.env` sets `WS_PING_INTERVAL` and
+  `WS_PING_TIMEOUT` and wins, and the sample `.env` sets 20, so nothing a
+  trader runs changes. Set both to 5 in `.env` for the faster dead-client check.
+
 ## [2.0.2.9] - 2026-10-17
 
 ### Custom Intervals and Independent Indicator History Release

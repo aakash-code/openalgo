@@ -246,14 +246,8 @@ class WebSocketProxy:
                 # the keepalive contract is locked into the codebase rather
                 # than relying on the websockets library defaults.
                 ws_max_queue = int(os.getenv("WS_MAX_QUEUE", "1024"))
-                # 5s/5s (was 20/20) detects a half-open client hop in ~10s
-                # instead of ~40s, matching Zerodha's KiteTicker contract
-                # (PING_INTERVAL=2.5s, dead if no pong for 2*PING_INTERVAL) and
-                # the browser's own 15s app-wide feed watchdog. At 20/20 the
-                # client could sit on a dead socket for twice as long as the
-                # layer above it takes to give up.
-                ws_ping_interval = int(os.getenv("WS_PING_INTERVAL", "5"))
-                ws_ping_timeout = int(os.getenv("WS_PING_TIMEOUT", "5"))
+                ws_ping_interval = int(os.getenv("WS_PING_INTERVAL", "20"))
+                ws_ping_timeout = int(os.getenv("WS_PING_TIMEOUT", "20"))
 
                 # Start WebSocket server with socket reuse options
                 self.server = await websockets.serve(
