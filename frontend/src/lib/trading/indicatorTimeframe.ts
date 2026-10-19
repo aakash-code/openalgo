@@ -234,13 +234,19 @@ const LIB_TF_KEY = 'timeframe'
  * period still forming. Ours fetches the higher history and does both. The
  * study runs as if the input were empty, which the library defines as exactly
  * the study it was, so a value left in an older saved layout cannot fold it.
+ *
+ * From 2.6.7 the library's Timeframe also fetches its own higher history in
+ * `attach`, on exactly those built-ins and no others. That goes too: ours
+ * fetches it already, and leaving theirs made every one of them read as a
+ * study waiting on data it fetches itself (`hasOwnAttach`).
  */
 function withoutLibraryTimeframe(d: IndicatorDescriptor): IndicatorDescriptor {
   if (!d.inputs.some((i) => i.key === LIB_TF_KEY && i.type === 'interval')) return d
   const plain = (s: Readonly<IndicatorSettings>) => ({ ...s, [LIB_TF_KEY]: '' })
+  const { attach: _libraryHistory, ...rest } = d
   const tail = d.calcTail
   return {
-    ...d,
+    ...rest,
     inputs: d.inputs.filter((i) => i.key !== LIB_TF_KEY),
     calc: (bars, settings, store, ctx) => d.calc(bars, plain(settings), store, ctx),
     ...(tail && {

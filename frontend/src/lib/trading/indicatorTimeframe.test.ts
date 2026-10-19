@@ -13,6 +13,7 @@ import { describe, expect, it } from 'vitest'
 import {
   applyTimeframeToAll,
   buildHigherBars,
+  hasOwnAttach,
   mapToChart,
   safeIntervalSeconds,
   withTimeframe,
@@ -310,5 +311,20 @@ describe('applyTimeframeToAll', () => {
     expect(ema.calc(bars, { ...settings, timeframe: '1h' }, {}, ctx)).toEqual(
       ema.calc(bars, settings, {}, ctx)
     )
+  })
+
+  it("drops the library's history fetch with its Timeframe, so ours is the only one", async () => {
+    // From openalgo-charts 2.6.7 those built-ins fetch their own higher history
+    // in attach. Ours already does, so keeping theirs fetched twice, and it made
+    // every one of them look like a study waiting on its own data: `sma` on four
+    // bars no longer said it had nothing to plot.
+    const lib = await import('openalgo-charts/indicators')
+    const folded = lib.BUILTIN_INDICATORS.filter((d) => d.inputs.some((i) => i.key === 'timeframe'))
+    expect(folded.some((d) => typeof d.attach === 'function')).toBe(true)
+    applyTimeframeToAll(core)
+    for (const { id } of folded) {
+      const d = core.registeredIndicators().find((r) => r.id === id)
+      expect([id, hasOwnAttach(d)]).toEqual([id, false])
+    }
   })
 })

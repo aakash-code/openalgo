@@ -17,7 +17,7 @@ single broker session and WebSocket feed:
 | Python Strategy Host | `/python` | In-browser editor; scripts scheduled on IST times, run as isolated subprocesses with live logs |
 | Flow (No-Code Builder) | `/flow` | Node graph: market data to indicators to conditions to order execution |
 | Strategy Module & RMS | `/strategy` | Multi-leg options strategies with end-to-end risk management, plus a signal-driven mode for per-alert TradingView trading. Two kinds share one engine: `batch` enters and exits every leg together, `signal` moves one leg per alert. Risk rules come from the shared `services/risk/` core. See [`docs/prompt/strategy_rms_documentation.md`](docs/prompt/strategy_rms_documentation.md). |
-| Options & Portfolio Suite | `/tools` | 18 tools. Options analytics (Option Chain, Greeks, OI Tracker, Max Pain, Vol Surface, GEX, IV Smile, Straddle, Arbitrage, ...) plus portfolio and investment tools (Portfolio Backtester, SIP Backtester, Portfolio Analyzer, Strategy Builder). The registry is `frontend/src/lib/tools.ts` — the home page derives its count from it, so add a tool there and both pages update. |
+| Options & Portfolio Suite | `/tools` | 19 tools. Options analytics (Option Chain, Greeks, OI Tracker, Max Pain, Vol Surface, GEX, Strike Profile (GEX and DEX by strike and expiry), IV Smile, Straddle, Arbitrage, ...) plus portfolio and investment tools (Portfolio Backtester, SIP Backtester, Portfolio Analyzer, Strategy Builder). The registry is `frontend/src/lib/tools.ts`: the home page derives its count from it, so add a tool there and both pages update. |
 | Charting Terminal | `/trading` | Line-based chart trading, powered by the `openalgo-charts` package |
 | Scalping Terminal | `/scalping` | Keyboard-driven options scalping (`blueprints/scalping.py` resolves underlying/expiry/strike; index options only — NRML/MIS, never CNC) |
 
@@ -51,6 +51,7 @@ Detailed procedures live in `.claude/skills/` and load on demand:
 - **`broker-integration`** — adding or modifying a broker plugin
 - **`chart-indicator`** — building a custom indicator for the `/trading` chart. These are plain JavaScript descriptors on `openalgo-charts`, unrelated to the Python `openalgo.ta` indicators used from strategies and scanners.
 - **`openscript`**: writing a study or strategy in OpenScript, the language compiled by `openalgo-script` and run from `strategies/openscript/`. A third unrelated thing called an indicator: not the JavaScript chart descriptors above, and not `openalgo.ta`.
+- **`grokbot-setup`** — understanding and running OpenAlgo inside Grok Bot on its own Linux box (start from its `references/openalgo-knowledge.md`): uv install, `.env` and broker credentials, headless start, manual or automated daily broker login (Indian brokers only), weekly upgrade, and the static IP limit for Live orders
 
 ## Security and Deployment Model
 
