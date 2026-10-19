@@ -9,6 +9,7 @@ only the chart's request starts anything.
 """
 
 import threading
+import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
@@ -227,9 +228,19 @@ def test_an_underlying_nobody_charts_any_more_is_let_go(isolated, monkeypatch):
 
 
 def test_the_history_fill_rests_between_calls(isolated, fake_broker, monkeypatch):
+    # `rec.time` is the process-wide time module, so every thread's sleep lands
+    # here while it is patched: the scheduler's, and any a previous test left
+    # running. Only the fill's own rests count; one stray sleep from another
+    # thread made this fail in the full suite and pass on its own.
     rests = []
+    me = threading.get_ident()
     monkeypatch.setattr(rec, "FILL_REST_SECONDS", 0.7)
-    monkeypatch.setattr(rec.time, "sleep", lambda s: rests.append(s))
+    monkeypatch.setattr(
+        rec.time, "sleep", lambda s: rests.append(s) if threading.get_ident() == me else None
+    )
+    other = threading.Thread(target=lambda: time.sleep(0.01))
+    other.start()
+    other.join()
     rec.request_recording("TECHM", "NFO")
     rec.fill_gaps(FRIDAY_1031)
     legs = [h for h in fake_broker["history"] if h[0].endswith(("CE", "PE"))]
