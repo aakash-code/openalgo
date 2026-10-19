@@ -92,7 +92,7 @@ def oi_lot(series: list[dict]) -> int:
     """What one lot is in this contract's open interest numbers: lot size, or 1.
 
     Exchanges and brokers quote open interest in different units. NFO and BFO
-    quote contracts, so every reading is a whole number of lots (NIFTY: a
+    quote quantity, so every reading is a whole number of lots (NIFTY: a
     multiple of 65). MCX quotes lots: CRUDEOIL 9000 PE held 6,094 on
     16-Oct-2026 with a lot of 100. A noise floor of "five lots" multiplied by
     the lot size was 500 there, larger than nearly every real move (median 2
@@ -291,7 +291,7 @@ def analyse(
     strikes: dict[float, dict] = {}
     events: list[dict] = []
 
-    in_lots = in_contracts = 0
+    in_lots = in_quantity = 0
     for (strike, side), series in sorted(last.items()):
         if pause is not None:
             pause()
@@ -299,7 +299,7 @@ def analyse(
         if lot == 1 and int(next(iter(series.values())).get("lot_size") or 1) > 1:
             in_lots += 1
         else:
-            in_contracts += 1
+            in_quantity += 1
         prev: dict | None = None
         prev_index = -1
         run: _Run | None = None
@@ -426,9 +426,10 @@ def analyse(
             r["atm"] = r["strike"] == atm
     return {
         "step_seconds": step,
-        # How the open interest numbers are quoted: contracts (NFO, BFO) or
+        # How the open interest numbers are quoted: quantity (NFO, BFO) or
         # lots (MCX), read from the data by oi_lot, so the screens can say which.
-        "oi_unit": "lots" if in_lots > in_contracts else "contracts",
+        # Never "contracts": the exchange counts one lot as one contract.
+        "oi_unit": "lots" if in_lots > in_quantity else "quantity",
         "steps": steps,
         "spot": spot,
         "cells": cells,

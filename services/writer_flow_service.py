@@ -263,7 +263,7 @@ def flow_payload(view: FlowView) -> dict:
         "date": chosen["trade_date"].isoformat(),
         "recorder_enabled": recorder_enabled(),
         "step_seconds": out["step_seconds"],
-        "oi_unit": out.get("oi_unit", "contracts"),
+        "oi_unit": out.get("oi_unit", "quantity"),
         "spot": out["spot"],
         "times": [_hhmm(t) for t in steps],
         "times_epoch": [_epoch(t) for t in steps],

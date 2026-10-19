@@ -287,6 +287,18 @@ files and OpenScript studies. Put a 1h EMA on a
   the broker's monthly or weekly bars disagree with its daily ones, the
   indicator follows the broker's higher bars.
 
+### Writer Flow: open interest is labelled as quantity, and MCX shows lots on the page
+
+- Writer Flow labelled NSE and BSE open interest "lakh contracts". It is
+  quantity: NIFTY 23900 CE held 5,130,775 on 19-Oct-2026, which is 78,935 lots
+  of 65, and the exchange counts one lot as one contract. The numbers were
+  always right; the word read 65 times too high next to the exchange's own
+  contract counts. The chart and the `/writerflow` page now say "lakh qty", and
+  the API's `oi_unit` reads `quantity` instead of `contracts`.
+- The `/writerflow` page also divided MCX open interest, which is quoted in
+  lots, into lakh, so CRUDEOIL's 6,094 lots drew as 0.06 under a lakh label.
+  It now shows MCX in lots, as the chart already did.
+
 ### Sandbox: positions and pending orders get live prices after a late broker login
 
 - When OpenAlgo starts before the broker login, which is every morning once the

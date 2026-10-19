@@ -103,8 +103,9 @@ function actionColor(side, cls) {
   return ACTION_COLORS[`${side}:${cls}`] ?? ACTION_COLORS[cls] ?? NEUTRAL
 }
 
-// Open interest as the exchange quotes it: lakh contracts on NSE and BSE,
-// lots on MCX (the server reads which from the data, oi_unit).
+// Open interest as the broker quotes it: lakh quantity on NSE and BSE, lots
+// on MCX (the server reads which from the data, oi_unit). Never "contracts":
+// the exchange counts one lot as one contract, 65 times fewer for NIFTY.
 function formatOi(value, unit) {
   if (unit !== 'lots') return formatLakh(value)
   const n = Math.round(Number(value) || 0)
@@ -653,7 +654,7 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
           const text = state.problem
             ? `Writer Flow: ${state.problem}`
             : body
-              ? `Writer Flow ${body.underlying} ${body.expiry}, ${Math.round((body.step_seconds || 60) / 60)} min steps, OI in ${body.oi_unit === 'lots' ? 'lots' : 'lakh contracts'}, ${body.times[body.times.length - 1] ?? ''}`
+              ? `Writer Flow ${body.underlying} ${body.expiry}, ${Math.round((body.step_seconds || 60) / 60)} min steps, OI in ${body.oi_unit === 'lots' ? 'lots' : 'lakh qty'}, ${body.times[body.times.length - 1] ?? ''}`
               : 'Writer Flow: loading'
           c.font = `${11 * dpr}px sans-serif`
           c.globalAlpha = 0.8
@@ -722,7 +723,7 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
       const net = new Array(n).fill(null)
       const totals = store?.writerFlowTotals
       if (!Array.isArray(totals) || totals.length === 0) return { calls, puts, net }
-      // Lakh contracts on NSE and BSE; lots, as MCX quotes them, on MCX.
+      // Lakh quantity on NSE and BSE; lots, as MCX quotes them, on MCX.
       const scale = store?.writerFlowUnit === 'lots' ? 1 : 1e5
       const first = totals[0].epoch
       const last = totals[totals.length - 1].epoch

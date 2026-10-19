@@ -17,6 +17,7 @@ import {
   SelectValue,
 } from '@/components/ui/select'
 import Plot from '@/lib/PlotFlow'
+import { oiScale } from '@/lib/writerFlowUnits'
 import { useThemeStore } from '@/stores/themeStore'
 
 /**
@@ -303,7 +304,9 @@ function Ladder({
   const rows = flow.ladder ?? []
   const y = rows.map((r) => r.strike)
   const active = (s: WriterFlowSide | null) => !!s && s.cls !== 'steady'
-  const size = (s: WriterFlowSide | null) => (active(s) ? Math.abs(s!.streak_oi_change) / 1e5 : 0)
+  const unit = oiScale(flow.oi_unit)
+  const size = (s: WriterFlowSide | null) =>
+    active(s) ? Math.abs(s!.streak_oi_change) / unit.divisor : 0
   const maxSize = Math.max(1, ...rows.map((r) => Math.max(size(r.ce), size(r.pe))))
   // Words only where a streak has lasted and moved enough to matter; every bar
   // labelled made the ladder unreadable. Hover still names the rest.
@@ -344,7 +347,7 @@ function Ladder({
     barmode: 'overlay',
     height: Math.max(420, rows.length * 18 + 80),
     xaxis: {
-      title: { text: 'lakh contracts moved in the current streak' },
+      title: { text: `${unit.word} moved in the current streak` },
       zeroline: true,
       zerolinecolor: colors.grid,
       gridcolor: colors.grid,
@@ -533,13 +536,14 @@ function Totals({
   baseLayout: Partial<PlotlyTypes.Layout>
 }) {
   const totals = flow.totals ?? []
+  const unit = oiScale(flow.oi_unit)
   const x = totals.map((t) => t.time)
   const data: Partial<PlotlyTypes.PlotData>[] = [
     {
       type: 'bar',
       name: 'Call OI change',
       x,
-      y: totals.map((t) => t.ce_change / 1e5),
+      y: totals.map((t) => t.ce_change / unit.divisor),
       marker: { color: colors.bear },
       hovertemplate: '%{x}<br>Calls %{y:.2f}L<extra></extra>',
     },
@@ -547,7 +551,7 @@ function Totals({
       type: 'bar',
       name: 'Put OI change',
       x,
-      y: totals.map((t) => t.pe_change / 1e5),
+      y: totals.map((t) => t.pe_change / unit.divisor),
       marker: { color: colors.bull },
       hovertemplate: '%{x}<br>Puts %{y:.2f}L<extra></extra>',
     },
@@ -575,7 +579,7 @@ function Totals({
       tickvals: x.filter((_, i) => i % tickEvery === 0),
       gridcolor: colors.grid,
     },
-    yaxis: { title: { text: 'lakh' }, gridcolor: colors.grid, zerolinecolor: colors.grid },
+    yaxis: { title: { text: unit.word }, gridcolor: colors.grid, zerolinecolor: colors.grid },
     yaxis2: { overlaying: 'y', side: 'right', showgrid: false, tickformat: ',.0f' },
     // Room for the price axis on the right, which a 5-digit index otherwise
     // clipped to "23."

@@ -59,6 +59,8 @@ export interface WriterFlowResponse {
   date?: string
   recorder_enabled?: boolean
   step_seconds?: number
+  /** How open interest is quoted: quantity (NSE, BSE) or lots (MCX). */
+  oi_unit?: 'quantity' | 'lots'
   spot?: number | null
   times?: string[]
   strikes?: number[]

@@ -195,13 +195,15 @@ a reading is treated as no reading (`reading_oi`, `reading_ltp` in
 - **MCX's underlying price**: MCX lists no spot, so history-filled minutes take
   the near-month future through `resolve_underlying_quote`, as the live chain
   does.
-- **Open interest units**: NFO and BFO quote contracts, MCX quotes lots, and
+- **Open interest units**: NFO and BFO quote quantity, MCX quotes lots, and
   no OpenAlgo API states which (see
   `docs/audit/broker-exchange-separation-audit.md`). The analysis reads it
-  from the data: a contract whose readings are all whole lots is in contracts,
+  from the data: a contract whose readings are all whole lots is in quantity,
   otherwise in lots (`oi_lot`). Before this, a "five lots" noise floor became
   500 on CRUDEOIL and every MCX minute read steady. The API reports the unit
-  (`oi_unit`) and the chart shows lakh contracts or lots to match.
+  (`oi_unit`: `quantity` or `lots`) and the chart and the page show lakh qty or
+  lots to match. Never "contracts": the exchange counts one lot as one
+  contract, so NIFTY quantity called contracts read 65 times too high.
 - **Premium ticks**: no tick size is assumed; prices sit on their tick grid, so
   only floating-point noise is ignored.
 

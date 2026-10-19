@@ -246,8 +246,8 @@ def test_open_interest_quoted_in_lots_is_read_in_lots():
     assert cells[T0 + timedelta(minutes=1)]["cls"] == WRITING
 
 
-def test_open_interest_quoted_in_contracts_keeps_its_lot_floor():
-    # NFO quotes contracts (multiples of the lot): 2 lots moved on a big strike is noise.
+def test_open_interest_quoted_as_quantity_keeps_its_lot_floor():
+    # NFO quotes quantity (multiples of the lot): 2 lots moved on a big strike is noise.
     rows = series(23100.0, "CE", [(1_300_000, 50.0), (1_300_130, 49.0)])
     out = analyse(rows, FlowSettings(step_seconds=60))
     assert _cells(out, 23100.0)[T0 + timedelta(minutes=1)]["cls"] == STEADY
@@ -265,8 +265,11 @@ def test_the_unit_open_interest_is_quoted_in_is_reported():
     for r in lots:
         r["lot_size"] = 100
     assert analyse(lots, FlowSettings(step_seconds=60))["oi_unit"] == "lots"
-    contracts = series(23100.0, "CE", [(1_300_000, 50.0), (1_365_000, 49.0)])
-    assert analyse(contracts, FlowSettings(step_seconds=60))["oi_unit"] == "contracts"
+    # NFO open interest is quantity, a whole number of lots: NIFTY 23900 CE held
+    # 5,130,775 on 19-Oct-2026, 78,935 lots of 65. The exchange counts a lot as
+    # one contract, so calling the quantity "contracts" read 65 times too high.
+    quantity = series(23100.0, "CE", [(1_300_000, 50.0), (1_365_000, 49.0)])
+    assert analyse(quantity, FlowSettings(step_seconds=60))["oi_unit"] == "quantity"
 
 
 def test_pausing_steps_aside_without_changing_the_reading():
