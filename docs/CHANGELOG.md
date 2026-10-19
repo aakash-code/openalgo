@@ -287,6 +287,21 @@ files and OpenScript studies. Put a 1h EMA on a
   the broker's monthly or weekly bars disagree with its daily ones, the
   indicator follows the broker's higher bars.
 
+### Writer Flow: no more blank stretches or false jumps after a slow minute
+
+- A minute that held only some strikes counted as recorded, so it was never
+  filled again. On 19-Oct-2026 a gap fill failed partway and left NIFTY's
+  09:19-09:24 and 09:29-09:38 with 12 of 31 strikes, and most strips on the
+  chart stayed blank through them. A minute now counts only once it holds at
+  least 80% of the day's usual strikes; the next gap fill completes the rest.
+- A minute whose option chain came back after the minute ended was stored
+  under it anyway, holding a later minute's open interest. When Upstox calls
+  waited minutes, NIFTY 23100 CE read 19.55M at 09:59 and again at 10:00, then
+  18.53M from history at 10:01: a jump in the totals that never happened. Such
+  a chain is now left out, and the gap fill takes that minute from history.
+- Not repaired: minutes already stored late before this change keep their
+  readings.
+
 ### Stopping OpenAlgo takes a second again, not minutes
 
 - Ctrl+C or a stop from a service manager could leave OpenAlgo running for

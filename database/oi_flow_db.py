@@ -275,12 +275,31 @@ def load_day(
         return out
 
 
+# A minute holding fewer contracts than this share of the day's typical minute
+# is not held: it is a fill that stopped partway, and it is asked for again.
+COMPLETE_MINUTE_SHARE = 0.8
+
+
 def recorded_minutes(underlying: str, expiry: str, trade_date: date) -> set[datetime]:
-    """The minutes already held for a day, so a backfill can ask only for the gaps."""
+    """The minutes held whole for a day, so a backfill can ask only for the gaps.
+
+    Whole, not merely present. On 19-Oct-2026 a fill failed partway and left
+    sixteen NIFTY minutes with 12 of 31 strikes; counted as held because they
+    had any row, they were never asked for again, and most strips on the chart
+    stayed blank through them. A minute counts once it holds at least
+    COMPLETE_MINUTE_SHARE of the day's median contracts per minute.
+    """
     where = _day_filter(underlying, expiry, trade_date)
     with get_connection() as conn:
-        cur = conn.execute(f"SELECT DISTINCT sample_time FROM oi_flow_samples WHERE {where}")
-        return {row[0] for row in cur.fetchall()}
+        cur = conn.execute(
+            f"SELECT sample_time, COUNT(*) FROM oi_flow_samples WHERE {where} GROUP BY sample_time"
+        )
+        counts = dict(cur.fetchall())
+    if not counts:
+        return set()
+    ordered = sorted(counts.values())
+    typical = ordered[len(ordered) // 2]
+    return {t for t, n in counts.items() if n >= typical * COMPLETE_MINUTE_SHARE}
 
 
 def contracts_between(

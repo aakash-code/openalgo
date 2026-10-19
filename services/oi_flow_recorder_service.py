@@ -413,6 +413,7 @@ def record_once(now_ist: datetime | None = None, only: str | None = None) -> int
     from services.option_chain_service import get_option_chain
 
     sample_time = now_ist.replace(second=0, microsecond=0, tzinfo=None)
+    started = time.monotonic()
     written = 0
     stored: set[str] = set()
     for underlying, quote_exchange in active:
@@ -431,6 +432,17 @@ def record_once(now_ist: datetime | None = None, only: str | None = None) -> int
             if not ok:
                 logger.warning(
                     f"oi_flow: option chain for {underlying} was not available this minute"
+                )
+                continue
+            # A chain that came back after its minute ended holds a later
+            # minute's open interest. Stored under this one it drew a jump that
+            # never happened (19-Oct-2026, NIFTY 09:59 and 10:00, when Upstox
+            # calls waited minutes); left out, the gap fill supplies the minute
+            # from history, stamped where it belongs.
+            if now_ist.second + (time.monotonic() - started) >= 60:
+                logger.warning(
+                    f"oi_flow: option chain for {underlying} arrived after its minute "
+                    f"({sample_time:%H:%M}); the gap fill will take that minute from history"
                 )
                 continue
             written += insert_samples(

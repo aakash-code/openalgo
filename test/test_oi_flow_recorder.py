@@ -489,3 +489,47 @@ def test_the_announcement_reaches_a_connected_socketio_client(monkeypatch):
         ("writer_flow_update", {"underlying": "NIFTY"}),
     ]
     client.disconnect()
+
+
+def test_a_minute_holding_only_some_strikes_is_filled_again(fake_broker):
+    # 19-Oct-2026: a fill failed partway when another process held the record,
+    # leaving 09:19-09:24 and 09:29-09:38 with 12 of 31 NIFTY strikes. Because
+    # any row made a minute count as held, the other 19 were never asked for,
+    # and most strips on the chart stayed blank through those minutes.
+    for m in (15, 18):
+        db.insert_samples(
+            rec.chain_samples(chain(), "NIFTY", "NSE_INDEX", "19OCT26", _minute(9, m), "live")
+        )
+    partial = [
+        r
+        for r in rec.chain_samples(
+            chain(), "NIFTY", "NSE_INDEX", "19OCT26", _minute(9, 16), "backfill"
+        )
+        if r["strike"] == 23050
+    ]
+    db.insert_samples(partial)  # 2 of the 6 contracts
+    assert _minute(9, 16) not in db.recorded_minutes("NIFTY", "19OCT26", date(2026, 10, 16))
+    rec.nearest_expiry("NIFTY", "NSE_INDEX", "k", date(2026, 10, 16))
+    rec.fill_gaps(datetime(2026, 10, 16, 9, 20, 35, tzinfo=IST))
+    rows = db.load_day("NIFTY", "19OCT26", date(2026, 10, 16))
+    assert len([r for r in rows if r["sample_time"] == _minute(9, 16)]) == 6
+
+
+def test_a_chain_that_arrives_after_its_minute_is_not_stored_under_it(fake_broker, monkeypatch):
+    # 19-Oct-2026: the 09:59 and 10:00 beats waited minutes for Upstox while its
+    # allowance was used up. Each was stamped at its start and filled with the
+    # open interest of minutes later: NIFTY 23100 CE read 19.55M at both, then
+    # 18.53M from history at 10:01, a jump that never happened.
+    clock = [1000.0]
+    monkeypatch.setattr(rec.time, "monotonic", lambda: clock[0])
+    import services.option_chain_service as ocs
+
+    real = ocs.get_option_chain
+
+    def slow(*a, **k):
+        clock[0] += 120.0  # the chain comes back two minutes later
+        return real(*a, **k)
+
+    monkeypatch.setattr(ocs, "get_option_chain", slow)
+    assert rec.record_once(FRIDAY_1031) == 0
+    assert db.load_day("NIFTY", "19OCT26", date(2026, 10, 16)) == []
