@@ -184,6 +184,8 @@ function modeOf(settings) {
 // Space between the change column and the open interest column in Both, so
 // the change bars' right edge cannot read as the start of the OI bars.
 const COLUMN_GAP_PX = 14
+// Room left between the bars and whatever another study draws to their left.
+const EDGE_GAP_PX = 10
 
 // Where the status line sits: below the first row of the chart's legend, which
 // carries the symbol and its OHLC values across most of the pane's width.
@@ -372,6 +374,39 @@ function rememberAnswer(key, answer) {
 /** Drops every remembered answer. For tests, which each expect a cold start. */
 export function forgetAnswers() {
   lastAnswers.clear()
+}
+
+// The pane's right edge, shared by the studies pinned to it. OI Profile holds
+// the strip beside the price axis and Writer Flow draws to its left; drawn
+// without knowing of each other, Writer Flow's current streaks sat on top of
+// the open interest bars and its newest strips ran underneath them. Each
+// holder registers a function giving its width for the frame being drawn, so
+// the two always agree, keyed by the pane's canvas so charts in a grid never
+// move each other. The same few lines live in both files: an indicator is
+// loaded on its own and cannot import another.
+const RIGHT_EDGE = (globalThis.__oaRightEdge ??= new WeakMap())
+
+export function holdRightEdge(canvas, owner, widthFor) {
+  let holders = RIGHT_EDGE.get(canvas)
+  if (!holders) RIGHT_EDGE.set(canvas, (holders = new Map()))
+  holders.set(owner, widthFor)
+}
+
+export function releaseRightEdge(canvas, owner) {
+  RIGHT_EDGE.get(canvas)?.delete(owner)
+}
+
+export function rightEdgeHeld(canvas, rc, except) {
+  let px = 0
+  for (const [owner, widthFor] of RIGHT_EDGE.get(canvas) ?? []) {
+    if (owner === except) continue
+    try {
+      px = Math.max(px, Number(widthFor(rc)) || 0)
+    } catch {
+      // A holder that cannot answer holds nothing this frame.
+    }
+  }
+  return px
 }
 
 export default function ({ registerIndicator, nulls, subscribeQuotes }) {
@@ -658,6 +693,10 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
         canvasCtx.restore()
       }
 
+      // This instance's hold on the pane's right edge (holdRightEdge).
+      const edgeOwner = {}
+      let edgeCanvas = null
+
       const primitive = {
         zOrder() {
           return 'top'
@@ -685,6 +724,17 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
         },
 
         draw(canvasCtx, rc) {
+          // Hold the strip beside the price axis, for as long as there are
+          // bars to draw in it, so Writer Flow draws to its left.
+          if (edgeCanvas !== canvasCtx) {
+            if (edgeCanvas) releaseRightEdge(edgeCanvas, edgeOwner)
+            edgeCanvas = canvasCtx
+            holdRightEdge(canvasCtx, edgeOwner, (frame) =>
+              Array.isArray(state.chain) && state.chain.length
+                ? columnWidths(frame, ctx.settings(), state.valueMode).total + EDGE_GAP_PX
+                : 0
+            )
+          }
           // The canvas is sized in device pixels while the scales answer in
           // CSS pixels, so every coordinate is worked out in CSS pixels and
           // multiplied by `dpr` at the moment it is painted. Skip that and the
@@ -1460,6 +1510,7 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
         clearInterval(liveTimer)
         stopLive()
         document.removeEventListener('visibilitychange', onVisible)
+        if (edgeCanvas) releaseRightEdge(edgeCanvas, edgeOwner)
         ctx.removePrimitive(primitive)
       }
     },

@@ -305,6 +305,39 @@ function sideText(label, side, unit) {
   return `${label}: ${READING[side.cls] ?? side.cls} for ${Math.round(side.streak_minutes)} min, ${formatOi(side.streak_oi_change, unit)}`
 }
 
+// The pane's right edge, shared by the studies pinned to it. OI Profile holds
+// the strip beside the price axis and Writer Flow draws to its left; drawn
+// without knowing of each other, Writer Flow's current streaks sat on top of
+// the open interest bars and its newest strips ran underneath them. Each
+// holder registers a function giving its width for the frame being drawn, so
+// the two always agree, keyed by the pane's canvas so charts in a grid never
+// move each other. The same few lines live in both files: an indicator is
+// loaded on its own and cannot import another.
+const RIGHT_EDGE = (globalThis.__oaRightEdge ??= new WeakMap())
+
+export function holdRightEdge(canvas, owner, widthFor) {
+  let holders = RIGHT_EDGE.get(canvas)
+  if (!holders) RIGHT_EDGE.set(canvas, (holders = new Map()))
+  holders.set(owner, widthFor)
+}
+
+export function releaseRightEdge(canvas, owner) {
+  RIGHT_EDGE.get(canvas)?.delete(owner)
+}
+
+export function rightEdgeHeld(canvas, rc, except) {
+  let px = 0
+  for (const [owner, widthFor] of RIGHT_EDGE.get(canvas) ?? []) {
+    if (owner === except) continue
+    try {
+      px = Math.max(px, Number(widthFor(rc)) || 0)
+    } catch {
+      // A holder that cannot answer holds nothing this frame.
+    }
+  }
+  return px
+}
+
 export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
   onServerEvent = typeof listen === 'function' ? listen : null
   const underlyingInput = {
@@ -369,7 +402,9 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
     },
 
     attach(ctx) {
-      const state = { body: null, scale: 1, scaleFor: '', problem: null, updatedAt: 0 }
+      // edgeHeld: the right-edge strip another study holds (OI Profile), read
+      // on every draw; streaks sit left of it and strips stop at it.
+      const state = { body: null, scale: 1, scaleFor: '', problem: null, updatedAt: 0, edgeHeld: 0 }
       let hoverPoint = null
 
       const timeX = (rc, t) => rc.timeScale.indexToX(rc.dataLayer.timeToIndexFloat(t))
@@ -415,7 +450,7 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
         const body = state.body
         if (!body || settings.streaks === false) return null
         const width = Math.max(30, Math.floor(Number(settings.barWidth) || 110))
-        const right = rc.plotWidth - 4
+        const right = rc.plotWidth - 4 - state.edgeHeld
         const view = String(settings.view || 'both')
         let max = 1
         for (const row of body.ladder) {
@@ -440,8 +475,10 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
         },
         draw(c, rc) {
           const settings = ctx.settings()
+          state.edgeHeld = rightEdgeHeld(c, rc)
           const body = state.body
           if (!body || settings.heatmap === false) return
+          const stripEnd = rc.plotWidth - state.edgeHeld
           const dpr = rc.dpr || 1
           const view = String(settings.view || 'both')
           const scale = scaleFor(view)
@@ -467,10 +504,11 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
                 if (!v || Math.abs(v) < floor) continue
                 const x0 = xs[j]
                 const x1 = j + 1 < times.length ? xs[j + 1] : xEnd
-                if (x1 < 0 || x0 > rc.plotWidth || !(x1 > x0)) continue
+                const x1c = Math.min(x1, stripEnd)
+                if (x1c < 0 || x0 > stripEnd || !(x1c > x0)) continue
                 c.globalAlpha = alpha * Math.min(1, 0.25 + (0.75 * Math.abs(v)) / scale)
                 c.fillStyle = v > 0 ? GREEN : RED
-                c.fillRect(x0 * dpr, top * dpr, Math.max(1, x1 - x0) * dpr, h * dpr)
+                c.fillRect(x0 * dpr, top * dpr, Math.max(1, x1c - x0) * dpr, h * dpr)
               }
             }
           }
@@ -509,7 +547,8 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
           if (view === 'puts' && e.side !== 'PE') return
           const x = timeX(rc, e.epoch)
           const y = rc.priceScale.priceToY(e.strike)
-          if (y == null || Number.isNaN(y) || x < 0 || x > rc.plotWidth || y < 0 || y > rc.plotHeight) return
+          const end = rc.plotWidth - state.edgeHeld
+          if (y == null || Number.isNaN(y) || x < 0 || x > end || y < 0 || y > rc.plotHeight) return
           out.push({ e, index, x, y, r: e.minutes >= 20 ? 6 : e.minutes >= 15 ? 4.5 : 3 })
         })
         return out
@@ -549,6 +588,7 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
         draw(c, rc) {
           const settings = ctx.settings()
           const dpr = rc.dpr || 1
+          state.edgeHeld = rightEdgeHeld(c, rc)
           const body = state.body
           c.save()
           c.textBaseline = 'middle'

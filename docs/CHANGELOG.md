@@ -287,6 +287,17 @@ files and OpenScript studies. Put a 1h EMA on a
   the broker's monthly or weekly bars disagree with its daily ones, the
   indicator follows the broker's higher bars.
 
+### /trading: OI Profile and Writer Flow side by side, not on top of each other
+
+- Both pin something to the chart's right edge: OI Profile its open interest
+  bars, Writer Flow each strike's current streak. With both on, the streak bars
+  and their labels sat on top of the open interest bars and the newest Writer
+  Flow strips ran underneath them.
+- OI Profile now keeps the strip beside the price axis while it has bars to
+  show, and Writer Flow draws its streaks to the left of it and ends its strips
+  where that strip begins. Each chart in a grid arranges its own edge. With OI
+  Profile off, Writer Flow uses the full width as before.
+
 ### Ctrl+C no longer ends in a Python crash
 
 - Every stop of the development server ended in `Fatal Python error:
