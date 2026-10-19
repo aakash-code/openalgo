@@ -577,6 +577,11 @@ def _handle_signal(signum, _frame):
 
     logger.info(f"Received signal {signum}, shutting down")
     shutdown_runtime()
+    # Once every exit hook has run, end before DuckDB's C++ static destructors
+    # touch a finished interpreter and abort the process (utils.exit_after_cleanup).
+    from utils.exit_after_cleanup import exit_after_cleanup
+
+    exit_after_cleanup(128 + int(signum))
     raise SystemExit(128 + int(signum))
 
 

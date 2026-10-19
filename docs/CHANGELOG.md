@@ -287,6 +287,19 @@ files and OpenScript studies. Put a 1h EMA on a
   the broker's monthly or weekly bars disagree with its daily ones, the
   indicator follows the broker's higher bars.
 
+### Ctrl+C no longer ends in a Python crash
+
+- Every stop of the development server ended in `Fatal Python error:
+  gilstate_tss_set` and, on macOS, a crash report, with exit code 134 instead
+  of 130. It came after all of OpenAlgo's own cleanup: DuckDB's C++ static
+  destructors, run by the C library on its way out, reach for a Python
+  interpreter that is already gone (duckdb-python issue 601, fixed upstream
+  but not yet released).
+- A stop begun by a signal now ends straight after the last exit hook, with
+  the signal's exit code, before those destructors run. Nothing of OpenAlgo's
+  is skipped: every shutdown step and exit hook still runs, and threads are
+  joined first. Other exits, and gunicorn, are unchanged.
+
 ### Writer Flow: each chart hears its own minute as soon as it is stored
 
 - Every underlying's new minute was announced only once all of them had been

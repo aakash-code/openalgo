@@ -1,3 +1,7 @@
+# First, before any import registers an exit hook: see the module. Its hook
+# must run after every other one, and atexit runs them in reverse order.
+import utils.exit_after_cleanup  # noqa: F401, I001
+
 # Load and check environment variables before anything else
 from utils.env_check import load_and_check_env_variables  # Import the environment check function
 
