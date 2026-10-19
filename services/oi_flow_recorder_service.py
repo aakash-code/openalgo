@@ -415,7 +415,6 @@ def record_once(now_ist: datetime | None = None, only: str | None = None) -> int
     sample_time = now_ist.replace(second=0, microsecond=0, tzinfo=None)
     started = time.monotonic()
     written = 0
-    stored: set[str] = set()
     for underlying, quote_exchange in active:
         if stream_registry.should_stop():
             break  # this runs on a scheduler thread, which Python waits for at exit
@@ -448,10 +447,13 @@ def record_once(now_ist: datetime | None = None, only: str | None = None) -> int
             written += insert_samples(
                 chain_samples(chain, underlying, quote_exchange, expiry, sample_time, "live")
             )
-            stored.add(underlying)
         except Exception:
             logger.exception(f"oi_flow: recording {underlying} failed this minute")
-    _rebuild_watched(stored)
+            continue
+        # Announced the moment its own minute is stored. Waiting for the whole
+        # loop, one option chain after another, held NIFTY's chart 2.4-2.7 s
+        # behind the beat on 19-Oct-2026 while four other underlyings recorded.
+        _rebuild_watched({underlying})
     return written
 
 

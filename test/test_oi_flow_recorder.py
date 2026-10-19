@@ -533,3 +533,38 @@ def test_a_chain_that_arrives_after_its_minute_is_not_stored_under_it(fake_broke
     monkeypatch.setattr(ocs, "get_option_chain", slow)
     assert rec.record_once(FRIDAY_1031) == 0
     assert db.load_day("NIFTY", "19OCT26", date(2026, 10, 16)) == []
+
+
+def test_each_underlying_is_announced_as_soon_as_its_own_minute_is_stored(monkeypatch):
+    # Measured live on 19-Oct-2026: the NIFTY chart heard its minute 2.4-2.7 s
+    # after the beat, because the announcement waited for every underlying to
+    # be recorded, one option chain after another. NIFTY is recorded first and
+    # need not wait for the four behind it.
+    import extensions
+    import services.option_chain_service as ocs
+    import services.writer_flow_service as svc
+
+    monkeypatch.setenv("OI_FLOW_UNDERLYINGS", "NIFTY:NSE_INDEX,BANKNIFTY:NSE_INDEX")
+    monkeypatch.setattr(rec, "nearest_expiry", lambda *a, **k: "19OCT26")
+    order = []
+
+    def get_option_chain(underlying, exchange, expiry, strike_count, api_key, **_):
+        order.append(("chain", underlying))
+        return True, chain(), 200
+
+    monkeypatch.setattr(ocs, "get_option_chain", get_option_chain)
+    monkeypatch.setattr(svc, "rebuild_watched", lambda u: order.append(("rebuild", sorted(u))))
+    monkeypatch.setattr(
+        extensions,
+        "emit_from_any_thread",
+        lambda event, data, **_: order.append(("announce", data["underlying"])),
+    )
+    rec.record_once(FRIDAY_1031)
+    assert order == [
+        ("chain", "NIFTY"),
+        ("rebuild", ["NIFTY"]),
+        ("announce", "NIFTY"),
+        ("chain", "BANKNIFTY"),
+        ("rebuild", ["BANKNIFTY"]),
+        ("announce", "BANKNIFTY"),
+    ]

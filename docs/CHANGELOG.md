@@ -287,6 +287,14 @@ files and OpenScript studies. Put a 1h EMA on a
   the broker's monthly or weekly bars disagree with its daily ones, the
   indicator follows the broker's higher bars.
 
+### Writer Flow: each chart hears its own minute as soon as it is stored
+
+- Every underlying's new minute was announced only once all of them had been
+  recorded, one option chain after another, so the NIFTY chart heard its minute
+  2.4 to 2.7 seconds after the beat on 19-Oct-2026 while BANKNIFTY, SENSEX,
+  CRUDEOIL and NATURALGAS were still being fetched. Each underlying is now
+  rebuilt and announced the moment its own minute is written.
+
 ### Writer Flow: no more blank stretches or false jumps after a slow minute
 
 - A minute that held only some strikes counted as recorded, so it was never
