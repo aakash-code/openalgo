@@ -27,6 +27,11 @@ from utils.logging import get_logger
 
 logger = get_logger(__name__)
 
+# How often a feed subscription the feed refused is sent again. The usual
+# refusal is OpenAlgo starting before the broker login: the feed has no broker
+# session yet, and the login comes minutes later.
+RESUBSCRIBE_SECONDS = 15
+
 
 class WebSocketExecutionEngine:
     """
@@ -75,6 +80,14 @@ class WebSocketExecutionEngine:
         # regardless of how many products hold the symbol; the ref is released
         # only when every product's position is flat.
         self._position_refs: set[tuple[str, str]] = set()
+
+        # Users whose last feed subscription was refused or skipped. The health
+        # monitor sends every symbol they still hold again until one is taken;
+        # until then their orders fill only through the polling fallback and
+        # their positions are valued with a broker quote call each time.
+        # Guarded by self._lock.
+        self._refused_users: set[str] = set()
+        self._next_resubscribe = 0.0
 
         # Fallback settings
         self.fallback_enabled = os.getenv("SANDBOX_ENGINE_FALLBACK", "true").lower() == "true"
@@ -585,6 +598,11 @@ class WebSocketExecutionEngine:
                 except Exception as e:
                     logger.exception(f"Error in health monitor: {e}")
 
+                try:
+                    self._retry_refused_subscriptions()
+                except Exception:
+                    logger.exception("Sandbox engine could not resubscribe its symbols")
+
                 time.sleep(5)  # Check every 5 seconds
 
         monitor_thread = threading.Thread(
@@ -685,7 +703,8 @@ class WebSocketExecutionEngine:
 
             api_key = get_api_key_for_tradingview(user_id)
             if not api_key:
-                logger.warning(f"WebSocket subscribe skipped: no API key for user {user_id}")
+                if self._mark_refused(user_id):
+                    logger.warning(f"WebSocket subscribe skipped: no API key for user {user_id}")
                 return
             broker = get_broker_name(api_key) if api_key else None
             broker_name = broker or "unknown"
@@ -697,11 +716,49 @@ class WebSocketExecutionEngine:
                 username=user_id, broker=broker_name, symbols=symbol_payload, mode="LTP"
             )
             if not success:
-                logger.warning(
-                    f"WebSocket subscribe failed for user {user_id}: {response.get('message')} (status {status_code})"
-                )
+                if self._mark_refused(user_id):
+                    logger.warning(
+                        f"WebSocket subscribe failed for user {user_id}: {response.get('message')} "
+                        f"(status {status_code}); trying again every {RESUBSCRIBE_SECONDS}s"
+                    )
+            else:
+                with self._lock:
+                    was_refused = user_id in self._refused_users
+                    self._refused_users.discard(user_id)
+                if was_refused:
+                    logger.info(f"Sandbox engine: feed subscription for user {user_id} taken")
         except Exception as e:
-            logger.exception(f"Error subscribing WebSocket symbols for user {user_id}: {e}")
+            if self._mark_refused(user_id):
+                logger.exception(f"Error subscribing WebSocket symbols for user {user_id}: {e}")
+
+    def _mark_refused(self, user_id: str) -> bool:
+        """Remember a refused subscription. True the first time, so it is reported once."""
+        with self._lock:
+            first = user_id not in self._refused_users
+            self._refused_users.add(user_id)
+            if first:
+                self._next_resubscribe = time.monotonic() + RESUBSCRIBE_SECONDS
+        return first
+
+    def _retry_refused_subscriptions(self, force: bool = False) -> None:
+        """Send every symbol a refused user still holds again, at most every
+        RESUBSCRIBE_SECONDS. Called by the health monitor; `force` is for tests."""
+        with self._lock:
+            if not self._refused_users:
+                return
+            if not force and time.monotonic() < self._next_resubscribe:
+                return
+            self._next_resubscribe = time.monotonic() + RESUBSCRIBE_SECONDS
+            pending = []
+            for user_id in sorted(self._refused_users):
+                held = self._user_symbol_refcounts.get(user_id) or {}
+                if not held:
+                    continue
+                pending.append((user_id, [tuple(reversed(key.split(":", 1))) for key in held]))
+            # A user holding nothing any more has nothing to resubscribe.
+            self._refused_users = {u for u, _ in pending}
+        for user_id, symbols in pending:
+            self._subscribe_ws_symbols(user_id, symbols)
 
     def _unsubscribe_ws_symbols(self, user_id: str, symbols: list[tuple[str, str]]):
         """Unsubscribe from LTP via WebSocket for the given user and symbols."""

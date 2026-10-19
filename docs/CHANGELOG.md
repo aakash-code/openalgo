@@ -287,6 +287,20 @@ files and OpenScript studies. Put a 1h EMA on a
   the broker's monthly or weekly bars disagree with its daily ones, the
   indicator follows the broker's higher bars.
 
+### Sandbox: positions and pending orders get live prices after a late broker login
+
+- When OpenAlgo starts before the broker login, which is every morning once the
+  token expires at 3 AM, the sandbox asked the feed for its positions' and
+  pending orders' prices before there was a broker session. The feed refused,
+  and nothing asked again. Pending LIMIT, SL and GTT orders then filled only
+  through the 5-second polling fallback, and every refresh of the position book
+  valued each position with a quote call to the broker. On 19-Oct-2026 that put
+  nine positions' quotes into the same broker queue as the option chains and
+  chart history of the open, and the position book took up to 74 seconds.
+- The sandbox now asks again every 15 seconds until the feed takes the
+  subscription, for every symbol it still holds, and says so once in the log
+  rather than on every attempt.
+
 ### Back to upstream: the market data WebSocket keepalive
 
 - The WebSocket server's keepalive default is upstream's again: a ping every
