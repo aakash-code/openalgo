@@ -8,6 +8,45 @@ fix, live in [docs/releases](releases/).
 
 ## [Unreleased]
 
+### Market read: what moved the index, in sentences, every minute
+
+No migration: three small tables are added to the Writer Flow record
+(`db/oi_flow.duckdb`) on start. Needs the Writer Flow recorder on. Pull,
+restart, and open **Market read** on the `/trading` right rail.
+
+- **One panel for what a chart cannot show at once.** Each minute NIFTY's
+  option writers (puts minus calls written near the money over 10 minutes,
+  also weighted by delta), its futures (price against open interest, current
+  and next month added so a rollover is not read as positions closing), the
+  strikes holding the most put and call open interest (support and
+  resistance) and how far each is below its peak, India VIX and implied
+  volatility at the money (priced off the future, not spot), and whether
+  BANKNIFTY and SENSEX agree, are read together. The panel opens with one
+  sentence ("Call writers lead NIFTY since 09:53; futures show longs exiting.
+  23,000 turned from support to resistance at 10:07."), then each reading,
+  a price and flow chart, and a timeline of what changed with the numbers
+  behind each line.
+- **Alerts on turns only**: the lead changing hands, a level turning from
+  support to resistance or back, writers leaving the current support or
+  resistance, India VIX jumping 0.25 in 10 minutes, the opening gap filling.
+  A tone and a popup on `/trading` (with the panel closed too), and Telegram
+  at most one message every 10 minutes, extra events in one message. Each is
+  a switch in the panel's settings. A restart reads the morning again and
+  sends nothing for it.
+- **It describes, it does not forecast.** On 16, 19 and 21-Oct-2026 the
+  writer flow tracked the price of the previous 15 minutes (correlation +0.3
+  to +0.8) and not the next 15 (-0.3 to +0.1). The panel says so. Every
+  minute's reading is stored, so this can be measured over more days.
+- **Cost**: one batch quote a minute for both NIFTY futures, India VIX and the
+  index, about 375 broker requests a day; after a restart, three history
+  requests fill the day so far, paced as background work.
+- **Not modelled**: who started a trade (buyer or seller) cannot be told from
+  minute open interest and last price, so "writers" means open interest
+  added. On expiry day open interest falls at every strike as positions
+  close, so "writers leaving" warnings are kept out of the alerts that day.
+  NIFTY only (`MARKET_READ_UNDERLYING` in `.env` for another NSE index);
+  BANKNIFTY and SENSEX are read for flow alone.
+
 ### Writer Flow: where option writers are adding, covering or holding, on the chart
 
 No database migration: the record is a new, separate file. Off by default. Pull,

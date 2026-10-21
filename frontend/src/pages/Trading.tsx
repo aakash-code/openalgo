@@ -40,6 +40,9 @@ const ScriptPanel = lazy(() =>
 const StrategiesPanel = lazy(() =>
   import('@/components/trading/StrategiesPanel').then((m) => ({ default: m.StrategiesPanel }))
 )
+const MarketReadPanel = lazy(() =>
+  import('@/components/trading/MarketReadPanel').then((m) => ({ default: m.MarketReadPanel }))
+)
 const WatchlistPanel = lazy(() =>
   import('@/components/trading/WatchlistPanel').then((m) => ({ default: m.WatchlistPanel }))
 )
@@ -86,6 +89,7 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { Switch } from '@/components/ui/switch'
 import { useChartWorkspaceCatalog } from '@/hooks/useChartWorkspaceCatalog'
+import { useMarketReadAlerts } from '@/hooks/useMarketReadAlerts'
 import { useWorkspaceAutosave } from '@/hooks/useWorkspaceAutosave'
 import { useWorkspaceGridTransition } from '@/hooks/useWorkspaceGridTransition'
 import type { AgentChartCommand } from '@/lib/agent/stream'
@@ -313,6 +317,8 @@ function TradingWorkspace({ account }: { account: string | null }) {
     // a panel added or renamed there cannot leave this reading a stale name.
     return isPanelId(saved) ? saved : null
   })
+  // A turn in the market read sounds and pops up whichever panel is open.
+  useMarketReadAlerts(Boolean(apiKey && wsUrl))
   /**
    * A script the chart has asked to show the source of, or null.
    *
@@ -1759,6 +1765,11 @@ function TradingWorkspace({ account }: { account: string | null }) {
                 onPick={sendToFocusedPane}
                 activeSymbol={paneSymbols[focusedPane] ?? undefined}
               />
+            </Suspense>
+          )}
+          {apiKey && wsUrl && panel === 'marketread' && (
+            <Suspense fallback={null}>
+              <MarketReadPanel />
             </Suspense>
           )}
           {apiKey && wsUrl && panel === 'agent' && (

@@ -3,6 +3,8 @@ Writer Flow API: what option writers did at each strike through the day.
 
     GET /writerflow/api/sessions   underlyings and expiries recorded, newest day first
     GET /writerflow/api/flow       the day read strike by strike, for the page and the chart
+    GET /writerflow/api/read       the market read: who leads, futures, levels, volatility
+    GET/POST /writerflow/api/read/settings   its switches (read, Telegram, sound)
 
 Reads only db/oi_flow.duckdb, which the OI Flow recorder fills; it makes no
 broker call of its own, so opening the page costs the broker nothing. The chart
@@ -154,3 +156,60 @@ def flow():
         response.headers["Content-Encoding"] = "gzip"
     response.headers["Vary"] = "Accept-Encoding"
     return response
+
+
+@writer_flow_bp.route("/writerflow/api/read", methods=["GET"])
+@check_session_validity
+def market_read():
+    from services import market_read_service as mr
+    from services.writer_flow_service import _on_builder
+
+    day_text = (request.args.get("date") or "").strip()
+    try:
+        day = date.fromisoformat(day_text) if day_text else datetime.now(mr.IST).date()
+    except ValueError:
+        return jsonify({"status": "error", "message": "The date should look like 2026-10-21."}), 400
+    try:
+        read = mr.latest(day)
+        if read is None:
+            # Built on the Writer Flow builder thread: a whole day takes tens of
+            # milliseconds of CPU, which must not hold a request worker.
+            read = _on_builder(mr.compute, day)
+    except Exception:
+        logger.exception("Market read: reading the day failed")
+        return jsonify(
+            {"status": "error", "message": "Could not read the market. Try again in a moment."}
+        ), 500
+    if read is None:
+        return jsonify(
+            {
+                "status": "empty",
+                "message": f"Nothing recorded for {mr.main_underlying()} on this day yet. "
+                "The read starts with the first minutes the Writer Flow recorder stores.",
+                "recorder_enabled": recorder_enabled(),
+                "settings": mr.settings(),
+            }
+        )
+    return jsonify({"status": "success", **mr.read_json(read), "settings": mr.settings()})
+
+
+@writer_flow_bp.route("/writerflow/api/read/settings", methods=["GET", "POST"])
+@check_session_validity
+def market_read_settings():
+    from services import market_read_service as mr
+
+    if request.method == "GET":
+        return jsonify({"status": "success", "settings": mr.settings()})
+    body = request.get_json(silent=True) or {}
+    changes = {k: v for k, v in body.items() if k in mr.SETTINGS}
+    if not changes or any(not isinstance(v, bool) for v in changes.values()):
+        return jsonify(
+            {"status": "error", "message": "Turn the read, Telegram or sound on or off."}
+        ), 400
+    try:
+        return jsonify({"status": "success", "settings": mr.update_settings(changes)})
+    except Exception:
+        logger.exception("Market read: saving the switches failed")
+        return jsonify(
+            {"status": "error", "message": "Could not save the setting. Try again in a moment."}
+        ), 500

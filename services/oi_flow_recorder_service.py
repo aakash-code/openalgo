@@ -470,10 +470,14 @@ def _rebuild_watched(underlyings: set[str]) -> None:
     """
     if not underlyings:
         return
+    from services.market_read_service import on_minute
     from services.writer_flow_service import rebuild_watched
 
     rebuild_watched(underlyings)
     _announce(underlyings)
+    # Only queued: the read runs on its own thread, never on this beat.
+    for underlying in underlyings:
+        on_minute(underlying)
 
 
 def _announce(underlyings: set[str]) -> None:
@@ -759,6 +763,8 @@ def shutdown_oi_flow_recorder() -> None:
             _scheduler.shutdown(wait=False)
             _scheduler = None
         release_writer()
+    from services.market_read_service import stop_worker
     from services.writer_flow_service import stop_builder
 
     stop_builder()
+    stop_worker()

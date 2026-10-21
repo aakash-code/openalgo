@@ -128,6 +128,11 @@ NO_SPOT_EXCHANGES = frozenset({"MCX", "CDS", "BCD", "NCDEX", "NCO"})
 
 
 def find_near_month_futures(base_symbol: str, exchange: str) -> dict[str, Any] | None:
+    found = near_month_futures(base_symbol, exchange, count=1)
+    return found[0] if found else None
+
+
+def near_month_futures(base_symbol: str, exchange: str, count: int = 1) -> list[dict[str, Any]]:
     """Nearest non-expired FUT contract for a base symbol on an exchange.
 
     The ATM-pricing source for option chains on exchanges with no spot: the
@@ -148,13 +153,14 @@ def find_near_month_futures(base_symbol: str, exchange: str) -> dict[str, Any] |
         exchange: Exchange to search, e.g. "MCX".
 
     Returns:
-        ``{"symbol", "exchange", "expiry"}`` for the nearest contract, or None
-        when the product has no unexpired future.
+        ``{"symbol", "exchange", "expiry"}`` for up to ``count`` contracts,
+        nearest first (``find_near_month_futures`` returns the first, or
+        None); empty when the product has no unexpired future.
     """
     base = (base_symbol or "").upper()
     exch = (exchange or "").upper()
     if not base or not exch:
-        return None
+        return []
 
     try:
         rows = SymToken.query.filter(
@@ -166,10 +172,10 @@ def find_near_month_futures(base_symbol: str, exchange: str) -> dict[str, Any] |
         ).all()
     except Exception:
         logger.exception(f"Error looking up near-month futures for {base} on {exch}")
-        return None
+        return []
 
     if not rows:
-        return None
+        return []
 
     exact = re.compile(rf"^{re.escape(base)}\d{{2}}[A-Z]{{3}}\d{{2}}FUT$")
     today = datetime.now().date()
@@ -185,12 +191,11 @@ def find_near_month_futures(base_symbol: str, exchange: str) -> dict[str, Any] |
         if expiry >= today:
             candidates.append((expiry, row))
 
-    if not candidates:
-        return None
-
     candidates.sort(key=lambda pair: pair[0])
-    expiry, row = candidates[0]
-    return {"symbol": row.symbol, "exchange": row.exchange, "expiry": row.expiry}
+    return [
+        {"symbol": row.symbol, "exchange": row.exchange, "expiry": row.expiry}
+        for _, row in candidates[:count]
+    ]
 
 
 def resolve_underlying_quote(base_symbol: str, exchange: str) -> tuple[str, str] | None:

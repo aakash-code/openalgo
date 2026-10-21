@@ -7,7 +7,7 @@
  * `onServerEvent` to every indicator beside `subscribeQuotes`.
  *
  * Only the events in SERVER_EVENTS can be listened to. They are broadcasts
- * about shared data (a new Writer Flow minute), never account or session
+ * about shared data (a new Writer Flow minute, a new market read), never account or session
  * events, so a third-party indicator learns nothing through them that it could
  * not already fetch.
  *
@@ -17,7 +17,7 @@
  */
 import type { Socket } from 'socket.io-client'
 
-export const SERVER_EVENTS = ['writer_flow_update'] as const
+export const SERVER_EVENTS = ['writer_flow_update', 'market_read_update'] as const
 export type ServerEventName = (typeof SERVER_EVENTS)[number]
 
 type Handler = (data: unknown) => void

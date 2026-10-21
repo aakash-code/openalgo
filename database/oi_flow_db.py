@@ -144,6 +144,14 @@ def get_connection(max_retries: int = 3, retry_delay: float = 0.5):
         conn.close()
 
 
+_SETTINGS_TABLE = """
+    CREATE TABLE IF NOT EXISTS oi_flow_settings (
+        key    VARCHAR PRIMARY KEY,
+        value  VARCHAR NOT NULL
+    )
+"""
+
+
 def init_oi_flow_database() -> None:
     """Create the samples table (idempotent)."""
     with get_connection() as conn:
@@ -170,6 +178,47 @@ def init_oi_flow_database() -> None:
         # nothing for load_day (1.94 s against 1.97 s) while costing every
         # insert, so a database created before that is relieved of it.
         conn.execute("DROP INDEX IF EXISTS oi_flow_day")
+        # The market read (services/market_read_service.py): the futures and
+        # India VIX it quotes each minute, the events it raised, its reading of
+        # every minute, and its switches. Created here because they live in
+        # this file and nothing else; an existing record simply gains them.
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS market_read_quotes (
+                trade_date   DATE NOT NULL,
+                sample_time  TIMESTAMP NOT NULL,
+                symbol       VARCHAR NOT NULL,
+                exchange     VARCHAR NOT NULL,
+                ltp          DOUBLE,
+                oi           BIGINT,
+                volume       BIGINT,
+                prev_close   DOUBLE,
+                source       VARCHAR NOT NULL,
+                PRIMARY KEY (symbol, sample_time)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS market_read_events (
+                trade_date   DATE NOT NULL,
+                underlying   VARCHAR NOT NULL,
+                id           VARCHAR NOT NULL,
+                event_time   TIMESTAMP NOT NULL,
+                kind         VARCHAR NOT NULL,
+                level        VARCHAR NOT NULL,
+                title        VARCHAR NOT NULL,
+                reason       VARCHAR NOT NULL,
+                PRIMARY KEY (trade_date, underlying, id)
+            )
+        """)
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS market_read_minutes (
+                trade_date   DATE NOT NULL,
+                underlying   VARCHAR NOT NULL,
+                sample_time  TIMESTAMP NOT NULL,
+                state        VARCHAR NOT NULL,
+                PRIMARY KEY (underlying, sample_time)
+            )
+        """)
+        conn.execute(_SETTINGS_TABLE)
 
 
 SAMPLE_COLUMNS = (
@@ -365,3 +414,139 @@ def available_sessions(limit_days: int = 10) -> list[dict]:
             }
             for r in cur.fetchall()
         ]
+
+
+def expiry_for_day(underlying: str, trade_date: date) -> str | None:
+    """The expiry an underlying was recorded on for a day: the one with most rows."""
+    if not UNDERLYING_RE.match(underlying or ""):
+        raise ValueError(f"Not an underlying: {underlying!r}")
+    with get_connection() as conn:
+        row = conn.execute(
+            f"""
+            SELECT expiry FROM oi_flow_samples
+            WHERE underlying = '{underlying}' AND trade_date = DATE '{trade_date.isoformat()}'
+            GROUP BY expiry ORDER BY COUNT(*) DESC LIMIT 1
+            """
+        ).fetchone()
+    return row[0] if row else None
+
+
+# ------------------------------------------------------------------ market read
+
+QUOTE_COLUMNS = (
+    "trade_date",
+    "sample_time",
+    "symbol",
+    "exchange",
+    "ltp",
+    "oi",
+    "volume",
+    "prev_close",
+    "source",
+)
+
+
+def insert_market_quotes(rows: list[dict]) -> int:
+    """Store the market read's quotes; a (symbol, minute) already held is kept."""
+    if not rows:
+        return 0
+    values = [tuple(r.get(c) for c in QUOTE_COLUMNS) for r in rows]
+    placeholders = ", ".join("?" for _ in QUOTE_COLUMNS)
+    with get_connection() as conn:
+        conn.executemany(
+            f"INSERT OR IGNORE INTO market_read_quotes ({', '.join(QUOTE_COLUMNS)}) "
+            f"VALUES ({placeholders})",
+            values,
+        )
+    return len(values)
+
+
+def load_market_quotes(trade_date: date) -> list[dict]:
+    """Every quote the market read stored for a day, oldest first."""
+    with get_connection() as conn:
+        cur = conn.execute(
+            f"SELECT {', '.join(QUOTE_COLUMNS)} FROM market_read_quotes "
+            "WHERE trade_date = ? ORDER BY sample_time, symbol",
+            [trade_date],
+        )
+        return [dict(zip(QUOTE_COLUMNS, row, strict=True)) for row in cur.fetchall()]
+
+
+# An event within this many minutes of a held one of the same kind and strike
+# is that event again, moved: a minute filled in from history later changes the
+# minutes around it, and a turn read at 09:55 can read at 09:54 on the next pass.
+SAME_EVENT_MINUTES = 5
+
+
+def _stem(event_id: str) -> str:
+    return event_id.rsplit(":", 1)[0]  # kind:key, without the minute
+
+
+def store_read_events(underlying: str, trade_date: date, events: list[dict]) -> list[dict]:
+    """Store events not already held, and return just those: the ones that are new."""
+    if not events:
+        return []
+    with get_connection() as conn:
+        held = conn.execute(
+            "SELECT id, event_time FROM market_read_events WHERE trade_date = ? AND underlying = ?",
+            [trade_date, underlying],
+        ).fetchall()
+        window = timedelta(minutes=SAME_EVENT_MINUTES)
+        by_stem: dict[str, list[datetime]] = {}
+        for event_id, at in held:
+            by_stem.setdefault(_stem(event_id), []).append(at)
+        new = []
+        for e in events:
+            times = by_stem.setdefault(_stem(e["id"]), [])
+            if any(abs(e["time"] - at) <= window for at in times):
+                continue
+            times.append(e["time"])
+            new.append(e)
+        if new:
+            conn.executemany(
+                "INSERT OR IGNORE INTO market_read_events "
+                "(trade_date, underlying, id, event_time, kind, level, title, reason) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+                [
+                    (
+                        trade_date,
+                        underlying,
+                        e["id"],
+                        e["time"],
+                        e["kind"],
+                        e["level"],
+                        e["title"],
+                        e["reason"],
+                    )
+                    for e in new
+                ],
+            )
+    return new
+
+
+def store_read_minute(underlying: str, trade_date: date, sample_time: datetime, state: str) -> None:
+    """Keep one minute's reading, replacing an earlier reading of the same minute."""
+    with get_connection() as conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO market_read_minutes "
+            "(trade_date, underlying, sample_time, state) VALUES (?, ?, ?, ?)",
+            [trade_date, underlying, sample_time, state],
+        )
+
+
+def read_setting(key: str) -> str | None:
+    """A stored switch, or None when it was never set (or there is no record yet)."""
+    if not os.path.exists(get_db_path()):
+        return None
+    with get_connection() as conn:
+        conn.execute(_SETTINGS_TABLE)
+        row = conn.execute("SELECT value FROM oi_flow_settings WHERE key = ?", [key]).fetchone()
+    return row[0] if row else None
+
+
+def write_setting(key: str, value: str) -> None:
+    with get_connection() as conn:
+        conn.execute(_SETTINGS_TABLE)
+        conn.execute(
+            "INSERT OR REPLACE INTO oi_flow_settings (key, value) VALUES (?, ?)", [key, value]
+        )

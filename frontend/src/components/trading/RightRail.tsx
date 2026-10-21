@@ -9,6 +9,7 @@
  */
 
 import {
+  Activity,
   Bot,
   FileCode2,
   FlaskConical,
@@ -102,6 +103,14 @@ const PANELS = [
     label: 'Strategies',
     icon: 'trading',
     hint: 'Strategies running on the server, Live or Sandbox',
+  },
+  // A view of the market rather than of the chart, so with the panels above
+  // that read the market; last of them because it reads what the others show.
+  {
+    id: 'marketread',
+    label: 'Market read',
+    icon: Activity,
+    hint: 'Who leads option writing, futures, levels and volatility, in sentences',
   },
   {
     id: 'agent',
