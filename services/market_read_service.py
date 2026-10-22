@@ -137,6 +137,22 @@ def _ensure_worker() -> None:
             _worker.start()
 
 
+# Longest one read may take on the hub before this thread stops waiting for it.
+# A read is seconds; the history fill every 15 minutes is paced background work.
+READ_TIMEOUT = 300
+
+
+def _read_and_release() -> None:
+    try:
+        update()
+    finally:
+        # The read looks up the futures and the API key through scoped sessions
+        # every minute, on a thread no request teardown reaches.
+        from utils.db_sessions import remove_all_scoped_sessions
+
+        remove_all_scoped_sessions()
+
+
 def _loop() -> None:
     global _queued
     while True:
@@ -148,16 +164,18 @@ def _loop() -> None:
         if stream_registry.should_stop():
             continue
         try:
-            update()
+            # This thread is real, and the read reaches database sessions, the
+            # broker client and quotes, all green under eventlet. Called from
+            # here it waited on the hub forever (22-Oct, from 10:52) and every
+            # later minute found a read still queued. run_on_hub calls it
+            # inline on the gthread worker and the dev server.
+            real_threading.run_on_hub(_read_and_release, timeout=READ_TIMEOUT)
+        except TimeoutError:
+            logger.warning(
+                f"Market read: a read took over {READ_TIMEOUT}s; the next minute starts a new one"
+            )
         except Exception:
             logger.exception("Market read: this minute's read failed")
-        finally:
-            # This thread lives as long as the process and looks up the futures
-            # and the API key through scoped sessions every minute; no request
-            # teardown releases them here.
-            from utils.db_sessions import remove_all_scoped_sessions
-
-            remove_all_scoped_sessions()
 
 
 def stop_worker() -> None:

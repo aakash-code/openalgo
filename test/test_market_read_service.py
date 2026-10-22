@@ -328,6 +328,36 @@ def test_the_worker_releases_its_sessions_after_every_read(monkeypatch):
     assert released == [1]
 
 
+def test_the_worker_reads_on_the_hub_and_survives_a_read_that_never_ends(monkeypatch):
+    """Under eventlet the worker is a real thread and the read is green work:
+    called directly it waited on the hub forever (22-Oct, from 10:52), and
+    every later minute found a read still queued and was dropped."""
+    import queue
+
+    import utils.db_sessions as sessions
+
+    handed, released = [], []
+    monkeypatch.setattr(sessions, "remove_all_scoped_sessions", lambda: released.append(1))
+    monkeypatch.setattr(mr, "update", lambda: handed.append("read"))
+
+    def on_hub(fn, *, timeout):
+        handed.append(timeout)
+        if len(handed) == 1:
+            raise TimeoutError  # the first read never comes back
+        fn()  # the session is released inside the call that ran on the hub
+
+    monkeypatch.setattr(mr.real_threading, "run_on_hub", on_hub)
+    jobs = queue.Queue()
+    monkeypatch.setattr(mr, "_jobs", jobs)
+    monkeypatch.setattr(mr, "_queued", True)
+    jobs.put("NIFTY")
+    jobs.put("NIFTY")
+    jobs.put(mr._STOP)
+    mr._loop()
+    assert handed == [mr.READ_TIMEOUT, mr.READ_TIMEOUT, "read"]
+    assert released == [1] and mr._queued is False
+
+
 def test_telegram_text_is_escaped_for_markdown():
     text = mr.telegram_text([{"time": _t("10:00"), "title": "a_b *c*", "reason": "[x]"}])
     assert "a\\_b \\*c\\*" in text and "\\[x]" in text
