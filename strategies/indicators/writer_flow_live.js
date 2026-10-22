@@ -146,15 +146,27 @@ const UPDATE_EVENT = 'writer_flow_update'
 const ANSWERS_MAX = 8
 
 function fetchFlow(underlying, step, maxAgeMs, exchange = '') {
-  const key = `${underlying}|${step}|${exchange}`
-  const held = answers.get(key)
-  if (held && (held.promise || Date.now() - held.at < maxAgeMs)) return held.promise || Promise.resolve(held.body)
   const url =
     `/writerflow/api/flow?underlying=${encodeURIComponent(underlying)}` +
     `&step=${encodeURIComponent(step)}&all_strikes=1&lite=1` +
     // The chart's own exchange: an underlying it shows that is not being
     // recorded yet starts recording, with the day so far filled from history.
     (exchange ? `&exchange=${encodeURIComponent(exchange)}` : '')
+  return fetchShared(`${underlying}|${step}|${exchange}`, url, maxAgeMs)
+}
+
+/** The option levels for an underlying: read from the record, never starts one. */
+function fetchLevels(underlying, _step, maxAgeMs) {
+  return fetchShared(
+    `levels|${underlying}`,
+    `/writerflow/api/levels?underlying=${encodeURIComponent(underlying)}`,
+    maxAgeMs,
+  )
+}
+
+function fetchShared(key, url, maxAgeMs) {
+  const held = answers.get(key)
+  if (held && (held.promise || Date.now() - held.at < maxAgeMs)) return held.promise || Promise.resolve(held.body)
   const promise = fetch(url, { credentials: 'same-origin' })
     .then(async (res) => {
       const body = await res.json().catch(() => null)
@@ -185,7 +197,7 @@ export function forgetFlowAnswers() {
  * while the tab is in front, start over when the underlying or step changes.
  * `apply(body)` receives each answer; `fail(message)` a reason in words.
  */
-function startPolling(ctx, apply, fail) {
+function startPolling(ctx, apply, fail, fetcher = fetchFlow) {
   let cancelled = false
   let timer = null
   let watchedKey = ''
@@ -222,7 +234,7 @@ function startPolling(ctx, apply, fail) {
     try {
       // A fresh ask follows the server's word that a new minute is in, so a
       // shared answer from moments ago is not good enough.
-      const body = await fetchFlow(underlying, step, fresh ? 0 : REFRESH_MS / 2, exchange)
+      const body = await fetcher(underlying, step, fresh ? 0 : REFRESH_MS / 2, exchange)
       if (cancelled || key !== watchedKey) return
       if (body.status === 'success') apply(body)
       else if (!settled && chartExchange && body.recorder_enabled)
@@ -815,4 +827,393 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
       )
     },
   })
+
+  registerIndicator(levelsIndicator(underlyingInput, nulls))
+}
+
+// ------------------------------------------------------------- option levels
+
+const LEVELS_CELL = 'option-levels-strike:'
+const MAX_LEVELS = 4 // the most lines drawn on each side, strongest first
+const LEVEL_SHARE = 0.33 // a second level shows only if it holds this share of the strongest
+const LINE_MIN = 1 // px, the weakest level drawn
+const LINE_MAX = 6 // px, the strongest wall of the recorded cycle
+
+/** A level's line thickness from its month strength, across the full range so
+ * the dominant wall is unmistakable; the primary on each side gets a touch more. */
+function lineWeight(cell) {
+  return Math.min(
+    LINE_MAX,
+    LINE_MIN + (LINE_MAX - LINE_MIN) * (cell.strength || 0) + (cell.primary ? 0.5 : 0)
+  )
+}
+
+function formatStrike(k) {
+  return Number(k).toLocaleString('en-IN', { maximumFractionDigits: 1 })
+}
+
+/** Open interest held, without a sign: lakh quantity on NSE and BSE, lots on MCX. */
+function formatSize(value, unit) {
+  const n = Math.abs(Number(value) || 0)
+  if (unit === 'lots') return `${Math.round(n).toLocaleString('en-IN')} lots`
+  return formatLakh(n).replace(/^\+/, '') // a held amount, not a change: no sign
+}
+
+/**
+ * Option levels: the few levels where option writers actually sit, from
+ * /writerflow/api/levels, drawn as clean lines rather than a wall of colour:
+ *
+ * - A thin line at each heavy wall: green where put writers hold the open
+ *   interest (support), red where call writers hold it (resistance). Only the
+ *   strongest on each side and any other holding a real share of it are drawn,
+ *   so a trader sees the level that matters, not every strike.
+ * - Thicker and brighter the more it has held over the recorded month (recent
+ *   days count more), so the primary level on each side is the one positions
+ *   built through the cycle; its label is filled, the rest outlined.
+ * - Solid while the wall holds, dashed while writers are leaving it, with a
+ *   bright tick where they are adding: the level ranking is the month, the solid
+ *   or dashed state is today, minute by minute, as the open interest changes.
+ * - A faint dashed line at the gamma flip: where price tends to stick, not a wall.
+ *
+ * It describes where writers sit; it does not forecast. Hover a level for its
+ * put and call open interest and how each is changing, in words.
+ */
+function levelsIndicator(underlyingInput, nulls) {
+  return {
+    id: 'writer-flow-levels',
+    name: 'Option Levels',
+    category: 'Custom',
+    placement: 'onchart',
+    noTimeframe: true,
+
+    inputs: [
+      underlyingInput,
+      { key: 'grow', type: 'boolean', label: 'Highlight Writers Adding', default: true, group: 'Display',
+        tooltip: 'A strike where writers are adding over the last 10 minutes is shaded darker; one they are leaving is faded.' },
+      { key: 'labels', type: 'boolean', label: 'Strike Labels', default: true, group: 'Display' },
+      { key: 'gamma', type: 'boolean', label: 'Gamma Flip', default: true, group: 'Display',
+        tooltip: "Where the options' net gamma changes sign. Price tends to stick and chop near it; it is not a wall." },
+      { key: 'opacity', type: 'number', label: 'Strength (%)', default: 70, min: 20, max: 100, step: 5, group: 'Display' },
+    ],
+
+    plots: [{ key: 'lv', type: 'line', title: 'Option Levels', style: { visible: false } }],
+
+    calc(bars) {
+      return { lv: nulls(new Array(bars.length).fill(NaN)) }
+    },
+
+    attach(ctx) {
+      // cells: where each strike band was drawn last frame, for hover and labels.
+      const state = { body: null, problem: null, edgeHeld: 0, cells: [] }
+      let hoverPoint = null
+
+      const timeX = (rc, t) => rc.timeScale.indexToX(rc.dataLayer.timeToIndexFloat(t))
+      // Put writers hold support, so green; call writers hold resistance, so red.
+      const colorOf = (rc, role) =>
+        (role === 'support' ? rc.theme?.upColor : rc.theme?.downColor) || rc.theme?.axisText
+      const yOf = (rc, price) => {
+        const y = rc.priceScale.priceToY(price)
+        return y == null || Number.isNaN(y) ? null : y
+      }
+
+      // One cell per strike: its colour, how strong it is against the biggest
+      // wall on the chart, and whether writers are adding or leaving.
+      const strikeCells = (rc) => {
+        const body = state.body
+        const walls = body?.walls
+        if (!walls || !walls.length) return []
+        const peak = Math.max(1, ...walls.map((w) => Math.max(w.put, w.call)))
+        const half = (Number(body.step) || 0) / 2
+        const out = []
+        for (const w of walls) {
+          // Side is today's positioning (put writers below the price defend it,
+          // call writers above cap it), so a level never shows green above the
+          // price. Strength is the month: how strongly that side has held this
+          // strike over the cycle, so the primary level is the one positions
+          // built through, not just today's. Without a month yet, fall back to today.
+          const support = w.put >= w.call
+          const role = support ? 'support' : 'resistance'
+          const pPut = w.persist_put ?? w.put / peak
+          const pCall = w.persist_call ?? w.call / peak
+          const oi = support ? w.put : w.call
+          const change = support ? w.put_change : w.call_change
+          const top = yOf(rc, w.strike + half)
+          const bottom = yOf(rc, w.strike - half)
+          if (top == null || bottom == null) continue
+          out.push({
+            strike: w.strike,
+            role,
+            oi,
+            put: w.put,
+            call: w.call,
+            put_change: w.put_change,
+            call_change: w.call_change,
+            change,
+            strength: Math.max(0, Math.min(1, support ? pPut : pCall)),
+            adding: change > peak * 0.02,
+            leaving: change < -peak * 0.02,
+            top: Math.min(top, bottom),
+            bottom: Math.max(top, bottom),
+          })
+        }
+        return out
+      }
+
+      // The levels worth drawing: the heaviest walls, not every strike. Each
+      // side keeps its strongest (the primary level a trader watches) and any
+      // other that holds a real share of it, so the chart reads as a few clear
+      // lines rather than a wall of colour.
+      const significant = (cells) => {
+        const out = []
+        for (const role of ['support', 'resistance']) {
+          const side = cells.filter((cell) => cell.role === role).sort((a, b) => b.strength - a.strength)
+          side.slice(0, MAX_LEVELS).forEach((cell, i) => {
+            if (i === 0 || cell.strength >= LEVEL_SHARE) out.push({ ...cell, primary: i === 0 })
+          })
+        }
+        return out
+      }
+
+      const behind = {
+        zOrder() {
+          return 'bottom'
+        },
+        draw(c, rc) {
+          const settings = ctx.settings()
+          state.edgeHeld = rightEdgeHeld(c, rc)
+          const body = state.body
+          if (!body) return
+          const dpr = rc.dpr || 1
+          const width = rc.plotWidth
+          c.save()
+
+          // A line at each heavy wall: green support, red resistance. Its
+          // thickness and brightness track the month strength across a wide
+          // range, so the dominant level stands out at a glance: a thread at the
+          // weak end, a bold band near LINE_MAX at the strongest. Solid while it
+          // holds, dashed while writers leave it.
+          const cap = Math.max(0.3, Math.min(1, (Number(settings.opacity) || 70) / 100))
+          const end = width - state.edgeHeld
+          state.cells = significant(strikeCells(rc))
+          for (const cell of state.cells) {
+            const y = (cell.top + cell.bottom) / 2
+            if (y < 0 || y > rc.plotHeight) continue
+            c.strokeStyle = colorOf(rc, cell.role)
+            c.lineWidth = lineWeight(cell) * dpr
+            c.globalAlpha = Math.min(0.96, cap * (0.4 + 0.6 * cell.strength) * (cell.adding ? 1.12 : 1))
+            c.setLineDash(settings.grow !== false && cell.leaving ? [7 * dpr, 4 * dpr] : [])
+            c.beginPath()
+            c.moveTo(0, y * dpr)
+            c.lineTo(end * dpr, y * dpr)
+            c.stroke()
+            // Writers adding here: a solid tick at the right edge, full strength.
+            if (settings.grow !== false && cell.adding) {
+              c.setLineDash([])
+              c.globalAlpha = Math.min(0.95, 0.6 + 0.4 * cell.strength)
+              c.lineWidth = Math.max(3 * dpr, c.lineWidth)
+              c.beginPath()
+              c.moveTo((end - 14) * dpr, y * dpr)
+              c.lineTo(end * dpr, y * dpr)
+              c.stroke()
+            }
+          }
+          c.setLineDash([])
+
+          // The gamma flip through the day, read every few minutes.
+          const flips = body.gamma?.flips || []
+          if (settings.gamma !== false && flips.length) {
+            const end = width - state.edgeHeld
+            const gxs = body.gamma.epochs.map((t) => timeX(rc, t))
+            c.strokeStyle = rc.theme?.lineColor || rc.theme?.axisText
+            c.lineWidth = dpr
+            c.globalAlpha = 0.55
+            c.setLineDash([2 * dpr, 4 * dpr])
+            c.beginPath()
+            let open = false
+            for (let j = 0; j < flips.length; j++) {
+              const y = flips[j] == null ? null : yOf(rc, flips[j])
+              const x0 = Math.max(0, gxs[j])
+              const x1 = Math.min(end, j + 1 < flips.length ? gxs[j + 1] : end)
+              if (y == null || !(x1 > x0)) {
+                open = false
+                continue
+              }
+              if (!open) c.moveTo(x0 * dpr, y * dpr)
+              else c.lineTo(x0 * dpr, y * dpr)
+              c.lineTo(x1 * dpr, y * dpr)
+              open = true
+            }
+            c.stroke()
+            c.setLineDash([])
+          }
+          c.restore()
+        },
+      }
+
+      const drawTooltip = (c, rc, lines) => {
+        if (!hoverPoint) return
+        const dpr = rc.dpr || 1
+        const fontPx = 11
+        const pad = 6
+        c.font = `${fontPx * dpr}px sans-serif`
+        const w = Math.max(...lines.map((l) => c.measureText(l).width / dpr))
+        const h = lines.length * (fontPx + 4) + pad * 2
+        const x = Math.max(4, hoverPoint.x - w - pad * 2 - 14)
+        const y = Math.min(rc.plotHeight - h - 4, Math.max(4, hoverPoint.y - h / 2))
+        c.globalAlpha = 0.96
+        c.fillStyle = rc.theme?.background || TOOLTIP_BG
+        c.strokeStyle = rc.theme?.grid || rc.theme?.axisLine || TOOLTIP_FG
+        c.lineWidth = dpr
+        c.beginPath()
+        c.roundRect(x * dpr, y * dpr, (w + pad * 2) * dpr, h * dpr, 4 * dpr)
+        c.fill()
+        c.stroke()
+        c.globalAlpha = 1
+        c.fillStyle = rc.theme?.axisText || TOOLTIP_FG
+        c.textBaseline = 'top'
+        lines.forEach((l, k) => c.fillText(l, (x + pad) * dpr, (y + pad + k * (fontPx + 4)) * dpr))
+      }
+
+      const cellLines = (body, cell) => {
+        const unit = body.oi_unit
+        const strong = cell.role === 'support' ? 'Put writers' : 'Call writers'
+        const moving = cell.adding
+          ? `${cell.role === 'support' ? 'Puts' : 'Calls'} adding here (${formatOi(cell.change, unit)} in 10 min)`
+          : cell.leaving
+            ? `${cell.role === 'support' ? 'Puts' : 'Calls'} leaving here (${formatOi(cell.change, unit)} in 10 min)`
+            : 'Holding, little change in 10 min'
+        return [
+          `${formatStrike(cell.strike)}  ${cell.role === 'support' ? 'support' : 'resistance'}`,
+          `${strong} ${formatSize(cell.oi, unit)} hold this strike`,
+          `Puts ${formatSize(cell.put, unit)}, calls ${formatSize(cell.call, unit)}`,
+          moving,
+          'Green support, red resistance. Thickness is a month of positioning; dashed means writers leaving now. Not a forecast.',
+        ]
+      }
+
+      const front = {
+        zOrder() {
+          return 'top'
+        },
+        hitTest(x, y, rc) {
+          // Only the right margin answers, so the crosshair and price readout
+          // keep the rest of the chart. Hover a strike there for its writers.
+          if (x < rc.plotWidth - state.edgeHeld - 170) return null
+          for (const cell of state.cells) {
+            if (y >= cell.top - 1 && y <= cell.bottom + 1) {
+              hoverPoint = { x, y }
+              return { externalId: `${LEVELS_CELL}${cell.strike}`, zOrder: 'top', distance: 0 }
+            }
+          }
+          return null
+        },
+        draw(c, rc) {
+          const settings = ctx.settings()
+          const dpr = rc.dpr || 1
+          state.edgeHeld = rightEdgeHeld(c, rc)
+          const body = state.body
+          c.save()
+
+          // A label at the right edge on each drawn level, in its colour, the
+          // primary one on each side filled and the rest outlined, so the level
+          // a trader watches is named and ranked at a glance.
+          if (body && settings.labels !== false && state.cells.length) {
+            const named = [...state.cells].sort((a, b) => (a.top + a.bottom) / 2 - (b.top + b.bottom) / 2)
+            for (let i = 1; i < named.length; i++) {
+              const prev = (named[i - 1].top + named[i - 1].bottom) / 2
+              if ((named[i].top + named[i].bottom) / 2 - prev < 15) named[i]._y = prev + 15
+            }
+            c.font = `${10 * dpr}px sans-serif`
+            c.textBaseline = 'middle'
+            const right = rc.plotWidth - 6 - state.edgeHeld
+            for (const cell of named) {
+              const color = colorOf(rc, cell.role)
+              const y = Math.max(8, Math.min(rc.plotHeight - 8, cell._y ?? (cell.top + cell.bottom) / 2))
+              const text = formatStrike(cell.strike)
+              const w = c.measureText(text).width / dpr + 10
+              const x = right - w
+              c.beginPath()
+              c.roundRect(x * dpr, (y - 8) * dpr, w * dpr, 16 * dpr, 3 * dpr)
+              if (cell.primary) {
+                c.globalAlpha = 0.96
+                c.fillStyle = color
+                c.fill()
+                c.globalAlpha = 1
+                c.fillStyle = rc.theme?.background || '#ffffff'
+              } else {
+                c.globalAlpha = 0.85
+                c.fillStyle = rc.theme?.background || '#131722'
+                c.fill()
+                c.strokeStyle = color
+                c.lineWidth = dpr
+                c.setLineDash([])
+                c.stroke()
+                c.fillStyle = color
+              }
+              c.fillText(text, (x + 5) * dpr, y * dpr)
+            }
+          }
+
+          // The gamma flip's price, small, beside its line.
+          const flip = body?.gamma?.flip
+          if (body && flip != null && settings.gamma !== false) {
+            const y = yOf(rc, flip)
+            if (y != null && y > 8 && y < rc.plotHeight - 8) {
+              const text = `Gamma flip ${formatStrike(Math.round(flip))}`
+              const right = rc.plotWidth - 6 - state.edgeHeld
+              c.font = `${10 * dpr}px sans-serif`
+              c.textBaseline = 'middle'
+              c.globalAlpha = 0.8
+              c.fillStyle = rc.theme?.lineColor || rc.theme?.axisText
+              c.fillText(text, (right - c.measureText(text).width / dpr) * dpr, (y - 9) * dpr)
+            }
+          }
+
+          // Hover: one strike's writers, in words.
+          const hover = rc.hoverId ? String(rc.hoverId) : ''
+          if (body && hover.startsWith(LEVELS_CELL)) {
+            const strike = Number(hover.slice(LEVELS_CELL.length))
+            const cell = state.cells.find((cc) => cc.strike === strike)
+            if (cell) drawTooltip(c, rc, cellLines(body, cell))
+          }
+
+          // The one line of words, bottom right: what is drawn, or why nothing is.
+          const text = state.problem
+            ? `Option levels: ${state.problem}`
+            : body
+              ? `Option levels ${body.underlying} ${body.expiry}, ${body.minute}`
+              : 'Option levels: loading'
+          c.font = `${11 * dpr}px sans-serif`
+          c.textBaseline = 'bottom'
+          c.globalAlpha = 0.8
+          c.fillStyle = rc.theme?.axisText || NEUTRAL
+          const tw = c.measureText(text).width / dpr
+          c.fillText(text, (rc.plotWidth - 8 - state.edgeHeld - tw) * dpr, (rc.plotHeight - 6) * dpr)
+          c.restore()
+        },
+      }
+      ctx.addPrimitive(behind)
+      ctx.addPrimitive(front)
+
+      const stop = startPolling(
+        ctx,
+        (body) => {
+          state.body = body
+          state.problem = null
+          ctx.requestRecompute()
+        },
+        (message) => {
+          state.problem = message
+          ctx.requestRecompute()
+        },
+        fetchLevels,
+      )
+
+      return () => {
+        stop()
+        ctx.removePrimitive(behind)
+        ctx.removePrimitive(front)
+      }
+    },
+  }
 }

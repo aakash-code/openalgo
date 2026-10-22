@@ -471,10 +471,15 @@ def _rebuild_watched(underlyings: set[str]) -> None:
     if not underlyings:
         return
     from services.market_read_service import on_minute
+    from services.oi_levels_service import rebuild_watched as rebuild_levels
     from services.writer_flow_service import rebuild_watched
 
     rebuild_watched(underlyings)
     _announce(underlyings)
+    # After the announcement: the levels take longer than the flow, and the
+    # strips should not wait for them. A chart that asks meanwhile waits for
+    # this same build rather than starting another.
+    rebuild_levels(underlyings)
     # Only queued: the read runs on its own thread, never on this beat.
     for underlying in underlyings:
         on_minute(underlying)

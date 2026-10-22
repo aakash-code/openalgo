@@ -158,6 +158,40 @@ def flow():
     return response
 
 
+@writer_flow_bp.route("/writerflow/api/levels", methods=["GET"])
+@check_session_validity
+def levels():
+    """Support and resistance zones from the record, for the chart's Option levels overlay."""
+    from services.oi_levels_service import LevelsView, levels_answer
+
+    underlying = (request.args.get("underlying") or "").strip().upper()
+    expiry = (request.args.get("expiry") or "").strip().upper()
+    day_text = (request.args.get("date") or "").strip()
+    if not UNDERLYING_RE.match(underlying):
+        return jsonify({"status": "error", "message": "Choose an underlying, such as NIFTY."}), 400
+    if expiry and not EXPIRY_RE.match(expiry):
+        return jsonify({"status": "error", "message": "The expiry should look like 19OCT26."}), 400
+    try:
+        day = date.fromisoformat(day_text) if day_text else None
+    except ValueError:
+        return jsonify({"status": "error", "message": "The date should look like 2026-10-21."}), 400
+    try:
+        built = levels_answer(LevelsView(underlying=underlying, day=day, expiry=expiry or None))
+    except Exception:
+        logger.exception(f"Option levels: reading {underlying} failed")
+        return jsonify(
+            {"status": "error", "message": "Could not read the option levels. Try again in a moment."}
+        ), 500
+    zipped = "gzip" in (request.headers.get("Accept-Encoding") or "").lower()
+    response = Response(
+        built.gzipped if zipped else built.body, status=built.status, mimetype="application/json"
+    )
+    if zipped:
+        response.headers["Content-Encoding"] = "gzip"
+    response.headers["Vary"] = "Accept-Encoding"
+    return response
+
+
 @writer_flow_bp.route("/writerflow/api/read", methods=["GET"])
 @check_session_validity
 def market_read():

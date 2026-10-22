@@ -51,6 +51,7 @@ need → drill into the specific file. Don't load everything at once.
 | OI Profile: live open interest from the broker feed, per-broker capability | [oi-profile-live-oi.md](oi-profile-live-oi.md) |
 | Writer Flow: where option writers added, covered or held, strike by strike through the day | [writer-flow.md](writer-flow.md) |
 | Writer Flow: how to read it on the chart (colours, streak bars, markers, totals, what to look for) | [writer-flow-guide.md](writer-flow-guide.md) |
+| Option Levels: support and resistance from where option writers sit, ranked by a rolling month of open interest, on the `/trading` chart | [option-levels.md](option-levels.md) |
 | Market read: the `/trading` panel that reads writers, futures, levels and volatility together every minute, and its alerts | [market-read.md](market-read.md) |
 | WhatsApp alerts | [whatsapp.md](whatsapp.md) |
 | Telegram chart rendering | [telegram-chart-rendering.md](telegram-chart-rendering.md) |

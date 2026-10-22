@@ -155,6 +155,9 @@ const OI_PROFILE_FILE = 'oi_profile_live.js'
 const WRITER_FLOW_ID = 'writer-flow-live'
 const WRITER_FLOW_TOTALS_ID = 'writer-flow-totals'
 const WRITER_FLOW_FILE = 'writer_flow_live.js'
+// Option levels: support and resistance zones from the same record, shipped in
+// the Writer Flow module, so it is offered wherever Writer Flow is installed.
+const LEVELS_ID = 'writer-flow-levels'
 
 // The forms a chart opens on request: none is needed to paint it. Mounted only
 // while open, so their code is fetched on the first opening rather than with
@@ -838,6 +841,20 @@ export function ChartPane({
     }
   }
 
+  const levels = indicators.find((i) => i.indicatorId === LEVELS_ID)
+  const levelsToggling = useRef(false)
+  const toggleLevels = async () => {
+    const t = terminalRef.current
+    if (!t || levelsToggling.current) return
+    levelsToggling.current = true
+    try {
+      if (levels) t.removeIndicatorById(levels.id)
+      else await t.addIndicatorById(LEVELS_ID)
+    } finally {
+      levelsToggling.current = false
+    }
+  }
+
   /* ── drawing / indicator / view actions (additive) ────────────────────── */
   /**
    * Rebuild the catalogue every time the picker opens, not only the first time.
@@ -1435,6 +1452,48 @@ export function ChartPane({
                     className={cn(TB_BTN, TB_ICON)}
                     aria-label="Writer Flow settings"
                     onClick={() => terminalRef.current?.openIndicatorSettings(writerFlow.id)}
+                  >
+                    <ChromeIcon id="settings" />
+                  </button>
+                </Tip>
+              )}
+            </div>
+          )}
+
+          {/* Option levels. Support and resistance zones from where option
+            writers hold open interest, moving with the record minute by
+            minute. Ships with Writer Flow, so offered wherever it is. */}
+          {writerFlowInstalled && (
+            <div className="flex shrink-0 items-center gap-0.5">
+              <Tip
+                tip={{
+                  title: levels ? 'Hide option levels' : 'Option levels',
+                  sub: 'Support and resistance from where option writers sit, minute by minute',
+                }}
+              >
+                <button
+                  type="button"
+                  className={cn(TB_BTN, levels && TB_ON)}
+                  aria-label="Option levels"
+                  aria-pressed={Boolean(levels)}
+                  onClick={() => void toggleLevels()}
+                >
+                  <ChromeIcon id="chart-step" />
+                  <span className={TB_LABEL_2XL}>Levels</span>
+                </button>
+              </Tip>
+              {levels && (
+                <Tip
+                  tip={{
+                    title: 'Option levels settings',
+                    sub: 'History, marks, gamma flip, opacity',
+                  }}
+                >
+                  <button
+                    type="button"
+                    className={cn(TB_BTN, TB_ICON)}
+                    aria-label="Option levels settings"
+                    onClick={() => terminalRef.current?.openIndicatorSettings(levels.id)}
                   >
                     <ChromeIcon id="settings" />
                   </button>
