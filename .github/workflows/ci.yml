@@ -299,6 +299,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
+          check-latest: true
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
@@ -316,6 +317,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
+          check-latest: true
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
@@ -358,6 +360,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
+          check-latest: true
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
@@ -376,7 +379,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: ['20', '22', '24']
+        node-version: ['22', '24']
     defaults:
       run:
         working-directory: frontend
@@ -385,6 +388,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
+          check-latest: true
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
@@ -401,7 +405,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        node-version: ['20', '22', '24']
+        node-version: ['22', '24']
     defaults:
       run:
         working-directory: frontend
@@ -410,6 +414,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: ${{ matrix.node-version }}
+          check-latest: true
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
@@ -432,6 +437,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
+          check-latest: true
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
       - run: npm ci
@@ -475,6 +481,7 @@ jobs:
       - uses: actions/setup-node@v7
         with:
           node-version: '22'
+          check-latest: true
           cache: 'npm'
           cache-dependency-path: frontend/package-lock.json
       - name: Build frontend
