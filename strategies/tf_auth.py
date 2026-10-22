@@ -169,6 +169,54 @@ def _install_playwright_browsers() -> bool:
         return False
 
 
+def _start_virtual_display():
+    """Give headed Chromium a virtual display on a headless Linux box (the OCI
+    server), so the headed-login fallback runs unattended instead of failing
+    with 'no display'. The persistent profile completes the Google tile without
+    a human, so a virtual display is all the fallback needs to self-heal.
+
+    Returns a cleanup callable, or None when not needed (a real/forwarded
+    display already exists, or this is not Linux) or not possible (Xvfb not
+    installed). Never raises.
+    """
+    import platform
+    import shutil
+    import subprocess
+
+    if platform.system() != "Linux" or os.environ.get("DISPLAY"):
+        return None  # macOS, or a display is already available
+    if not shutil.which("Xvfb"):
+        print("[tf_auth] headed login needs a display and Xvfb is not installed on this "
+              "headless box. Install it once: sudo apt-get install -y xvfb")
+        return None
+    # ponytail: fixed display :99, fine under the single gunicorn worker; switch
+    # to an allocated number if this ever runs multi-process.
+    disp = ":99"
+    try:
+        proc = subprocess.Popen(
+            ["Xvfb", disp, "-screen", "0", "1280x1024x24", "-nolisten", "tcp"],
+            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+        )
+    except Exception as e:
+        print(f"[tf_auth] could not start Xvfb: {e}")
+        return None
+    os.environ["DISPLAY"] = disp
+    time.sleep(1.0)  # let the display come up before Chromium connects
+
+    def cleanup():
+        os.environ.pop("DISPLAY", None)
+        try:
+            proc.terminate()
+            proc.wait(timeout=5)
+        except Exception:
+            try:
+                proc.kill()
+            except Exception:
+                pass
+
+    return cleanup
+
+
 def refresh_tf_jwt(headless: bool = True, timeout_s: int = 60, _retried: bool = False) -> str | None:
     """
     Launch the persistent profile, reload TradeFinder, and return a fresh `lt` token.
@@ -185,6 +233,9 @@ def refresh_tf_jwt(headless: bool = True, timeout_s: int = 60, _retried: bool = 
               f"          run: uv run python strategies/tf_login_setup.py  (one-time Google login)")
         return None
 
+    # A headed launch on a headless Linux server needs a virtual display; no-op
+    # on macOS or where a display already exists.
+    disp_cleanup = _start_virtual_display() if not headless else None
     try:
         with sync_playwright() as p:
             ctx = p.chromium.launch_persistent_context(
@@ -249,6 +300,9 @@ def refresh_tf_jwt(headless: bool = True, timeout_s: int = 60, _retried: bool = 
             return refresh_tf_jwt(headless=headless, timeout_s=timeout_s, _retried=True)
         print(f"[tf_auth] refresh error: {e}")
         return None
+    finally:
+        if disp_cleanup:
+            disp_cleanup()
 
 
 def ensure_fresh_jwt(min_seconds: int = 1800) -> str | None:

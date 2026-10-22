@@ -68,6 +68,26 @@ _RETRY_BACKOFF_SECONDS = 5
 _HEADED_LOGIN_TIMEOUT_SECONDS = 240
 
 
+def _headed_fallback_allowed() -> bool:
+    """Whether the headed-login fallback may run.
+
+    On a headless Linux server (the OCI box) with Xvfb present, the headed
+    browser runs on a virtual display — invisible and unattended — so it is
+    always allowed there and self-heals a hard logout on its own. Anywhere a
+    real window would pop onto someone's screen (macOS, or Linux without Xvfb)
+    it is OFF unless explicitly opted in with TF_HEADED_LOGIN=1, so a desktop
+    never has a browser window appear on its own. When it is off and headless
+    is exhausted, the server-side token is recovered with
+    `uv run python strategies/tf_relogin_oracle.py`.
+    """
+    import platform
+    import shutil
+
+    if platform.system() == "Linux" and shutil.which("Xvfb"):
+        return True
+    return os.getenv("TF_HEADED_LOGIN", "").strip().lower() in ("1", "true", "yes")
+
+
 def _load_tf_auth():
     """strategies/ has no __init__.py (its scripts run standalone via `uv run`
     from that directory), so this is loaded by file path rather than imported
@@ -142,23 +162,35 @@ def trigger_refresh_if_needed(min_seconds: int = 1800, force: bool = False) -> d
                                 )
                                 time.sleep(_RETRY_BACKOFF_SECONDS)
 
-                        # Headless is exhausted. Open a visible window so the user can
-                        # complete the Google login by hand whenever they notice it —
-                        # refresh_tf_jwt keeps polling for the token for the whole
-                        # timeout, so the window stays up long enough to click through.
+                        # Headless is exhausted. The headed fallback recovers a
+                        # real logout, but only run it where it is invisible and
+                        # unattended (Linux + Xvfb, i.e. the OCI box). On a
+                        # desktop it would pop a browser window on its own, so
+                        # there it stays off unless opted in (see
+                        # _headed_fallback_allowed) and we point at the relogin
+                        # tool instead.
+                        if not _headed_fallback_allowed():
+                            logger.error(
+                                "tf_jwt_keepalive: headless refresh exhausted and the TradeFinder "
+                                "session is logged out. Recover the token with: "
+                                "uv run python strategies/tf_relogin_oracle.py  (paste a fresh JWT). "
+                                "To let the server self-heal unattended instead, install Xvfb on a "
+                                "headless Linux box, or set TF_HEADED_LOGIN=1 to allow a visible "
+                                "login window on this machine."
+                            )
+                            return
                         logger.warning(
-                            "tf_jwt_keepalive: headless refresh exhausted, opening a visible "
-                            "browser window for manual Google login"
+                            "tf_jwt_keepalive: headless refresh exhausted, running the headed "
+                            "login fallback (virtual display if headless)"
                         )
                         if ta.refresh_tf_jwt(headless=False, timeout_s=_HEADED_LOGIN_TIMEOUT_SECONDS):
-                            logger.info("tf_jwt_keepalive: refresh succeeded via headed login window")
+                            logger.info("tf_jwt_keepalive: refresh succeeded via the headed login fallback")
                             return
                         logger.error(
-                            "tf_jwt_keepalive: refresh failed even after a headed login window "
-                            "(no display, or login not completed in time). Run "
-                            "uv run python strategies/tf_login_setup.py manually, or check "
-                            "that the Playwright chromium build is installed "
-                            "(uv run playwright install chromium)."
+                            "tf_jwt_keepalive: refresh failed even after the headed login fallback. "
+                            "Check the Playwright chromium build is installed "
+                            "(uv run playwright install chromium), and on a headless box that Xvfb "
+                            "is installed (sudo apt-get install -y xvfb)."
                         )
                     except Exception as e:
                         logger.warning(f"tf_jwt_keepalive: background refresh failed: {e}")
