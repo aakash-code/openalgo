@@ -180,6 +180,7 @@ def _start_virtual_display():
     installed). Never raises.
     """
     import platform
+    import select
     import shutil
     import subprocess
 
@@ -189,22 +190,57 @@ def _start_virtual_display():
         print("[tf_auth] headed login needs a display and Xvfb is not installed on this "
               "headless box. Install it once: sudo apt-get install -y xvfb")
         return None
-    # ponytail: fixed display :99, fine under the single gunicorn worker; switch
-    # to an allocated number if this ever runs multi-process.
-    disp = ":99"
+
+    # Let Xvfb pick a FREE display and report the number back on a pipe, rather
+    # than guessing a fixed :99 — a collision would otherwise point DISPLAY at
+    # an X server we did not start. `-nolisten tcp` keeps it off the network;
+    # the box is single-user, so a local X-auth cookie adds ceremony without
+    # changing the threat model.
+    r, w = os.pipe()
     try:
         proc = subprocess.Popen(
-            ["Xvfb", disp, "-screen", "0", "1280x1024x24", "-nolisten", "tcp"],
-            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
+            ["Xvfb", "-displayfd", str(w), "-screen", "0", "1280x1024x24", "-nolisten", "tcp"],
+            pass_fds=(w,), stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL,
         )
     except Exception as e:
+        os.close(r)
+        os.close(w)
         print(f"[tf_auth] could not start Xvfb: {e}")
         return None
+    os.close(w)
+
+    num = b""
+    deadline = time.time() + 10
+    try:
+        while time.time() < deadline and b"\n" not in num:
+            if select.select([r], [], [], 0.5)[0]:
+                chunk = os.read(r, 64)
+                if not chunk:
+                    break
+                num += chunk
+            elif proc.poll() is not None:
+                break  # Xvfb exited before reporting a display
+    finally:
+        os.close(r)
+
+    num = num.strip()
+    if not num or proc.poll() is not None:
+        print("[tf_auth] Xvfb did not come up; headed login cannot run")
+        try:
+            proc.terminate()
+        except Exception:
+            pass
+        return None
+
+    disp = ":" + num.decode()
+    prev = os.environ.get("DISPLAY")
     os.environ["DISPLAY"] = disp
-    time.sleep(1.0)  # let the display come up before Chromium connects
 
     def cleanup():
-        os.environ.pop("DISPLAY", None)
+        if prev is None:
+            os.environ.pop("DISPLAY", None)
+        else:
+            os.environ["DISPLAY"] = prev
         try:
             proc.terminate()
             proc.wait(timeout=5)
