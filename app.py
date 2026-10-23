@@ -194,7 +194,11 @@ def create_app():
     if _trust_proxy_headers():
         from werkzeug.middleware.proxy_fix import ProxyFix
 
-        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+        # x_for restores the real client IP; x_proto keeps HTTPS redirects and
+        # secure cookies correct. x_host is deliberately NOT trusted -- not every
+        # install's proxy overwrites X-Forwarded-Host, so trusting it would allow
+        # Host-header poisoning.
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1)
 
     # Initialize SocketIO
     socketio.init_app(app)  # Link SocketIO to the Flask app
