@@ -8,6 +8,16 @@ fix, live in [docs/releases](releases/).
 
 ## [Unreleased]
 
+### Fixed: login lockout behind a reverse proxy
+
+Behind nginx with `TRUST_PROXY_HEADERS=TRUE`, the login rate limit was shared by
+every visitor instead of counted per IP, because the limiter read an empty
+`remote_addr` over the proxy's unix socket. Background bots hitting the login
+page could then trigger "Too many login attempts" for a real user on their very
+first attempt. `ProxyFix` now restores the real client IP so the limit is
+per-IP again (this also fixes the empty client IP in `log/errors.jsonl`). It is
+gated on `TRUST_PROXY_HEADERS`, so default direct installs are unchanged.
+
 ### Market read: what moved the index, in sentences, every minute
 
 No migration: three small tables are added to the Writer Flow record

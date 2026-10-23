@@ -181,6 +181,21 @@ def create_app():
     # Initialize Flask application
     app = Flask(__name__)
 
+    # Behind a trusted reverse proxy (TRUST_PROXY_HEADERS=TRUE), rewrite the WSGI
+    # REMOTE_ADDR from the proxy's X-Forwarded-For so request.remote_addr is the
+    # real client IP. Without this, nginx over a unix socket leaves remote_addr
+    # empty, so flask_limiter's get_remote_address keys every client to one
+    # bucket -- the per-IP login limit becomes global and background bot hits on
+    # the login page lock a real user out on their first try. It also restores
+    # the client IP in log/errors.jsonl (otherwise ""). Gated, so the default
+    # direct install is unchanged and the header stays unspoofable there.
+    from utils.ip_helper import _trust_proxy_headers
+
+    if _trust_proxy_headers():
+        from werkzeug.middleware.proxy_fix import ProxyFix
+
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
+
     # Initialize SocketIO
     socketio.init_app(app)  # Link SocketIO to the Flask app
 
