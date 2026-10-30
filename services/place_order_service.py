@@ -15,6 +15,7 @@ from utils.constants import (
     VALID_PRODUCT_TYPES,
 )
 from utils.event_bus import bus
+from utils.httpx_client import UNANSWERED_ORDER_MESSAGE, watch_for_unanswered_writes
 from utils.logging import get_logger
 
 # Initialize logger
@@ -245,8 +246,10 @@ def place_order_with_auth(
         )
         return False, error_response, 404
 
+    unanswered: list[str] = []
     try:
-        res, response_data, order_id = broker_module.place_order_api(order_data, auth_token)
+        with watch_for_unanswered_writes() as unanswered:
+            res, response_data, order_id = broker_module.place_order_api(order_data, auth_token)
     except BrokerBusyError as e:
         # Refused before it was sent: the broker's request queue was longer
         # than a caller may wait under the gthread worker. Never raised under
@@ -270,7 +273,9 @@ def place_order_with_auth(
         logger.exception(f"Error in broker_module.place_order_api: {e}")
         error_response = {
             "status": "error",
-            "message": "Failed to place order due to internal error",
+            "message": UNANSWERED_ORDER_MESSAGE
+            if unanswered
+            else "Failed to place order due to internal error",
         }
         bus.publish(
             OrderFailedEvent(
@@ -284,7 +289,7 @@ def place_order_with_auth(
                 error_message=str(e),
             )
         )
-        return False, error_response, 500
+        return False, error_response, 502 if unanswered else 500
 
     res_status = broker_response_status(res)
 
@@ -317,6 +322,9 @@ def place_order_with_auth(
             if isinstance(response_data, dict)
             else "Failed to place order"
         )
+        if unanswered:
+            # The broker caught the lost response itself and reported a failure.
+            message = UNANSWERED_ORDER_MESSAGE
         error_response = {"status": "error", "message": message}
         bus.publish(
             OrderFailedEvent(
@@ -330,9 +338,14 @@ def place_order_with_auth(
                 error_message=message,
             )
         )
-        # Surface the broker's own HTTP status when we have one (403 for the
-        # SEBI static-IP block, 400 for a bad order, etc.) so the caller sees a
-        # real reason instead of a blanket 500.
+        # A broker that never answered is a gateway failure, not a rejected
+        # order: 502 so the caller can distinguish "didn't reach the broker"
+        # from "broker said no".
+        if unanswered:
+            return False, error_response, 502
+        # Otherwise surface the broker's own HTTP status when we have one (403
+        # for the SEBI static-IP block, 400 for a bad order, etc.) so the caller
+        # sees a real reason instead of a blanket 500.
         return False, error_response, res_status if res_status not in (None, 200) else 500
 
 
