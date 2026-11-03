@@ -116,7 +116,7 @@ export default function OwnerLockSettings() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="ol-new">New passcode (at least 4 characters)</Label>
+              <Label htmlFor="ol-new">New passcode (at least 4 characters, not your login password)</Label>
               <Input
                 id="ol-new"
                 type="password"

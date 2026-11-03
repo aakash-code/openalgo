@@ -156,3 +156,16 @@ def test_status(client, state):
     state["code"] = "1234"
     body = client.get("/owner-lock/status").get_json()
     assert body["enabled"] is True and body["unlocked"] is False
+
+
+def test_passcode_cannot_be_the_login_password(client, state):
+    r = client.post(
+        "/owner-lock/passcode", json={"new_passcode": "loginpw", "login_password": "loginpw"}
+    )
+    assert r.status_code == 400 and state["code"] is None
+    assert "different" in r.get_json()["message"]
+    state["code"] = "1234"
+    r = client.post(
+        "/owner-lock/passcode", json={"new_passcode": "loginpw", "current_passcode": "1234"}
+    )
+    assert r.status_code == 400 and state["code"] == "1234"

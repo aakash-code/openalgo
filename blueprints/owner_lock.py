@@ -116,6 +116,11 @@ def change_passcode():
     if not (MIN_LENGTH <= len(new) <= MAX_LENGTH):
         return _error(f"Choose a passcode of at least {MIN_LENGTH} characters.")
 
+    # The point of the passcode is that someone holding the login does not
+    # have it, so it may not be the login password.
+    if authenticate_user(session.get("user"), new):
+        return _error("Choose a passcode that is different from your OpenAlgo login password.")
+
     set_passcode(new)
     mark_unlocked()
     logger.info("Owner passcode set")
