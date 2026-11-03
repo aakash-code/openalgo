@@ -75,7 +75,11 @@ jobs:
             test/test_stream_oi.py test/test_oi_profile_multi_expiry.py \
             test/test_upstox_get_reset_retry.py \
             test/test_qty_freeze_unknown_default.py \
-            test/test_migrate_qty_freeze_oct_2026.py \
+            test/test_migrate_qty_freeze_nov_2026.py \
+            test/test_migrate_muhurat_2026.py \
+            test/test_migrate_market_holidays.py \
+            test/test_broker_keys.py \
+            test/test_broker_callback_logging.py \
             -v --timeout=60
 
   # The web server launcher, booted for real. install/openalgo-gunicorn.sh is
@@ -286,6 +290,7 @@ jobs:
           test/test_gthread_memory_order_updates.py
           test/test_gthread_memory_streaming.py
           test/test_gthread_memory_flow.py
+          test/test_broker_keys.py
           -o addopts="" --timeout=120 -rs
 
   # Frontend linting

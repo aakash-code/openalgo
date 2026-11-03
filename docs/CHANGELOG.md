@@ -6,6 +6,142 @@ Each release adds a stanza here summarising what changed and who contributed.
 The full notes for a release, with commit SHAs and the reasoning behind each
 fix, live in [docs/releases](releases/).
 
+## [2.0.3.2] - 2026-10-31
+
+### Freeze Limits and Muhurat Session Release
+
+6 commits since 2.0.3.1, excluding automated frontend build commits and
+including this release. Full notes:
+[version-2.0.3.2-released.md](releases/version-2.0.3.2-released.md).
+This release adds two data migrations and no schema change. Upgrade and
+restart before Monday 2 November's open.
+
+### Highlights
+
+- NSE's lower index freeze limits from Monday 2 November 2026.
+- The published Diwali Muhurat session on Sunday 8 November 2026.
+- An upgrade no longer erases the holidays you set.
+- WhatsApp alerts stay connected (#2332).
+- LiteLLM 1.106.6 brings newer models to the agent.
+
+### NSE index freeze limits from 2 November 2026
+
+NSE circular NSE/FAOP/77189 (30 October 2026) lowers every index freeze limit
+from Monday 2 November 2026, returning to NSE's computation method, which the
+October circular had set aside:
+
+| Index | Until 1 Nov | From 2 Nov | Largest single order |
+| --- | --- | --- | --- |
+| NIFTY | 3,510 | 1,800 | 27 lots of 65 (1,755) |
+| BANKNIFTY | 1,440 | 900 | 30 lots of 30 |
+| FINNIFTY | 3,240 | 1,800 | 30 lots of 60 |
+| MIDCPNIFTY | 5,760 | 2,800 | 23 lots of 120 (2,760) |
+| NIFTYNXT50 | 1,125 | 600 | 24 lots of 25 |
+| NIFTYFPI | 53,900 | 8,500 | 7 lots of 1,100 (7,700) |
+
+- **Upgrade before Monday's open.** The exchange rejects any order above the
+  new limit. On the October limits, the `/trading` terminal would let a NIFTY
+  order of 28 to 54 lots go in one piece, the scalping terminal would close a
+  position in pieces of up to 54 lots, and tools reading `freeze_qty` from the
+  symbol and search APIs would split at 3,510. Each of those orders would be
+  rejected.
+- **New installs** get the limits from `data/qtyfreeze.csv`. **Existing
+  installs** get them from `upgrade/migrate_qty_freeze_nov_2026.py`, which
+  `migrate_all.py` runs; restart OpenAlgo afterwards. A limit you set yourself
+  on the Freeze Quantities page is left as it is and listed in the output.
+- **The stored limit is NSE's figure, 1,800 for NIFTY,** not a whole number of
+  lots. OpenAlgo rounds down to whole lots when it splits an order, which gives
+  the last column above (at the lot sizes in force in October).
+- `migrate_qty_freeze_oct_2026.py` is replaced, not kept beside the new script.
+  It treated 1,800 as an old NIFTY limit and raised it, so running both would
+  undo this change each time the migrations ran. The new script handles every
+  value the old one did.
+
+### Diwali Muhurat trading on Sunday 8 November 2026
+
+NSE, BSE and MCX published the Muhurat session on 19 October 2026. The 2026
+calendar OpenAlgo shipped carried a guess of 18:00 to 19:15, with MCX running
+to 00:15, so a `/python` strategy scheduled for that Sunday would have been
+held back during the real session and let run after the market had shut. The
+calendar now carries the published session:
+
+| Segment | Pre-open | Trading |
+| --- | --- | --- |
+| Equity (NSE, BSE) | 14:05 to 14:15 | 14:20 to 15:30 |
+| Equity derivatives (NFO, BFO) | 14:05 to 14:15 | 14:20 to 15:40 |
+| Commodities (MCX, and NSE commodities on Zerodha) | 14:05 to 14:20 | 14:20 to 15:30 |
+| Currency (CDS, BCD) | none | 14:20 to 15:30 |
+
+- **New installs** are seeded with these timings. **Existing installs** are
+  updated when OpenAlgo next starts, and by
+  `upgrade/migrate_muhurat_2026.py`, which `migrate_all.py` runs. An exchange
+  whose session you set or removed on the Holidays page is left as it is.
+- NSE commodities (NCO) is now open for the session; it was missing before.
+- The `/python` guide shows these timings instead of the guess.
+
+### An upgrade no longer erases the holidays you set
+
+- Every upgrade ran `upgrade/migrate_market_holidays.py`, which deleted the
+  whole holiday calendar and reloaded the one OpenAlgo ships. A holiday you
+  added or edited on the Holidays page was undone each time, and one you
+  deleted came back. OpenAlgo did the same at startup whenever no special
+  session was stored, which happens only once you have deleted them all.
+- Both now change only rows OpenAlgo shipped and nobody edited. An install
+  still on the first 2026 calendar (December 2025, with Holi on 10 March and
+  Muhurat on 20 October) is moved to the corrected one; any other calendar is
+  left exactly as it is.
+- A holiday an earlier upgrade erased is not restored. Add it again on the
+  Holidays page, and it now stays.
+
+### Agent: LiteLLM 1.106.6 and newer models
+
+The Agent's provider and model lists at `/agent/config` come from LiteLLM, which
+moves from 1.104.0 to 1.106.6. Nothing to configure: models you have already
+added keep working as they are. A server that reaches GitHub was already
+fetching LiteLLM's online model list, so most of what follows is new only to a
+server without internet access.
+
+- **Newer models in the picker**, among them Claude Sonnet 5.5 and Claude
+  Haiku 5.5, GPT-6.1 Sol, Gemini 4 Argon and Mistral Large 4, with their
+  context window and price as before.
+- **ChatGPT Plus or Pro**: `gpt-6-sol`, `gpt-6-luna`, `gpt-6.1-sol` and
+  `gpt-rosalind-discovery` join the plan models, and `gpt-6-astra` now comes
+  from LiteLLM itself, so OpenAlgo adds no plan model of its own any more.
+  `gpt-rosalind-discovery` shows "tool support unknown" because LiteLLM records
+  nothing about what it can do, and the agent works only through tools, so run
+  the model test on the config page before relying on it. Which of these your
+  plan may use is decided by OpenAI, not by this list.
+- **OpenRouter lists no models.** LiteLLM removed its OpenRouter model list,
+  both from the package and online, so the OpenRouter picker is empty: add an
+  OpenRouter model by name with Model not listed. OpenRouter models you have
+  already added keep working, but their usage shows tokens without a cost,
+  because LiteLLM no longer carries OpenRouter prices.
+- **Example model names** in the Add Model dialog are current: `gpt-6.1-sol`
+  for OpenAI and `claude-sonnet-5-5` for Anthropic.
+
+### Fixed
+
+- **WhatsApp alerts stay connected** (#2332). The WhatsApp bot could miss an
+  alert and then disconnect within an hour of starting, most often on Docker.
+  Its periodic session save removed files the live connection was still using.
+  The save now runs in a separate process, so the connection keeps its files.
+
+### Dependencies
+
+- `litellm` 1.104.0 to 1.106.6, and with it `boto3` and `botocore` 1.43.87 to
+  1.43.122, the oldest LiteLLM 1.106.6 accepts being 1.43.117. LiteLLM still
+  caps `filelock` below 4.0, so the `filelock>=4.2.1` override stays.
+- LiteLLM 1.106.6 was published on 28 October 2026. A server whose uv is set
+  to install only packages older than a number of days (`exclude-newer`)
+  refuses it until it is old enough; `uv run --frozen app.py` installs from
+  the lockfile and is not affected.
+
+### Contributors
+
+- **@marketcalls** - the November freeze limits, the Muhurat session, the
+  holiday calendar fix, LiteLLM 1.106.6 and the release.
+- **@Kalaiviswa** - WhatsApp alerts that stay connected (#2332).
+
 ## [2.0.3.1] - 2026-10-30
 
 ### Security Fixes and Fyers Live Data Release
