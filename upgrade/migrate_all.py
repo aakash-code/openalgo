@@ -59,6 +59,7 @@ MIGRATIONS = [
     # Legacy migrations (for users upgrading from older versions)
     ("add_feed_token.py", "Feed Token Support"),
     ("add_user_id.py", "User ID Column"),
+    ("migrate_owner_lock.py", "Owner Passcode Lock (fork)"),
     # Core feature migrations
     ("migrate_telegram_bot.py", "Telegram Bot Integration"),
     ("migrate_smtp_simple.py", "SMTP Configuration"),

@@ -89,6 +89,7 @@ from blueprints.oitracker import oitracker_bp  # Import the OI tracker blueprint
 from blueprints.openscript import openscript_bp  # Trader authored OpenScript sources
 from blueprints.openscript_runner import openscript_runner_bp  # Runs one saved strategy
 from blueprints.orders import orders_bp
+from blueprints.owner_lock import owner_lock_bp  # fork: owner passcode lock
 from blueprints.platforms import platforms_bp
 from blueprints.playground import playground_bp  # Import the API playground blueprint
 from blueprints.tradefinder_proxy import (
@@ -137,6 +138,7 @@ from database.flow_db import init_db as ensure_flow_tables_exists
 from database.historify_db import init_database as ensure_historify_tables_exists
 from database.latency_db import init_latency_db as ensure_latency_tables_exists
 from database.leverage_db import init_db as ensure_leverage_tables_exists
+from database.owner_lock_db import init_db as ensure_owner_lock_tables_exists  # fork
 from database.sandbox_db import init_db as ensure_sandbox_tables_exists
 from database.scalping_db import init_db as ensure_scalping_tables_exists
 from database.settings_db import init_db as ensure_settings_tables_exists
@@ -358,6 +360,7 @@ def create_app():
     app.register_blueprint(openscript_runner_bp)  # Register the OpenScript strategy runner
     app.register_blueprint(pnltracker_bp)  # Register PnL tracker blueprint
     app.register_blueprint(python_strategy_bp)  # Register Python strategy blueprint
+    app.register_blueprint(owner_lock_bp)  # fork: owner passcode lock
     app.register_blueprint(telegram_bp)  # Register Telegram blueprint
     app.register_blueprint(whatsapp_bp)  # Register WhatsApp blueprint
     app.register_blueprint(security_bp)  # Register Security blueprint
@@ -788,6 +791,7 @@ def setup_environment(app):
                 ("API Log DB", ensure_api_log_tables_exists),
                 ("Analyzer DB", ensure_analyzer_tables_exists),
                 ("Settings DB", ensure_settings_tables_exists),
+                ("Owner Lock DB", ensure_owner_lock_tables_exists),  # fork
                 ("Chartink DB", ensure_chartink_tables_exists),
                 ("Traffic Logs DB", ensure_traffic_logs_exists),
                 ("Latency DB", ensure_latency_tables_exists),

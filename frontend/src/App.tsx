@@ -5,11 +5,12 @@ import { AuthSync } from '@/components/auth/AuthSync'
 import { FullWidthLayout } from '@/components/layout/FullWidthLayout'
 import { Layout } from '@/components/layout/Layout'
 import { PageLoader } from '@/components/ui/page-loader'
+// Lazy load all pages for code splitting
+// Public pages
+import { gated } from '@/features/owner-lock/gated' // fork
 import { usePageTitle } from '@/hooks/usePageTitle'
 import { useBrokerStore } from '@/stores/brokerStore'
 
-// Lazy load all pages for code splitting
-// Public pages
 const Home = lazy(() => import('@/pages/Home'))
 const PortfolioBacktester = lazy(() => import('@/pages/PortfolioBacktester'))
 const PortfolioBacktesterResults = lazy(() => import('@/pages/PortfolioBacktesterResults'))
@@ -39,7 +40,8 @@ const TradeBook = lazy(() => import('@/pages/TradeBook'))
 const Holdings = lazy(() => import('@/pages/Holdings'))
 const Token = lazy(() => import('@/pages/Token'))
 const Search = lazy(() => import('@/pages/Search'))
-const ApiKey = lazy(() => import('@/pages/ApiKey'))
+const OwnerLockSettings = lazy(() => import('@/features/owner-lock/OwnerLockSettings')) // fork
+const ApiKey = lazy(() => import('@/pages/ApiKey').then(gated('gate', 'API key is locked'))) // fork
 const AgentIndex = lazy(() => import('@/pages/agent/AgentIndex'))
 const AgentConfig = lazy(() => import('@/pages/agent/AgentConfig'))
 const Profile = lazy(() => import('@/pages/Profile'))
@@ -87,11 +89,21 @@ const StrategyBuilder = lazy(() => import('@/pages/StrategyBuilder'))
 const StrategyPortfolio = lazy(() => import('@/pages/StrategyPortfolio'))
 
 // Python Strategy pages
-const PythonStrategyIndex = lazy(() => import('@/pages/python-strategy/PythonStrategyIndex'))
-const NewPythonStrategy = lazy(() => import('@/pages/python-strategy/NewPythonStrategy'))
-const EditPythonStrategy = lazy(() => import('@/pages/python-strategy/EditPythonStrategy'))
-const PythonStrategyLogs = lazy(() => import('@/pages/python-strategy/PythonStrategyLogs'))
-const SchedulePythonStrategy = lazy(() => import('@/pages/python-strategy/SchedulePythonStrategy'))
+const PythonStrategyIndex = lazy(() =>
+  import('@/pages/python-strategy/PythonStrategyIndex').then(gated('readonly'))
+) // fork
+const NewPythonStrategy = lazy(() =>
+  import('@/pages/python-strategy/NewPythonStrategy').then(gated('gate'))
+) // fork
+const EditPythonStrategy = lazy(() =>
+  import('@/pages/python-strategy/EditPythonStrategy').then(gated('gate'))
+) // fork
+const PythonStrategyLogs = lazy(() =>
+  import('@/pages/python-strategy/PythonStrategyLogs').then(gated('gate'))
+) // fork
+const SchedulePythonStrategy = lazy(() =>
+  import('@/pages/python-strategy/SchedulePythonStrategy').then(gated('gate'))
+) // fork
 const PythonStrategyGuide = lazy(() => import('@/pages/python-strategy/PythonStrategyGuide'))
 
 // Strategy module: multi-leg options strategies with risk management
@@ -199,6 +211,7 @@ function App() {
                 <Route path="/search" element={<Search />} />
                 {/* API Key management */}
                 <Route path="/apikey" element={<ApiKey />} />
+                <Route path="/owner-lock" element={<OwnerLockSettings />} />
                 {/* Phase 4: Charts & Webhook Configuration */}
                 <Route path="/platforms" element={<Platforms />} />
                 <Route path="/tradingview" element={<TradingView />} />
