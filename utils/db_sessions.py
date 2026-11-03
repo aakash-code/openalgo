@@ -42,6 +42,7 @@ SCOPED_SESSION_MODULES = [
     ("database.latency_db", "latency_session"),
     ("database.health_db", "health_session"),
     ("database.settings_db", "db_session"),
+    ("database.owner_lock_db", "db_session"),  # fork: owner passcode lock
     ("database.user_db", "db_session"),
     ("database.action_center_db", "db_session"),
     ("database.qty_freeze_db", "db_session"),
