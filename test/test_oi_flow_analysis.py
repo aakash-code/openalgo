@@ -368,7 +368,7 @@ def test_a_premium_below_intrinsic_has_no_delta():
 def test_the_trend_leans_with_put_writing_near_the_money():
     t0 = datetime(2026, 11, 4, 9, 15)
     steps = [t0 + timedelta(minutes=i) for i in range(4)]
-    spot = {t: 23900.0 for t in steps}
+    spot = dict.fromkeys(steps, 23900.0)
     cells = []
     for i, t in enumerate(steps[1:], start=1):
         cells.append(
