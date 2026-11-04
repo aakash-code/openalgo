@@ -642,6 +642,12 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
             const minStreak = Math.max(1, Number(settings.minStreak) || 5)
             const sides = geom.view === 'calls' ? ['ce'] : geom.view === 'puts' ? ['pe'] : ['ce', 'pe']
             c.font = `${10 * dpr}px sans-serif`
+            // Labels are placed after the bars, strongest first, and one that
+            // would land on a label already placed is left out: strikes sit a
+            // few pixels apart once zoomed out, and every label drawn at its
+            // own row printed one over the next. The bar stays, and hovering
+            // the strike still gives the reading in full.
+            const labels = []
             for (const r of geom.rows) {
               sides.forEach((key) => {
                 const s = r.row[key]
@@ -660,12 +666,20 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
                 c.fillRect((geom.right - len) * dpr, top * dpr, len * dpr, h * dpr)
                 if (s.streak_minutes >= minStreak && h >= 5) {
                   const text = `${key === 'ce' ? 'Call' : 'Put'} ${SHORT[s.cls] ?? s.cls} ${Math.round(s.streak_minutes)}m`
-                  const tw = c.measureText(text).width / dpr
-                  c.globalAlpha = 1
-                  c.fillStyle = rc.theme?.axisText || TOOLTIP_FG
-                  c.fillText(text, (geom.right - len - tw - 4) * dpr, mid * dpr)
+                  labels.push({ text, mid, len, weight: Math.abs(s.streak_oi_change || 0) })
                 }
               })
+            }
+            const LABEL_GAP_PX = 11
+            const placed = []
+            labels.sort((a, b) => b.weight - a.weight)
+            c.globalAlpha = 1
+            c.fillStyle = rc.theme?.axisText || TOOLTIP_FG
+            for (const l of labels) {
+              if (placed.some((y) => Math.abs(y - l.mid) < LABEL_GAP_PX)) continue
+              placed.push(l.mid)
+              const tw = c.measureText(l.text).width / dpr
+              c.fillText(l.text, (geom.right - l.len - tw - 4) * dpr, l.mid * dpr)
             }
 
             const hovered = rc.hoverId && String(rc.hoverId).startsWith(HOVER_ID)
@@ -1010,24 +1024,32 @@ function trendIndicator(underlyingInput, stepInput, readInput) {
       const head = `${word}${turning ? ', fading' : ''}${overall !== 0 && since ? ` since ${since}` : ''}`
       const vote = (x) => (x > 0 ? 'up' : x < 0 ? 'down' : 'flat')
       const voteColour = (x) => (x > 0 ? GREEN : x < 0 ? RED : NEUTRAL)
-      const move = (open, now) => (open == null || now == null ? '' : now > open ? ' (up)' : now < open ? ' (down)' : '')
       const pcrOpen = v('tPcrOpen')
       const pcrNow = v('tPcrNow')
+      const wall = (open, now) =>
+        `${strikeText(now)}${open != null && open !== now ? ` from ${strikeText(open)}` : ''}`
+      // Four rows, so the table fits a pane of its default height; the
+      // verdict and the price share the first, which is what is read first.
       const rows = [
         [
-          { text: 'Direction', bold: true },
-          { text: head, bold: true, bgColor: colour, tooltip: `${v('tScore')} of 3 readings agree` },
+          {
+            text: head,
+            bold: true,
+            bgColor: colour,
+            tooltip: `${v('tScore')} of 3 readings agree: writers ${vote(v('tWriters'))}, put-call ratio ${vote(v('tPcrVote'))}, walls ${vote(v('tWallVote'))}`,
+          },
+          { text: `Price ${signedPct(v('tPrice'), 2)}`, tooltip: 'The underlying since the record began, to compare with what writers did.' },
         ],
         [
-          { text: 'Writers' },
+          { text: 'Writers', textColor: voteColour(v('tWriters')) },
           {
-            text: `${signedPct(v('tStrength'))} lean, last 15 min ${signedPct(v('tRecent'))}`,
+            text: `${signedPct(v('tStrength'))}, 15m ${signedPct(v('tRecent'))}`,
             textColor: voteColour(v('tWriters')),
-            tooltip: 'Share of the open interest moved near the money that backs the underlying (positive) or weighs on it (negative).',
+            tooltip: 'Share of the open interest moved near the money that backs the underlying (positive) or weighs on it (negative), since the open and over the last 15 minutes.',
           },
         ],
         [
-          { text: 'Put-call ratio' },
+          { text: 'PCR', textColor: voteColour(v('tPcrVote')) },
           {
             text: pcrOpen != null && pcrNow != null ? `${pcrOpen.toFixed(2)} -> ${pcrNow.toFixed(2)}` : '-',
             textColor: voteColour(v('tPcrVote')),
@@ -1035,32 +1057,16 @@ function trendIndicator(underlyingInput, stepInput, readInput) {
           },
         ],
         [
-          { text: 'Support' },
+          { text: 'S / R', textColor: voteColour(v('tWallVote')) },
           {
-            text: `${strikeText(v('tSupNow'))}${v('tSupOpen') !== v('tSupNow') ? ` from ${strikeText(v('tSupOpen'))}` : ''}${move(v('tSupOpen'), v('tSupNow'))}`,
+            text: `${wall(v('tSupOpen'), v('tSupNow'))} / ${wall(v('tResOpen'), v('tResNow'))}`,
             textColor: voteColour(v('tWallVote')),
-            tooltip: 'The strike at or below the price holding the most put open interest.',
+            tooltip: 'Support: the strike at or below the price holding the most put open interest. Resistance: the strike at or above it holding the most call open interest. "from" is where each stood at the open.',
           },
-        ],
-        [
-          { text: 'Resistance' },
-          {
-            text: `${strikeText(v('tResNow'))}${v('tResOpen') !== v('tResNow') ? ` from ${strikeText(v('tResOpen'))}` : ''}${move(v('tResOpen'), v('tResNow'))}`,
-            textColor: voteColour(v('tWallVote')),
-            tooltip: 'The strike at or above the price holding the most call open interest.',
-          },
-        ],
-        [
-          { text: 'Price' },
-          { text: `${signedPct(v('tPrice'), 2)} since open`, tooltip: 'The underlying since the record began, to compare with what writers did.' },
-        ],
-        [
-          { text: 'Votes' },
-          { text: `writers ${vote(v('tWriters'))}, ratio ${vote(v('tPcrVote'))}, walls ${vote(v('tWallVote'))}` },
         ],
       ]
-      if (v('tNet') === 0) rows.push([{ text: 'Reading' }, { text: 'raw premium', italic: true }])
-      return { rows, options: { position: 'top-left', cellWidth: 'auto', fontSize: 11 } }
+      if (v('tNet') === 0) rows[0][1].text += ' (raw premium)'
+      return { rows, options: { position: 'top-right', cellWidth: 'auto', fontSize: 10 } }
     },
 
     attach(ctx) {
