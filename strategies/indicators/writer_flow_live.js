@@ -1063,11 +1063,11 @@ function trendIndicator(underlyingInput, stepInput, readInput) {
           },
         ],
         [
-          { text: 'S / R', textColor: voteColour(v('tWallVote')) },
+          { text: 'S / R (rec.)', textColor: voteColour(v('tWallVote')) },
           {
             text: `${wall(v('tSupOpen'), v('tSupNow'))} / ${wall(v('tResOpen'), v('tResNow'))}`,
             textColor: voteColour(v('tWallVote')),
-            tooltip: 'Support: the strike at or below the price holding the most put open interest. Resistance: the strike at or above it holding the most call open interest. "from" is where each stood at the open.',
+            tooltip: 'Support: the strike at or below the price holding the most put open interest. Resistance: the strike at or above it holding the most call open interest. "from" is where each stood at the open. Read over the strikes Writer Flow records (OI_FLOW_STRIKES_AROUND_ATM either side), so the OI Profile, which reads a wider window, can name a farther wall.',
           },
         ],
       ]

@@ -708,7 +708,11 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
           }
         }
         if (settings.walls !== false && (state.walls.support != null || state.walls.resistance != null)) {
-          text += ` | S ${state.walls.support ?? '-'} R ${state.walls.resistance ?? '-'}`
+          // Named with its window, as the ratio is: Writer Trend reads the
+          // recorder's narrower window and can name a nearer resistance
+          // (BANKNIFTY on 4-Nov-2026: 58000 here, 57000 there, both right).
+          const wallWindow = Math.max(1, Math.floor(Number(settings.strikes) || 25))
+          text += ` | S ${state.walls.support ?? '-'} R ${state.walls.resistance ?? '-'} (ATM ±${wallWindow})`
         }
         // Max pain in words as well as the marker: the marker sits on its
         // strike's row, which is often above or below the visible prices
