@@ -147,8 +147,13 @@ class FlowSettings:
     # cannot be known (no spot, no solvable volatility, the last minutes of
     # an expiry) the raw premium is used, so nothing reads worse than before.
     net_of_underlying: bool = True
-    # Strikes either side of the at-the-money one that the trend reads.
+    # Strikes either side of the at-the-money one that the writers' lean reads.
     trend_strikes: int = 6
+    # And that the put-call ratio reads: wider, because a few large strikes
+    # dominate a narrow window. At +-6 on 4-Nov-2026 the ratio jumped more than
+    # 8% in a minute 46 times on SENSEX and 8 on NIFTY as the price moved the
+    # window; at +-15, tapered, 13 and 1, with the same open and close.
+    pcr_strikes: int = 15
 
 
 @dataclass
@@ -668,6 +673,21 @@ def _gap(strikes: list[float]) -> float:
     return gaps[len(gaps) // 2] if gaps else 0.0
 
 
+def near_weight(strike: float, ref: float, gap: float, strikes: int) -> float:
+    """How much a strike counts in the near-the-money readings: 1 at the
+    price, falling in a straight line to 0 one strike beyond `strikes`.
+
+    A hard edge let a whole strike drop in or out the moment the price
+    crossed a strike: SENSEX's near-money put-call ratio went 1.008 to 0.80
+    between 11:10 and 11:11 on 4-Nov-2026 with no change in positioning,
+    and flipped the ratio's vote.
+    """
+    reach = (strikes + 1) * gap
+    if reach <= 0:
+        return 0.0
+    return max(0.0, 1.0 - abs(strike - ref) / reach)
+
+
 def trend_read(
     cells: list[dict],
     steps: list[datetime],
@@ -721,8 +741,9 @@ def trend_read(
             oi_now[(c["strike"], c["side"])] = c["oi"]
             if spot is None or gap <= 0:
                 continue
-            if abs(c["strike"] - spot) <= settings.trend_strikes * gap + 1e-9:
-                step_sum += bias(c["side"], c["cls"]) * abs(c["oi_change"])
+            w = near_weight(c["strike"], spot, gap, settings.trend_strikes)
+            if w > 0:
+                step_sum += w * bias(c["side"], c["cls"]) * abs(c["oi_change"])
         total += step_sum
         pressure.append(step_sum)
         cumulative.append(total)
@@ -731,9 +752,9 @@ def trend_read(
             support.append(None)
             resistance.append(None)
             continue
-        near = settings.trend_strikes * gap + 1e-9
-        ce = sum(v for (k, sd), v in oi_now.items() if sd == "CE" and abs(k - spot) <= near)
-        pe = sum(v for (k, sd), v in oi_now.items() if sd == "PE" and abs(k - spot) <= near)
+        n = settings.pcr_strikes
+        ce = sum(v * near_weight(k, spot, gap, n) for (k, sd), v in oi_now.items() if sd == "CE")
+        pe = sum(v * near_weight(k, spot, gap, n) for (k, sd), v in oi_now.items() if sd == "PE")
         pcr.append(round(pe / ce, 3) if ce > 0 else None)
         above = [(v, k) for (k, sd), v in oi_now.items() if sd == "CE" and k >= spot]
         below = [(v, k) for (k, sd), v in oi_now.items() if sd == "PE" and k <= spot]
@@ -778,9 +799,9 @@ def trend_read(
     def snapshot(oi_by_key: dict[tuple[float, str], int], ref: float | None):
         if not oi_by_key or ref is None or gap <= 0:
             return None, None, None
-        near = settings.trend_strikes * gap + 1e-9
-        ce = sum(v for (k, sd), v in oi_by_key.items() if sd == "CE" and abs(k - ref) <= near)
-        pe = sum(v for (k, sd), v in oi_by_key.items() if sd == "PE" and abs(k - ref) <= near)
+        n = settings.pcr_strikes
+        ce = sum(v * near_weight(k, ref, gap, n) for (k, sd), v in oi_by_key.items() if sd == "CE")
+        pe = sum(v * near_weight(k, ref, gap, n) for (k, sd), v in oi_by_key.items() if sd == "PE")
         above = [(v, k) for (k, sd), v in oi_by_key.items() if sd == "CE" and k >= ref]
         below = [(v, k) for (k, sd), v in oi_by_key.items() if sd == "PE" and k <= ref]
         return (

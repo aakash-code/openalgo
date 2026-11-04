@@ -393,7 +393,9 @@ def test_the_trend_leans_with_put_writing_near_the_money():
         )
     out = trend_read(cells, steps, spot, FlowSettings(), 1.0)
     assert out["direction"] == 1 and out["strength"] == 1.0
-    assert out["cumulative"][-1] == 3600
+    # Put writing at the money counts in full, call covering one strike away a
+    # little less (the near-money taper), and both push the same way.
+    assert 3000 < out["cumulative"][-1] < 3600
     assert out["pcr"][-1] > out["pcr"][1]
     assert out["votes"]["pcr"] == 1
 
@@ -430,3 +432,15 @@ def test_the_open_is_the_first_sample_not_the_first_step():
     three = analyse(rows, settings=FlowSettings(step_seconds=180))["trend"]
     assert one["pcr_open"] == three["pcr_open"] == 1.0
     assert one["price_change"] == three["price_change"] == round(23980 / 23900 - 1, 5)
+
+
+def test_a_strike_fades_out_of_the_near_money_window_instead_of_dropping():
+    from services.oi_flow_analysis import near_weight
+
+    assert near_weight(23900, 23900, 50, 6) == 1.0
+    # One step either way moves a strike's weight a little, never all of it.
+    inside = near_weight(24200, 23900, 50, 6)
+    assert 0 < inside < 1
+    assert abs(near_weight(24200, 23901, 50, 6) - inside) < 0.01
+    assert near_weight(24250, 23900, 50, 6) == 0.0
+    assert near_weight(23900, 23900, 0, 6) == 0.0
