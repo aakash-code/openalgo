@@ -89,6 +89,8 @@ class FlowView:
     all_strikes: bool = False
     # The chart draws no per-cell reading, so it leaves out the largest field.
     lite: bool = False
+    # Read premiums net of the underlying's move (see FlowSettings).
+    net: bool = True
 
 
 @dataclass(frozen=True)
@@ -232,6 +234,7 @@ def flow_payload(view: FlowView) -> dict:
             noise_pct=view.noise_pct,
             noise_lots=view.noise_lots,
             quiet_minutes_to_break=view.quiet_minutes,
+            net_of_underlying=view.net,
         ),
     )
 
@@ -292,6 +295,14 @@ def flow_payload(view: FlowView) -> dict:
             for e in out["events"]
         ],
     }
+    trend = out.get("trend")
+    if trend:
+        payload["trend"] = {
+            **trend,
+            "since": _hhmm(trend["since"]),
+            "since_epoch": _epoch(trend["since"]),
+        }
+    payload["read"] = "net" if view.net else "raw"
     if not view.lite:
         payload["heat_cls"] = {"ce": codes["CE"], "pe": codes["PE"]}
     return payload

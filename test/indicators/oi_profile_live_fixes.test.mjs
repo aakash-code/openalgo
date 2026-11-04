@@ -366,7 +366,14 @@ test('the tooltip gives both totals and change, with the strike PCR; the status 
     assert.ok(oiView.includes('Call Chg: +26.37L (+43.3%)'), oiView.join(' | '))
     assert.ok(oiView.includes('Put Chg: +15.42L (+28.8%)'), oiView.join(' | '))
     assert.ok(oiView.includes('PCR: 0.79'), oiView.join(' | '))
-    assert.ok(oiView.some((t) => /^OI Profile: Updated \d{2}:\d{2} \| PCR 0\.79 \(ATM ±5\)$/.test(t)), oiView.join(' | '))
+    // The status line goes on with today's build-up once the change is in:
+    // calls against puts, and their ratio.
+    assert.ok(
+      oiView.some((t) =>
+        /^OI Profile: Updated \d{2}:\d{2} \| PCR 0\.79 \(ATM ±5\) \| Today calls \+26\.37L, puts \+15\.42L \(change PCR 0\.58\)/.test(t)
+      ),
+      oiView.join(' | ')
+    )
 
     settings.mode = 'change'
     await waitFor(() => h.texts().includes('Call OI Chg: 26.37L'), 'change mode')
@@ -431,4 +438,24 @@ test('live OI streams the legs around the strikes on screen and changes them by 
     h.teardown()
   }
   assert.equal(active().length, 0, 'teardown drops every leg')
+})
+
+test('the walls are the biggest put strike at or below the money and the biggest call strike at or above it', async () => {
+  const { wallStrikes, changeSummary } = await import(new URL('../../strategies/indicators/oi_profile_live.js', import.meta.url))
+  const chain = [
+    { strike: 23000, ce_oi: 10, pe_oi: 900, ce_oi_change: 5, pe_oi_change: 50 },
+    { strike: 23100, ce_oi: 50, pe_oi: 400, ce_oi_change: 0, pe_oi_change: 10 },
+    { strike: 23200, ce_oi: 300, pe_oi: 300, ce_oi_change: 10, pe_oi_change: -20 },
+    { strike: 23300, ce_oi: 800, pe_oi: 50, ce_oi_change: 25, pe_oi_change: 0 },
+    { strike: 23400, ce_oi: 700, pe_oi: 1000, ce_oi_change: 0, pe_oi_change: 0 },
+  ]
+  // 23400 holds the most puts but sits above the money, so it is not support.
+  assert.deepEqual(wallStrikes(chain, 23200), { support: 23000, resistance: 23300 })
+  assert.deepEqual(wallStrikes(chain, null), { support: null, resistance: null })
+  const sum = changeSummary(chain)
+  assert.equal(sum.ce, 40)
+  assert.equal(sum.pe, 40)
+  assert.equal(sum.ratio, 1)
+  // Calls shed on net: no ratio to give rather than a negative one.
+  assert.equal(changeSummary([{ ce_oi_change: -5, pe_oi_change: 10 }]).ratio, null)
 })

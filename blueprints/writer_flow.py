@@ -117,6 +117,7 @@ def flow():
         quiet_minutes=quiet,
         all_strikes=(request.args.get("all_strikes") or "").strip().lower() in _TRUE,
         lite=(request.args.get("lite") or "").strip().lower() in _TRUE,
+        net=(request.args.get("read") or "net").strip().lower() != "raw",
     )
     try:
         built = flow_answer(view)

@@ -67,7 +67,10 @@ def client(tmp_path, monkeypatch):
 
 
 def test_the_day_reads_as_a_bull_run(client):
-    r = client.get("/writerflow/api/flow?underlying=NIFTY&step=60")
+    # The raw premium reading: this made-up day moves premiums by roughly what
+    # delta explains, so read net of the underlying it says something else
+    # (see test_the_net_reading_takes_out_the_underlyings_move).
+    r = client.get("/writerflow/api/flow?underlying=NIFTY&step=60&read=raw")
     assert r.status_code == 200
     body = r.get_json()
     assert body["status"] == "success"
@@ -154,7 +157,7 @@ def test_a_strike_out_of_the_window_is_left_out_unless_asked_for(client):
 
 
 def test_times_come_back_as_utc_seconds_for_the_chart(client):
-    body = client.get("/writerflow/api/flow?underlying=NIFTY&step=60").get_json()
+    body = client.get("/writerflow/api/flow?underlying=NIFTY&step=60&read=raw").get_json()
     # 09:15 IST on 16-Oct-2026 is 03:45 UTC.
     assert body["times_epoch"][0] == 1792122300
     assert body["totals"][0]["epoch"] == 1792122300
@@ -162,3 +165,24 @@ def test_times_come_back_as_utc_seconds_for_the_chart(client):
         body["events"][0]["epoch"]
         == body["times_epoch"][body["times"].index(body["events"][0]["time"])]
     )
+
+
+def test_the_net_reading_takes_out_the_underlyings_move(client):
+    # The index rises 5 a minute and the 23000 CE 2 a minute: its delta near
+    # 0.45 explains about 2.25 of that, so net of the index the call got
+    # cheaper while its open interest fell. That is buyers leaving, not
+    # writers covering, which is what the raw premium said.
+    body = client.get("/writerflow/api/flow?underlying=NIFTY&step=60").get_json()
+    assert body["read"] == "net"
+    assert body["heat_cls"]["ce"][0][5] == "U"
+    raw = client.get("/writerflow/api/flow?underlying=NIFTY&step=60&read=raw").get_json()
+    assert raw["read"] == "raw" and raw["heat_cls"]["ce"][0][5] == "C"
+
+
+def test_the_trend_comes_with_the_flow(client):
+    body = client.get("/writerflow/api/flow?underlying=NIFTY&step=60").get_json()
+    trend = body["trend"]
+    assert len(trend["cumulative"]) == len(body["times"]) == len(trend["pcr"])
+    assert trend["overall"] in (-1, 0, 1) and set(trend["votes"]) == {"writers", "pcr", "walls"}
+    assert trend["since"] in body["times"]
+    assert trend["price_change"] > 0  # the made-up day rises 100 points

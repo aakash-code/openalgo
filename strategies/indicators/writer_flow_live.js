@@ -132,6 +132,11 @@ function stepOf(settings) {
   return ['auto', '60', '180', '300'].includes(s) ? s : 'auto'
 }
 
+/** How premiums are read: net of the underlying's move (default) or raw. */
+function readOf(settings) {
+  return String(settings.read ?? 'net') === 'raw' ? 'raw' : 'net'
+}
+
 /**
  * One request per underlying and step, shared by every instance and both
  * indicators: the heatmap and the totals pane on one chart, or two charts of
@@ -145,14 +150,14 @@ let onServerEvent = null
 const UPDATE_EVENT = 'writer_flow_update'
 const ANSWERS_MAX = 8
 
-function fetchFlow(underlying, step, maxAgeMs, exchange = '') {
+function fetchFlow(underlying, step, maxAgeMs, exchange = '', read = 'net') {
   const url =
     `/writerflow/api/flow?underlying=${encodeURIComponent(underlying)}` +
-    `&step=${encodeURIComponent(step)}&all_strikes=1&lite=1` +
+    `&step=${encodeURIComponent(step)}&all_strikes=1&lite=1&read=${read}` +
     // The chart's own exchange: an underlying it shows that is not being
     // recorded yet starts recording, with the day so far filled from history.
     (exchange ? `&exchange=${encodeURIComponent(exchange)}` : '')
-  return fetchShared(`${underlying}|${step}|${exchange}`, url, maxAgeMs)
+  return fetchShared(`${underlying}|${step}|${exchange}|${read}`, url, maxAgeMs)
 }
 
 /** The option levels for an underlying: read from the record, never starts one. */
@@ -207,7 +212,7 @@ function startPolling(ctx, apply, fail, fetcher = fetchFlow) {
   const keyOf = () => {
     const settings = ctx.settings()
     const exchange = String(ctx.dataContext?.()?.exchange ?? '').toUpperCase().replace(/[^A-Z_]/g, '')
-    return `${resolveUnderlying(settings, ctx.symbol?.())}|${stepOf(settings)}|${exchange}`
+    return `${resolveUnderlying(settings, ctx.symbol?.())}|${stepOf(settings)}|${exchange}|${readOf(settings)}`
   }
 
   const run = async ({ fresh = false } = {}) => {
@@ -223,7 +228,7 @@ function startPolling(ctx, apply, fail, fetcher = fetchFlow) {
       }, START_AFTER_MS + 100)
     }
     watchedKey = key
-    const [underlying, step, chartExchange] = key.split('|')
+    const [underlying, step, chartExchange, read] = key.split('|')
     if (!underlying) {
       fail('Choose an underlying in the settings, such as NIFTY.')
       return
@@ -234,7 +239,7 @@ function startPolling(ctx, apply, fail, fetcher = fetchFlow) {
     try {
       // A fresh ask follows the server's word that a new minute is in, so a
       // shared answer from moments ago is not good enough.
-      const body = await fetcher(underlying, step, fresh ? 0 : REFRESH_MS / 2, exchange)
+      const body = await fetcher(underlying, step, fresh ? 0 : REFRESH_MS / 2, exchange, read)
       if (cancelled || key !== watchedKey) return
       if (body.status === 'success') apply(body)
       else if (!settled && chartExchange && body.recorder_enabled)
@@ -367,6 +372,16 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
     ],
   }
 
+  const readInput = {
+    key: 'read', type: 'select', label: 'Read Premium', default: 'net', group: 'Instrument',
+    options: [
+      { value: 'net', label: 'Net of the index move' },
+      { value: 'raw', label: 'Raw premium' },
+    ],
+    tooltip:
+      'Net: a side is judged by its premium move after taking out what the index move alone explains (delta times the index change). On a rally every call premium rises, so the raw premium reads falling call open interest as writers covering even when buyers are the ones leaving.',
+  }
+
   registerIndicator({
     id: 'writer-flow-live',
     name: 'Writer Flow',
@@ -378,6 +393,7 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
     inputs: [
       underlyingInput,
       stepInput,
+      readInput,
       {
         key: 'view', type: 'select', label: 'Show', default: 'both', group: 'Display',
         options: [
@@ -749,7 +765,7 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
     placement: 'pane',
     noTimeframe: true,
 
-    inputs: [underlyingInput, stepInput],
+    inputs: [underlyingInput, stepInput, readInput],
 
     plots: [
       { key: 'calls', type: 'line', title: 'Call OI added since open', style: { color: RED, lineWidth: 2 } },
@@ -828,7 +844,239 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
     },
   })
 
+  registerIndicator(trendIndicator(underlyingInput, stepInput, readInput))
   registerIndicator(levelsIndicator(underlyingInput, nulls))
+}
+
+// ------------------------------------------------------------- writer trend
+
+const TREND_KEYS = [
+  'tOverall', 'tScore', 'tWriters', 'tPcrVote', 'tWallVote', 'tStrength', 'tRecent', 'tTurning',
+  'tSince', 'tPcrOpen', 'tPcrNow', 'tSupOpen', 'tSupNow', 'tResOpen', 'tResNow', 'tPrice', 'tNet',
+]
+
+function hhmmNumber(text) {
+  const m = /^(\d{2}):(\d{2})$/.exec(String(text || ''))
+  return m ? Number(m[1]) * 100 + Number(m[2]) : null
+}
+
+function hhmmText(n) {
+  if (n == null) return ''
+  const h = Math.floor(n / 100)
+  const m = n % 100
+  return `${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`
+}
+
+function signedPct(v, digits = 0) {
+  if (v == null || !Number.isFinite(v)) return '-'
+  const n = v * 100
+  return `${n > 0 ? '+' : ''}${n.toFixed(digits)}%`
+}
+
+function strikeText(k) {
+  if (k == null) return '-'
+  return Number.isInteger(k) ? String(k) : k.toFixed(1)
+}
+
+/**
+ * Writer Trend: which way option writers lean, from the first minute.
+ *
+ * The line is the open interest moved near the money since the record began,
+ * signed by what it means for the underlying: call writers covering and put
+ * writers adding lift it, the reverse pulls it down. Rising is writers
+ * backing the underlying, falling is writers leaning on it. The bars are each
+ * candle's own push. The pane is shaded by the line's side of zero.
+ *
+ * The table gives the day's verdict from three readings that do not restate
+ * the price: writers' lean, the put-call ratio near the money since the open,
+ * and whether the support and resistance walls moved. Two of three agreeing
+ * calls a direction; the price move is shown beside it to compare.
+ */
+function trendIndicator(underlyingInput, stepInput, readInput) {
+  return {
+    id: 'writer-flow-trend',
+    name: 'Writer Trend',
+    category: 'Custom',
+    placement: 'pane',
+    noTimeframe: true,
+
+    inputs: [
+      underlyingInput,
+      stepInput,
+      readInput,
+      { key: 'table', type: 'boolean', label: 'Direction Table', default: true, group: 'Display' },
+      { key: 'shade', type: 'boolean', label: 'Shade By Lean', default: true, group: 'Display' },
+    ],
+
+    plots: [
+      {
+        key: 'lean',
+        type: 'line',
+        title: 'Writer lean since open',
+        style: { color: GREEN, lineWidth: 2 },
+        colorBy: ({ value }) => (value >= 0 ? GREEN : RED),
+      },
+      {
+        key: 'push',
+        type: 'histogram',
+        title: 'This bar',
+        priceScaleId: 'overlay:writer-trend-push',
+        style: { color: GREEN, base: 0 },
+        colorBy: ({ value }) => (value >= 0 ? GREEN : RED),
+      },
+    ],
+
+    levels: () => [{ price: 0, title: '', color: NEUTRAL, lineStyle: 'dotted', lineWidth: 1 }],
+
+    calc(bars, settings, store) {
+      const n = bars.length
+      const lean = new Array(n).fill(null)
+      const push = new Array(n).fill(null)
+      const out = { lean, push }
+      for (const k of TREND_KEYS) out[k] = new Array(n).fill(null)
+      const body = store?.writerTrend
+      const trend = body?.trend
+      if (!trend || !Array.isArray(trend.cumulative) || !Array.isArray(body.times_epoch)) return out
+      const epochs = body.times_epoch
+      const scale = body.oi_unit === 'lots' ? 1 : 1e5
+      const first = epochs[0]
+      const last = epochs[epochs.length - 1]
+      let k = 0
+      let lastFilled = -1
+      for (let i = 0; i < n; i++) {
+        const start = bars[i].time
+        const end = i + 1 < n ? bars[i + 1].time : Number.POSITIVE_INFINITY
+        if (end <= first || start > last) {
+          while (k < epochs.length && epochs[k] < start) k++
+          continue
+        }
+        let sum = 0
+        let any = false
+        while (k < epochs.length && epochs[k] < end) {
+          if (epochs[k] >= start) {
+            sum += trend.pressure[k] || 0
+            any = true
+          }
+          k++
+        }
+        const idx = Math.min(k, epochs.length) - 1
+        if (idx < 0) continue
+        lean[i] = trend.cumulative[idx] / scale
+        push[i] = any ? sum / scale : 0
+        lastFilled = i
+      }
+      if (lastFilled >= 0) {
+        const at = (key, v) => {
+          out[key][lastFilled] = v == null ? null : Number(v)
+        }
+        at('tOverall', trend.overall)
+        at('tScore', trend.score)
+        at('tWriters', trend.votes?.writers)
+        at('tPcrVote', trend.votes?.pcr)
+        at('tWallVote', trend.votes?.walls)
+        at('tStrength', trend.strength)
+        at('tRecent', trend.recent)
+        at('tTurning', trend.turning ? 1 : 0)
+        at('tSince', hhmmNumber(trend.since))
+        at('tPcrOpen', trend.pcr_open)
+        at('tPcrNow', trend.pcr_now)
+        at('tSupOpen', trend.support_open)
+        at('tSupNow', trend.support_now)
+        at('tResOpen', trend.resistance_open)
+        at('tResNow', trend.resistance_now)
+        at('tPrice', trend.price_change)
+        at('tNet', body.read === 'raw' ? 0 : 1)
+      }
+      return out
+    },
+
+    background({ values, settings }) {
+      if (settings.shade === false) return values.lean.map(() => null)
+      return values.lean.map((v) => (v == null ? null : v > 0 ? 'rgba(34,197,94,0.06)' : v < 0 ? 'rgba(239,68,68,0.06)' : null))
+    },
+
+    table({ values, settings }) {
+      if (settings.table === false) return null
+      const n = values.lean.length
+      let i = n - 1
+      while (i >= 0 && values.tOverall[i] == null) i--
+      if (i < 0) return null
+      const v = (key) => values[key][i]
+      const overall = v('tOverall')
+      const turning = v('tTurning') === 1
+      const word = overall > 0 ? 'BULLISH' : overall < 0 ? 'BEARISH' : 'SIDEWAYS'
+      const colour = overall > 0 ? GREEN : overall < 0 ? RED : NEUTRAL
+      const since = hhmmText(v('tSince'))
+      const head = `${word}${turning ? ', fading' : ''}${overall !== 0 && since ? ` since ${since}` : ''}`
+      const vote = (x) => (x > 0 ? 'up' : x < 0 ? 'down' : 'flat')
+      const voteColour = (x) => (x > 0 ? GREEN : x < 0 ? RED : NEUTRAL)
+      const move = (open, now) => (open == null || now == null ? '' : now > open ? ' (up)' : now < open ? ' (down)' : '')
+      const pcrOpen = v('tPcrOpen')
+      const pcrNow = v('tPcrNow')
+      const rows = [
+        [
+          { text: 'Direction', bold: true },
+          { text: head, bold: true, bgColor: colour, tooltip: `${v('tScore')} of 3 readings agree` },
+        ],
+        [
+          { text: 'Writers' },
+          {
+            text: `${signedPct(v('tStrength'))} lean, last 15 min ${signedPct(v('tRecent'))}`,
+            textColor: voteColour(v('tWriters')),
+            tooltip: 'Share of the open interest moved near the money that backs the underlying (positive) or weighs on it (negative).',
+          },
+        ],
+        [
+          { text: 'Put-call ratio' },
+          {
+            text: pcrOpen != null && pcrNow != null ? `${pcrOpen.toFixed(2)} -> ${pcrNow.toFixed(2)}` : '-',
+            textColor: voteColour(v('tPcrVote')),
+            tooltip: 'Put open interest over call open interest near the money, at the open and now. Rising means puts are being written faster: support for the underlying.',
+          },
+        ],
+        [
+          { text: 'Support' },
+          {
+            text: `${strikeText(v('tSupNow'))}${v('tSupOpen') !== v('tSupNow') ? ` from ${strikeText(v('tSupOpen'))}` : ''}${move(v('tSupOpen'), v('tSupNow'))}`,
+            textColor: voteColour(v('tWallVote')),
+            tooltip: 'The strike at or below the price holding the most put open interest.',
+          },
+        ],
+        [
+          { text: 'Resistance' },
+          {
+            text: `${strikeText(v('tResNow'))}${v('tResOpen') !== v('tResNow') ? ` from ${strikeText(v('tResOpen'))}` : ''}${move(v('tResOpen'), v('tResNow'))}`,
+            textColor: voteColour(v('tWallVote')),
+            tooltip: 'The strike at or above the price holding the most call open interest.',
+          },
+        ],
+        [
+          { text: 'Price' },
+          { text: `${signedPct(v('tPrice'), 2)} since open`, tooltip: 'The underlying since the record began, to compare with what writers did.' },
+        ],
+        [
+          { text: 'Votes' },
+          { text: `writers ${vote(v('tWriters'))}, ratio ${vote(v('tPcrVote'))}, walls ${vote(v('tWallVote'))}` },
+        ],
+      ]
+      if (v('tNet') === 0) rows.push([{ text: 'Reading' }, { text: 'raw premium', italic: true }])
+      return { rows, options: { position: 'top-left', cellWidth: 'auto', fontSize: 11 } }
+    },
+
+    attach(ctx) {
+      return startPolling(
+        ctx,
+        (body) => {
+          ctx.store.writerTrend = body
+          ctx.requestRecompute()
+        },
+        () => {
+          ctx.store.writerTrend = null
+          ctx.requestRecompute()
+        },
+      )
+    },
+  }
 }
 
 // ------------------------------------------------------------- option levels

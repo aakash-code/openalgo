@@ -144,6 +144,43 @@ export function nearestExpiryRows(chain, prefix, legOi = (leg) => Number(leg.oi)
 export { maxPainStrike }
 
 /**
+ * The walls: the strike at or below `ref` holding the most put open interest
+ * (support) and the one at or above it holding the most call open interest
+ * (resistance). Over the strikes fetched, like max pain. Null when the chain
+ * has none on that side.
+ */
+export function wallStrikes(chain, ref) {
+  if (!Array.isArray(chain) || ref == null || !Number.isFinite(Number(ref))) return { support: null, resistance: null }
+  let support = null
+  let resistance = null
+  for (const r of chain) {
+    const k = Number(r.strike)
+    if (!Number.isFinite(k)) continue
+    const pe = Number(r.pe_oi) || 0
+    const ce = Number(r.ce_oi) || 0
+    if (k <= ref && pe > 0 && (support === null || pe > support.oi)) support = { strike: k, oi: pe }
+    if (k >= ref && ce > 0 && (resistance === null || ce > resistance.oi)) resistance = { strike: k, oi: ce }
+  }
+  return { support: support?.strike ?? null, resistance: resistance?.strike ?? null }
+}
+
+/**
+ * Today's change summed over the strikes fetched: calls and puts, and their
+ * ratio (puts added over calls added). Null when the change is not known yet
+ * or nothing was added on the call side to divide by.
+ */
+export function changeSummary(chain) {
+  if (!Array.isArray(chain)) return null
+  let ce = 0
+  let pe = 0
+  for (const r of chain) {
+    ce += Number(r.ce_oi_change) || 0
+    pe += Number(r.pe_oi_change) || 0
+  }
+  return { ce, pe, ratio: ce > 0 && pe > 0 ? pe / ce : null }
+}
+
+/**
  * Whether a strike side's change in OI is known: at least one of its contracts
  * has yesterday's OI (`base`). A side with no contract list at all comes from
  * an older server, which only ever sent known changes.
@@ -464,6 +501,10 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
         tooltip: "Yesterday's open interest outlined over today's bar. Open Interest and Both only.",
       },
       { key: 'maxPain', type: 'boolean', label: 'Max Pain Marker (strikes fetched)', default: true, group: 'Display' },
+      {
+        key: 'walls', type: 'boolean', label: 'Support And Resistance Walls', default: true, group: 'Display',
+        tooltip: 'Marks the strike at or below the at-the-money one holding the most put open interest (support) and the one at or above it holding the most call open interest (resistance).',
+      },
       { key: 'barWidth', type: 'number', label: 'Max Bar Width (px)', default: 140, min: 20, max: 400, step: 10, group: 'Display' },
       { key: 'opacity', type: 'number', label: 'Bar Opacity (%)', default: 55, min: 10, max: 100, step: 5, group: 'Display' },
       { key: 'refreshSeconds', type: 'number', label: 'Refresh (seconds)', default: 180, min: 60, max: 900, step: 30, group: 'Display' },
@@ -510,6 +551,7 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
         nearestExpiry: '',
         optionsExchange: '',
         atmStrike: null,
+        walls: { support: null, resistance: null },
       }
 
       // Where every bar lands this frame. draw() paints from it and hitTest()
@@ -650,7 +692,23 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
         // right. Over the same strikes they agreed exactly.
         if (ce > 0) {
           const window = Math.max(1, Math.floor(Number(settings.strikes) || 25))
-          text += ` | PCR ${(pe / ce).toFixed(2)} (ATM ±${window})`
+          // Combined expiries are summed into one ratio: say so, as max pain does.
+          const blend = state.nearestPrefix ? `, ${Math.max(1, Math.floor(Number(settings.expiries) || 1))} expiries` : ''
+          text += ` | PCR ${(pe / ce).toFixed(2)} (ATM ±${window}${blend})`
+        }
+        // Today's build-up, the intraday read: what was added since the
+        // previous session, calls against puts. Only once the change is in;
+        // a part-loaded change would read as a direction it is not.
+        if (state.hasChange && !state.changePending) {
+          const sum = changeSummary(state.chain)
+          if (sum && (sum.ce || sum.pe)) {
+            const fmt = (v) => `${v > 0 ? '+' : ''}${formatLakh(v)}`
+            text += ` | Today calls ${fmt(sum.ce)}, puts ${fmt(sum.pe)}`
+            if (sum.ratio != null) text += ` (change PCR ${sum.ratio.toFixed(2)})`
+          }
+        }
+        if (settings.walls !== false && (state.walls.support != null || state.walls.resistance != null)) {
+          text += ` | S ${state.walls.support ?? '-'} R ${state.walls.resistance ?? '-'}`
         }
         // Max pain in words as well as the marker: the marker sits on its
         // strike's row, which is often above or below the visible prices
@@ -881,6 +939,32 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
                 left * dpr,
                 (row.y - 2) * dpr
               )
+            }
+          }
+
+          // Support and resistance walls, on their strikes' rows, in the
+          // colours of the side holding them.
+          if (settings.walls !== false) {
+            const scheme = COLOR_SCHEMES[settings.colors] ?? COLOR_SCHEMES['calls-red']
+            const marks = [
+              { strike: state.walls.support, label: 'Support', color: scheme.pe },
+              { strike: state.walls.resistance, label: 'Resistance', color: scheme.ce },
+            ]
+            for (const m of marks) {
+              if (m.strike == null) continue
+              const row = rows.find((r) => r.strike === m.strike)
+              if (!row) continue
+              canvasCtx.globalAlpha = 0.95
+              canvasCtx.strokeStyle = m.color
+              canvasCtx.lineWidth = Math.max(1.5, 1.5 * dpr)
+              canvasCtx.beginPath()
+              canvasCtx.moveTo(left * dpr, row.y * dpr)
+              canvasCtx.lineTo(rightEdge * dpr, row.y * dpr)
+              canvasCtx.stroke()
+              canvasCtx.fillStyle = m.color
+              canvasCtx.font = `bold ${10 * dpr}px ui-sans-serif, system-ui, sans-serif`
+              canvasCtx.textBaseline = 'top'
+              canvasCtx.fillText(`${m.label} ${m.strike}`, left * dpr, (row.y + 2) * dpr)
             }
           }
 
@@ -1164,8 +1248,10 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
         if (state.chain) {
           const nearest = chain ? nearestExpiryRows(chain, state.nearestPrefix, legOi) : null
           state.maxPain = maxPainStrike(nearest ?? state.chain)
+          state.walls = wallStrikes(state.chain, state.atmStrike)
         } else {
           state.maxPain = null
+          state.walls = { support: null, resistance: null }
         }
         ctx.requestRecompute()
       }

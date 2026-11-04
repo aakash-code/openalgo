@@ -340,3 +340,63 @@ def test_a_paused_read_returns_the_same_day_in_batches(tmp_path, monkeypatch):
     paused = db.load_day("NIFTY", "19OCT26", T0.date(), pause=lambda: calls.append(1))
     assert paused == db.load_day("NIFTY", "19OCT26", T0.date())
     assert len(paused) == 30 and len(calls) == 5  # 7 + 7 + 7 + 7 + 2
+
+
+# --- net-of-underlying reading and the trend (Nov 2026) ---------------------
+
+from services.oi_flow_analysis import implied_forward, option_delta, trend_read  # noqa: E402
+
+
+def test_call_and_put_give_one_volatility_off_the_parity_forward():
+    # NIFTY 09NOV26 at 09:33 on 4-Nov-2026: spot 23928.8, and Sensibull
+    # showed 17.1 on the 23950 strike. Priced off spot with a rate the two
+    # sides read 15.4 and 18.9.
+    years = (5 * 24 * 3600 + 6 * 3600) / (365 * 86400)
+    fwd = implied_forward(23928.8, 23950, 176.0, 215.75, years)
+    assert -25 < fwd - 23928.8 < -12
+    dc, vc = option_delta(176.0, fwd, 23950, years, "CE")
+    dp, vp = option_delta(215.75, fwd, 23950, years, "PE")
+    assert abs(vc - vp) < 0.005 and 0.16 < vc < 0.18
+    assert 0.4 < dc < 0.55 and -0.6 < dp < -0.45
+
+
+def test_a_premium_below_intrinsic_has_no_delta():
+    assert option_delta(10.0, 24000.0, 23000, 0.02, "CE") == (None, None)
+    assert option_delta(None, 24000.0, 23000, 0.02, "CE") == (None, None)
+
+
+def test_the_trend_leans_with_put_writing_near_the_money():
+    t0 = datetime(2026, 11, 4, 9, 15)
+    steps = [t0 + timedelta(minutes=i) for i in range(4)]
+    spot = {t: 23900.0 for t in steps}
+    cells = []
+    for i, t in enumerate(steps[1:], start=1):
+        cells.append(
+            {
+                "time": t,
+                "strike": 23900.0,
+                "side": "PE",
+                "cls": "writing",
+                "oi_change": 1000,
+                "oi": 1000 * (i + 1),
+            }
+        )
+        cells.append(
+            {
+                "time": t,
+                "strike": 23950.0,
+                "side": "CE",
+                "cls": "covering",
+                "oi_change": -200,
+                "oi": 5000 - 200 * i,
+            }
+        )
+    out = trend_read(cells, steps, spot, FlowSettings(), 1.0)
+    assert out["direction"] == 1 and out["strength"] == 1.0
+    assert out["cumulative"][-1] == 3600
+    assert out["pcr"][-1] > out["pcr"][1]
+    assert out["votes"]["pcr"] == 1
+
+
+def test_no_steps_is_no_trend():
+    assert trend_read([], [], {}, FlowSettings(), 1.0) is None
