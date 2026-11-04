@@ -400,3 +400,33 @@ def test_the_trend_leans_with_put_writing_near_the_money():
 
 def test_no_steps_is_no_trend():
     assert trend_read([], [], {}, FlowSettings(), 1.0) is None
+
+
+def test_the_open_is_the_first_sample_not_the_first_step():
+    # A three-minute step keeps the last reading of its window, so the open's
+    # ratio and price were read at 09:17. They must be the 09:15 ones.
+    def row(minute, strike, side, oi, ltp, spot):
+        return {
+            "sample_time": datetime(2026, 11, 4, 9, 15) + timedelta(minutes=minute),
+            "strike": strike,
+            "side": side,
+            "symbol": f"N{int(strike)}{side}",
+            "oi": oi,
+            "ltp": ltp,
+            "spot": spot,
+            "lot_size": 65,
+            "expiry": "09NOV26",
+            "exchange": "NSE_INDEX",
+        }
+
+    rows = []
+    for m in range(9):
+        spot = 23900 + m * 10
+        rows.append(row(m, 23900.0, "CE", 1_000_000, 150 + m, spot))
+        rows.append(row(m, 23900.0, "PE", 1_000_000 + m * 200_000, 160 - m, spot))
+        rows.append(row(m, 23950.0, "CE", 500_000, 120 + m, spot))
+        rows.append(row(m, 23950.0, "PE", 500_000, 190 - m, spot))
+    one = analyse(rows, settings=FlowSettings(step_seconds=60))["trend"]
+    three = analyse(rows, settings=FlowSettings(step_seconds=180))["trend"]
+    assert one["pcr_open"] == three["pcr_open"] == 1.0
+    assert one["price_change"] == three["price_change"] == round(23980 / 23900 - 1, 5)

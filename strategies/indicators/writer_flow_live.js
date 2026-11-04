@@ -866,7 +866,7 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
 
 const TREND_KEYS = [
   'tOverall', 'tScore', 'tWriters', 'tPcrVote', 'tWallVote', 'tStrength', 'tRecent', 'tTurning',
-  'tSince', 'tPcrOpen', 'tPcrNow', 'tSupOpen', 'tSupNow', 'tResOpen', 'tResNow', 'tPrice', 'tNet',
+  'tSince', 'tPcrOpen', 'tPcrNow', 'tSupOpen', 'tSupNow', 'tResOpen', 'tResNow', 'tPrice', 'tNet', 'tEarly', 'tMinutes',
 ]
 
 function hhmmNumber(text) {
@@ -950,8 +950,9 @@ function trendIndicator(underlyingInput, stepInput, readInput) {
       for (const k of TREND_KEYS) out[k] = new Array(n).fill(null)
       const body = store?.writerTrend
       const trend = body?.trend
-      if (!trend || !Array.isArray(trend.cumulative) || !Array.isArray(body.times_epoch)) return out
-      const epochs = body.times_epoch
+      // The trend carries its own one-minute times; the heatmap's step may differ.
+      const epochs = Array.isArray(trend?.epochs) ? trend.epochs : body?.times_epoch
+      if (!trend || !Array.isArray(trend.cumulative) || !Array.isArray(epochs)) return out
       const scale = body.oi_unit === 'lots' ? 1 : 1e5
       const first = epochs[0]
       const last = epochs[epochs.length - 1]
@@ -1000,6 +1001,8 @@ function trendIndicator(underlyingInput, stepInput, readInput) {
         at('tResNow', trend.resistance_now)
         at('tPrice', trend.price_change)
         at('tNet', body.read === 'raw' ? 0 : 1)
+        at('tEarly', trend.early ? 1 : 0)
+        at('tMinutes', trend.minutes)
       }
       return out
     },
@@ -1021,7 +1024,10 @@ function trendIndicator(underlyingInput, stepInput, readInput) {
       const word = overall > 0 ? 'BULLISH' : overall < 0 ? 'BEARISH' : 'SIDEWAYS'
       const colour = overall > 0 ? GREEN : overall < 0 ? RED : NEUTRAL
       const since = hhmmText(v('tSince'))
-      const head = `${word}${turning ? ', fading' : ''}${overall !== 0 && since ? ` since ${since}` : ''}`
+      const early = v('tEarly') === 1
+      const head = early
+        ? `${word}, early (${Math.round(v('tMinutes') || 0)} min)`
+        : `${word}${turning ? ', fading' : ''}${overall !== 0 && since ? ` since ${since}` : ''}`
       const vote = (x) => (x > 0 ? 'up' : x < 0 ? 'down' : 'flat')
       const voteColour = (x) => (x > 0 ? GREEN : x < 0 ? RED : NEUTRAL)
       const pcrOpen = v('tPcrOpen')

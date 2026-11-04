@@ -186,3 +186,13 @@ def test_the_trend_comes_with_the_flow(client):
     assert trend["overall"] in (-1, 0, 1) and set(trend["votes"]) == {"writers", "pcr", "walls"}
     assert trend["since"] in body["times"]
     assert trend["price_change"] > 0  # the made-up day rises 100 points
+
+
+def test_the_trend_does_not_change_with_the_step(client):
+    # The trend is read at one minute whatever the heatmap's step: at a
+    # coarser step a few steps decided the lean and the verdict flipped.
+    one = client.get("/writerflow/api/flow?underlying=NIFTY&step=60").get_json()["trend"]
+    three = client.get("/writerflow/api/flow?underlying=NIFTY&step=180").get_json()["trend"]
+    for key in ("overall", "strength", "pcr_open", "pcr_now", "price_change", "cumulative"):
+        assert one[key] == three[key], key
+    assert len(three["epochs"]) == len(three["cumulative"])

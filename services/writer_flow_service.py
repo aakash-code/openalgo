@@ -295,10 +295,31 @@ def flow_payload(view: FlowView) -> dict:
             for e in out["events"]
         ],
     }
-    trend = out.get("trend")
+    # The trend is always read at one minute, whatever step the heatmap
+    # uses: at a coarser step a handful of steps decide the lean, and the
+    # verdict changed with the Step setting (4-Nov-2026, NIFTY: +0.32 at one
+    # minute, -0.32 at five). Data recorded more slowly than that still
+    # reads, as quiet minutes.
+    if out["step_seconds"] != 60:
+        fine = analyse(
+            load_day(view.underlying, chosen["expiry"], chosen["trade_date"], pause=_pause),
+            pause=_pause,
+            settings=FlowSettings(
+                step_seconds=60,
+                noise_pct=view.noise_pct,
+                noise_lots=view.noise_lots,
+                quiet_minutes_to_break=view.quiet_minutes,
+                net_of_underlying=view.net,
+            ),
+        )
+        trend = fine.get("trend")
+    else:
+        trend = out.get("trend")
     if trend:
         payload["trend"] = {
             **trend,
+            "times": [_hhmm(t) for t in trend["times"]],
+            "epochs": [_epoch(t) for t in trend["times"]],
             "since": _hhmm(trend["since"]),
             "since_epoch": _epoch(trend["since"]),
         }

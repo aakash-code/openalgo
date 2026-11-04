@@ -379,6 +379,14 @@ def analyse(
     last: dict[tuple[float, str], dict[datetime, dict]] = defaultdict(dict)
     held: set[tuple[float, str]] = set()
     spot_at: dict[datetime, float] = {}
+    # The open, read from the first sample time itself rather than the first
+    # step: a step keeps the LAST reading of its window, so at three minutes
+    # "the open" was 09:17, and the open's put-call ratio and price, and the
+    # verdict with them, changed with the step (4-Nov-2026: 0.73 at one
+    # minute, 0.61 at three).
+    first_time: datetime | None = None
+    opening_oi: dict[tuple[float, str], int] = {}
+    opening_spot: float | None = None
     for n, s in enumerate(sorted(samples, key=lambda r: r["sample_time"])):
         if pause is not None and n % PAUSE_EVERY == PAUSE_EVERY - 1:
             pause()
@@ -388,6 +396,13 @@ def analyse(
         spot = _number(s.get("spot"))
         if spot and spot > 0:
             spot_at[t] = spot
+        if first_time is None:
+            first_time = s["sample_time"]
+        if s["sample_time"] == first_time:
+            if spot and spot > 0 and opening_spot is None:
+                opening_spot = spot
+            if oi is not None:
+                opening_oi[key] = oi
         if oi is None:
             continue
         if oi > 0:
@@ -618,7 +633,9 @@ def analyse(
         atm = min(rows, key=lambda r: abs(r["strike"] - spot))["strike"]
         for r in rows:
             r["atm"] = r["strike"] == atm
-    trend = trend_read(cells, steps, spot_at, settings, step_minutes, last)
+    trend = trend_read(
+        cells, steps, spot_at, settings, step_minutes, last, opening_oi, opening_spot
+    )
     return {
         "trend": trend,
         "step_seconds": step,
@@ -640,6 +657,10 @@ def analyse(
 TREND_LEAN = 0.15
 # Minutes the "recent" reading looks back over.
 TREND_RECENT_MINUTES = 15
+# Under this many minutes recorded, the read is shown as early: on
+# 4-Nov-2026 forty minutes in, a few steps of opening build-up decided the
+# lean at a five minute step, and it read the opposite of one minute.
+TREND_EARLY_MINUTES = 15
 
 
 def _gap(strikes: list[float]) -> float:
@@ -654,6 +675,8 @@ def trend_read(
     settings: FlowSettings,
     step_minutes: float,
     readings: dict[tuple[float, str], dict[datetime, dict]] | None = None,
+    opening_oi: dict[tuple[float, str], int] | None = None,
+    opening_spot: float | None = None,
 ) -> dict | None:
     """Which way writers are leaning, step by step from the first one.
 
@@ -752,13 +775,30 @@ def trend_read(
     # writers' lean, the put-call ratio since the open (puts written faster
     # than calls supports the underlying), and the walls (support and
     # resistance strikes moving up is the market lifting its floor and ceiling).
-    pcr_open, pcr_now = first_known(pcr), last_known(pcr)
+    def snapshot(oi_by_key: dict[tuple[float, str], int], ref: float | None):
+        if not oi_by_key or ref is None or gap <= 0:
+            return None, None, None
+        near = settings.trend_strikes * gap + 1e-9
+        ce = sum(v for (k, sd), v in oi_by_key.items() if sd == "CE" and abs(k - ref) <= near)
+        pe = sum(v for (k, sd), v in oi_by_key.items() if sd == "PE" and abs(k - ref) <= near)
+        above = [(v, k) for (k, sd), v in oi_by_key.items() if sd == "CE" and k >= ref]
+        below = [(v, k) for (k, sd), v in oi_by_key.items() if sd == "PE" and k <= ref]
+        return (
+            round(pe / ce, 3) if ce > 0 else None,
+            max(below)[1] if below else None,
+            max(above)[1] if above else None,
+        )
+
+    open_pcr, open_support, open_resistance = snapshot(opening_oi or {}, opening_spot)
+    pcr_open = open_pcr if open_pcr is not None else first_known(pcr)
+    pcr_now = last_known(pcr)
     pcr_vote = 0
     if pcr_open and pcr_now:
         change = (pcr_now - pcr_open) / pcr_open
         pcr_vote = 1 if change >= 0.05 else -1 if change <= -0.05 else 0
-    s_open, s_now = first_known(support), last_known(support)
-    r_open, r_now = first_known(resistance), last_known(resistance)
+    s_open = open_support if open_support is not None else first_known(support)
+    r_open = open_resistance if open_resistance is not None else first_known(resistance)
+    s_now, r_now = last_known(support), last_known(resistance)
     wall_shift = 0
     if s_open is not None and s_now is not None:
         wall_shift += (s_now > s_open) - (s_now < s_open)
@@ -770,9 +810,16 @@ def trend_read(
 
     # Price since the first step, for the reader to compare with.
     spots = [spot_at[t] for t in steps if spot_at.get(t)]
-    price_change = (spots[-1] / spots[0] - 1.0) if len(spots) >= 2 and spots[0] else None
+    base = opening_spot or (spots[0] if spots else None)
+    price_change = (spots[-1] / base - 1.0) if spots and base else None
 
+    minutes = (steps[-1] - steps[0]).total_seconds() / 60.0 + step_minutes
     return {
+        # When each value below was read, so a reader on another step can
+        # place them, and how much of the day they cover.
+        "times": list(steps),
+        "minutes": round(minutes, 1),
+        "early": minutes < TREND_EARLY_MINUTES,
         "overall": overall,
         "score": score,
         "votes": {"writers": direction, "pcr": pcr_vote, "walls": wall_vote},
@@ -787,11 +834,11 @@ def trend_read(
         "recent": round(recent, 3),
         "turning": turning,
         "since": steps[since_index],
-        "pcr_open": first_known(pcr),
-        "pcr_now": last_known(pcr),
-        "support_open": first_known(support),
-        "support_now": last_known(support),
-        "resistance_open": first_known(resistance),
-        "resistance_now": last_known(resistance),
+        "pcr_open": pcr_open,
+        "pcr_now": pcr_now,
+        "support_open": s_open,
+        "support_now": s_now,
+        "resistance_open": r_open,
+        "resistance_now": r_now,
         "strikes_read": settings.trend_strikes,
     }
