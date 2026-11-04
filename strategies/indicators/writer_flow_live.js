@@ -1072,7 +1072,15 @@ function trendIndicator(underlyingInput, stepInput, readInput) {
         ],
       ]
       if (v('tNet') === 0) rows[0][1].text += ' (raw premium)'
-      return { rows, options: { position: 'top-right', cellWidth: 'auto', fontSize: 10 } }
+      // A solid backing, as the tooltips have: the lean line and its bars run
+      // under the table, and through it the text could not be read.
+      for (const row of rows) {
+        for (const cell of row) {
+          if (!cell.bgColor) cell.bgColor = TOOLTIP_BG
+          if (!cell.textColor) cell.textColor = TOOLTIP_FG
+        }
+      }
+      return { rows, options: { position: 'top-right', cellWidth: 'auto', fontSize: 10, background: TOOLTIP_BG } }
     },
 
     attach(ctx) {
