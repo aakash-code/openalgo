@@ -14,7 +14,7 @@ function errorText(err: unknown): string {
   return r?.data?.message || 'Could not save. Try again.'
 }
 
-export default function OwnerLockSettings() {
+export default function OwnerLockSettings({ embedded = false }: { embedded?: boolean } = {}) {
   const { data, refresh } = useOwnerLock()
   const enabled = Boolean(data?.enabled)
   const [current, setCurrent] = useState('')
@@ -72,9 +72,10 @@ export default function OwnerLockSettings() {
   }
 
   return (
-    <div className="container mx-auto max-w-2xl space-y-6 py-6">
+    <div className={embedded ? 'space-y-6' : 'container mx-auto max-w-2xl space-y-6 py-6'}>
       <div>
-        <h1 className="text-2xl font-semibold">Owner Lock</h1>
+        {/* Inside Profile the tab already names the page. */}
+        {!embedded && <h1 className="text-2xl font-semibold">Owner Lock</h1>}
         <p className="text-sm text-muted-foreground">
           Lets you share this login for demos. While locked, nobody can open, copy, export, edit,
           start, stop, schedule or delete your Python strategies, see the API key, or change the
@@ -116,7 +117,9 @@ export default function OwnerLockSettings() {
               />
             </div>
             <div className="space-y-1">
-              <Label htmlFor="ol-new">New passcode (at least 4 characters, not your login password)</Label>
+              <Label htmlFor="ol-new">
+                New passcode (at least 4 characters, not your login password)
+              </Label>
               <Input
                 id="ol-new"
                 type="password"

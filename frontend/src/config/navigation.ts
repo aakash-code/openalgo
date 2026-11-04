@@ -89,7 +89,7 @@ export const profileMenuItems: NavItem[] = [
   { href: '/flow', label: 'Flow Editor', icon: Workflow },
   { href: '/scalping', label: 'Scalping', icon: Zap },
   { href: '/python', label: 'Python Strategies', icon: Code2 },
-  { href: '/owner-lock', label: 'Owner Lock', icon: Lock }, // fork
+  { href: '/profile?tab=owner-lock', label: 'Owner Lock', icon: Lock }, // fork: a tab of Profile
   { href: '/pnl-tracker', label: 'PnL Tracker', icon: BarChart3 },
   { href: '/historify', label: 'Historify', icon: Database },
   { href: '/search/token', label: 'Search', icon: Search },

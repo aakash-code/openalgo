@@ -18,6 +18,7 @@ import {
   RotateCcw,
   Send,
   Shield,
+  ShieldCheck,
   Sun,
   User,
   Volume2,
@@ -57,6 +58,7 @@ import {
 } from '@/components/ui/select'
 import { Switch } from '@/components/ui/switch'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
+import OwnerLockSettings from '@/features/owner-lock/OwnerLockSettings' // fork
 import { BROKER_SETUP_PATH, initialProfileTab } from '@/lib/brokerProfiles'
 import { type AlertCategories, type ToastPosition, useAlertStore } from '@/stores/alertStore'
 import { useAuthStore } from '@/stores/authStore'
@@ -716,7 +718,7 @@ export default function ProfilePage() {
           }
         }}
       >
-        <TabsList className="grid w-full grid-cols-7">
+        <TabsList className="grid w-full grid-cols-8">
           <TabsTrigger value="account" className="gap-1">
             <Lock className="h-4 w-4" />
             <span className="hidden sm:inline">Account</span>
@@ -744,6 +746,11 @@ export default function ProfilePage() {
           <TabsTrigger value="totp" className="gap-1">
             <Shield className="h-4 w-4" />
             <span className="hidden sm:inline">TOTP</span>
+          </TabsTrigger>
+          {/* fork: owner passcode lock */}
+          <TabsTrigger value="owner-lock" className="gap-1">
+            <ShieldCheck className="h-4 w-4" />
+            <span className="hidden sm:inline">Owner Lock</span>
           </TabsTrigger>
         </TabsList>
 
@@ -2114,6 +2121,10 @@ export default function ProfilePage() {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+        {/* fork: owner passcode lock */}
+        <TabsContent value="owner-lock" className="space-y-6">
+          <OwnerLockSettings embedded />
         </TabsContent>
       </Tabs>
 
