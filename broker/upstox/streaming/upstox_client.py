@@ -5,6 +5,7 @@ Synchronous Upstox V3 WebSocket client using websocket-client library.
 Uses the same sync pattern as Angel/Dhan adapters to avoid asyncio event loop
 conflicts with eventlet in gunicorn deployments.
 """
+
 import json
 import ssl
 import threading
@@ -20,7 +21,6 @@ from google.protobuf.json_format import MessageToDict
 
 from database.auth_db import get_auth_token
 from utils.logging import get_logger
-from websocket_proxy import ws_liveness
 
 from . import MarketDataFeedV3_pb2
 
@@ -40,11 +40,9 @@ class UpstoxWebSocketClient:
     # HTTP request timeout
     HTTP_TIMEOUT = 10
 
-    # Health check settings - detect silent stalls. Shared across brokers and
-    # env-tunable; see websocket_proxy/ws_liveness.py for why these are much
-    # tighter than the old 30s/90s (and how they compare to Zerodha's ticker).
-    HEALTH_CHECK_INTERVAL = ws_liveness.HEALTH_CHECK_INTERVAL
-    DATA_TIMEOUT = ws_liveness.DATA_TIMEOUT
+    # Health check settings - detect silent stalls
+    HEALTH_CHECK_INTERVAL = 30
+    DATA_TIMEOUT = 90
 
     # Granularity of the reconnect backoff sleep. The loop waits in slices of
     # this size so disconnect() is noticed within it instead of at the end of a
@@ -226,8 +224,8 @@ class UpstoxWebSocketClient:
                     # unlike the async websockets library which has internal keepalive.
                     self.ws.run_forever(
                         sslopt={"cert_reqs": ssl.CERT_NONE},
-                        ping_interval=ws_liveness.PING_INTERVAL,
-                        ping_timeout=ws_liveness.PING_TIMEOUT,
+                        ping_interval=30,
+                        ping_timeout=10,
                     )
                 except Exception as e:
                     self.logger.error(f"WebSocket run_forever error: {e}")
@@ -355,42 +353,27 @@ class UpstoxWebSocketClient:
         try:
             for start in range(0, len(keys), limit):
                 chunk = keys[start : start + limit]
-                # Upstox holds ONE mode per key. A key this connection already
-                # carries in another mode is moved with `change_mode`; only a key
-                # it does not carry at all is a `sub`.
-                held = self._held_in_other_mode(chunk, mode)
-                fresh = [k for k in chunk if k not in held]
-                switch = [k for k in chunk if k in held]
-                for keys_out, method in ((fresh, "sub"), (switch, "change_mode")):
-                    if not keys_out:
-                        continue
-                    message = self._create_subscription_message(keys_out, mode, method)
-                    # Send as binary frame — original async code used:
-                    # await websocket.send(json.dumps(msg).encode("utf-8"))
-                    self.ws.send(
-                        json.dumps(message).encode("utf-8"), opcode=websocket.ABNF.OPCODE_BINARY
-                    )
+                message = self._create_subscription_message(chunk, mode, "sub")
+                # Send as binary frame — original async code used:
+                # await websocket.send(json.dumps(msg).encode("utf-8"))
+                self.ws.send(
+                    json.dumps(message).encode("utf-8"), opcode=websocket.ABNF.OPCODE_BINARY
+                )
                 self._subscriptions.update(chunk)
-                # The key now lives in this mode only. Leaving it in the old
-                # mode's set too counted it twice against the caps.
-                for other, other_keys in self._keys_by_mode.items():
-                    if other != mode:
+                # Upstox holds one mode per key: a `sub` in this mode moves the
+                # key out of whichever mode it was in before.
+                for other_mode in list(self._keys_by_mode):
+                    if other_mode != mode:
+                        other_keys = self._keys_by_mode[other_mode]
                         other_keys.difference_update(chunk)
+                        if not other_keys:
+                            del self._keys_by_mode[other_mode]
                 self._keys_by_mode.setdefault(mode, set()).update(chunk)
             self.logger.debug(f"Subscribed to {len(keys)} instruments in {mode} mode")
             return True
         except Exception as e:
             self.logger.error(f"Subscribe error: {e}")
             return False
-
-    def _held_in_other_mode(self, instrument_keys: list[str], mode: str) -> set:
-        """The keys this connection already carries in a mode other than `mode`."""
-        return {
-            key
-            for key in instrument_keys
-            for other, held in self._keys_by_mode.items()
-            if other != mode and key in held
-        }
 
     def _enforce_key_limits(self, instrument_keys: list[str], mode: str) -> tuple[list[str], int]:
         """Trim a subscribe request down to what Upstox's caps actually permit.
@@ -433,28 +416,24 @@ class UpstoxWebSocketClient:
                 return [], dropped
 
         # Combined cap: only bites once a second mode is live on this connection.
-        # A key moving between modes is already in the total, so only keys new to
-        # the connection can push it over.
-        modes_in_use = set(self._keys_by_mode) | {mode}
+        # A mode whose keys have all moved or been unsubscribed holds none and
+        # does not count.
+        modes_in_use = {m for m, held in self._keys_by_mode.items() if held} | {mode}
         if len(modes_in_use) > 1:
             budget = min(
                 self.MODE_COMBINED_LIMITS.get(m, self.DEFAULT_MODE_COMBINED_LIMIT)
                 for m in modes_in_use
             )
             total = sum(len(v) for v in self._keys_by_mode.values())
-            moving = self._held_in_other_mode(new_keys, mode)
-            growing = [k for k in new_keys if k not in moving]
             room = max(budget - total, 0)
-            if len(growing) > room:
-                over = len(growing) - room
-                dropped += over
+            if len(new_keys) > room:
+                dropped += len(new_keys) - room
                 self.logger.error(
                     f"Upstox combined subscription cap reached: {budget} keys total across "
                     f"modes {sorted(modes_in_use)} ({total} already subscribed). Dropping "
-                    f"{over} of {len(new_keys)} requested {mode} key(s)."
+                    f"{len(new_keys) - room} of {len(new_keys)} requested {mode} key(s)."
                 )
-                keep = set(growing[:room]) | moving
-                new_keys = [k for k in new_keys if k in keep]
+                new_keys = new_keys[:room]
 
         return new_keys, dropped
 
@@ -558,7 +537,9 @@ class UpstoxWebSocketClient:
     def _on_ws_message(self, ws, message):
         """Called for both binary (protobuf) and text (JSON) messages"""
         self._last_message_time = time.time()
-        self.logger.debug(f"Received message: type={type(message).__name__}, size={len(message) if message else 0}")
+        self.logger.debug(
+            f"Received message: type={type(message).__name__}, size={len(message) if message else 0}"
+        )
         if isinstance(message, bytes):
             self._process_binary_message(message)
         else:
@@ -583,9 +564,7 @@ class UpstoxWebSocketClient:
         if self._health_check_thread and self._health_check_thread.is_alive():
             return
 
-        self._health_check_thread = threading.Thread(
-            target=self._health_check_loop, daemon=True
-        )
+        self._health_check_thread = threading.Thread(target=self._health_check_loop, daemon=True)
         self._health_check_thread.start()
 
     def _health_check_loop(self):
@@ -706,9 +685,7 @@ class UpstoxWebSocketClient:
         """Get WebSocket URL from Upstox authorization endpoint"""
         try:
             headers = {"Accept": "application/json", "Authorization": f"Bearer {self.auth_token}"}
-            response = requests.get(
-                self.AUTH_ENDPOINT, headers=headers, timeout=self.HTTP_TIMEOUT
-            )
+            response = requests.get(self.AUTH_ENDPOINT, headers=headers, timeout=self.HTTP_TIMEOUT)
             response.raise_for_status()
             auth_data = response.json()
             ws_url = auth_data.get("data", {}).get("authorized_redirect_uri")
@@ -779,9 +756,7 @@ class UpstoxWebSocketClient:
             "method": method,
             "data": {"instrumentKeys": instrument_keys},
         }
-        # change_mode carries its target mode just as sub does (mandatory per the
-        # V3 feed docs); unsub carries none.
-        if mode and method in ("sub", "change_mode"):
+        if mode and method == "sub":
             message["data"]["mode"] = mode
         return message
 

@@ -5,6 +5,7 @@ Upstox V3 WebSocket adapter implementation (synchronous).
 Uses sync websocket-client (same as Angel/Dhan) to avoid asyncio event loop
 conflicts with eventlet in gunicorn+eventlet deployments.
 """
+
 import json
 import threading
 from typing import Any
@@ -73,19 +74,13 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
         # the only way to stop one that fired before cancel() could reach it.
         self._batch_generation = 0
 
-        # Per-instrument LTPC cache. Upstox V3 sends incremental ticks where
-        # `fullFeed.marketFF.ltpc` may be absent on packets that only update
-        # `marketLevel`. We cache the last LTPC so quote/depth packets can
-        # carry forward a non-zero LTP into validation downstream.
-        self._last_ltpc: dict[str, dict[str, Any]] = {}
-
-        # O(1) tick routing: instrument_key → [(correlation_id, sub_info), ...].
-        # _process_feed runs for EVERY incoming tick; a linear scan over all
-        # subscriptions (240+ symbols × 2-3 ticks/sec) burned ~100k dict
-        # comparisons/sec under the lock. Also indexed by bare token to keep
-        # the legacy fallback match ("NSE_EQ|2885" vs "2885") O(1) too.
-        self._subs_by_instrument: dict[str, list[tuple[str, dict[str, Any]]]] = {}
-        self._subs_by_token: dict[str, list[tuple[str, dict[str, Any]]]] = {}
+        # Per-instrument merged snapshot, keyed by instrument key. Upstox V3
+        # ticks are incremental: a packet carries only what changed (ltpc,
+        # marketLevel, marketOHLC, atp, vtt, tbq/tsq, oi), and MessageToDict
+        # drops proto3 defaults. Every tick is merged here and each payload is
+        # built from the merged values, so a field the tick did not carry keeps
+        # its last value and a field never sent is left out.
+        self._snapshots: dict[str, dict[str, Any]] = {}
 
         # One-shot flag so a deeper-than-5 depth request reports its downgrade once
         # rather than on every symbol (see _get_upstox_mode for why it downgrades).
@@ -226,7 +221,6 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
 
         with self.lock:
             self.subscriptions[correlation_id] = subscription_info
-            self._index_subscription(correlation_id, subscription_info)
             self.subscription_queue.append(subscription_info)
             self.logger.debug(f"Queued subscription: {correlation_id} -> {subscription_info}")
 
@@ -308,11 +302,12 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
             )
             return
 
-        # Group instrument keys by the Upstox mode ("ltpc" or "full") each must
-        # hold for ALL its subscribers, not by the mode of the subscribe that
-        # queued it. A key whose subscriber left before this fired is skipped.
+        # Group instrument keys by Upstox mode string ("ltpc" or "full"). Upstox
+        # holds one mode per key, so each key is sent at the highest mode any
+        # live subscription needs: an ltpc subscribe never downgrades a key a
+        # quote or depth subscriber holds in full.
         with self.lock:
-            keys_by_mode = self._keys_by_effective_mode(sub["instrument_key"] for sub in queue)
+            keys_by_mode = self._group_keys_by_mode(sub["instrument_key"] for sub in queue)
 
         for mode_str, instrument_keys in keys_by_mode.items():
             try:
@@ -341,36 +336,54 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
             correlation_id = f"{symbol}_{exchange}_{mode}"
 
             with self.lock:
-                removed = self.subscriptions.pop(correlation_id, None)
-                if removed is None:
+                if correlation_id not in self.subscriptions:
                     self.logger.debug(f"Not subscribed to {symbol} on {exchange} with mode {mode}")
                     return self._create_success_response(
                         f"Not subscribed to {symbol} on {exchange}"
                     )
-                self._unindex_subscription(correlation_id, removed)
-                remaining = self._effective_upstox_mode(instrument_key)
 
-            # Upstox's `unsub` drops the instrument key whatever mode it is in.
-            # Sent while another mode of the same symbol was still subscribed, it
-            # stopped that subscriber's stream too, and the adapter, still holding
-            # the subscription, answered every resubscribe with "already
-            # subscribed" - a feed that looked live and sent nothing. Seen on
-            # 14-Oct-2026: a chart dropping NIFTY in Quote mode silenced a
-            # strategy's NIFTY LTP. So unsubscribe upstream only when nobody is
-            # left, and otherwise keep the key in the mode the rest still need.
-            if remaining is None:
-                sent = self.ws_client.unsubscribe([instrument_key])
-            else:
-                sent = self.ws_client.subscribe([instrument_key], remaining)
-            if not sent:
-                # The record is already gone, so a reconnect replays only what is
-                # still wanted; at worst Upstox keeps sending a key nobody reads.
-                self.logger.warning(
-                    f"Upstox did not take the update for {symbol} on {exchange} after "
-                    f"unsubscribe (socket not connected); it is corrected on reconnect"
+            # Another mode of the same instrument may still be subscribed. Upstox
+            # unsubscribes a key for every mode at once, so the key stays on the
+            # feed while any subscription needs it, re-sent at the highest mode
+            # still needed when the one leaving was the only one needing `full`.
+            with self.lock:
+                before = self._needed_upstox_mode(instrument_key)
+                sub_info = self.subscriptions.pop(correlation_id, None)
+                after = self._needed_upstox_mode(instrument_key)
+
+            if after is not None:
+                if after != before and not self.ws_client.subscribe([instrument_key], after):
+                    # The key is still held in the old mode: keep this
+                    # subscription recorded so the state matches the feed and
+                    # a retry can try the change again.
+                    with self.lock:
+                        if sub_info is not None:
+                            self.subscriptions.setdefault(correlation_id, sub_info)
+                    return self._create_error_response(
+                        "UNSUBSCRIBE_FAILED",
+                        f"Failed to change {symbol} on {exchange} to {after} mode",
+                    )
+                self.logger.info(
+                    f"Unsubscribed {symbol} on {exchange} mode {mode}; "
+                    f"{instrument_key} stays subscribed in {after} mode"
                 )
-            self.logger.info(f"Unsubscribed from {symbol} on {exchange} (mode {mode})")
-            return self._create_success_response(f"Unsubscribed from {symbol} on {exchange}")
+                return self._create_success_response(f"Unsubscribed from {symbol} on {exchange}")
+
+            success = self.ws_client.unsubscribe([instrument_key])
+
+            if success:
+                with self.lock:
+                    self._snapshots.pop(instrument_key, None)
+                self.logger.info(f"Unsubscribed from {symbol} on {exchange}")
+                return self._create_success_response(f"Unsubscribed from {symbol} on {exchange}")
+            else:
+                # Keep the subscription recorded so a retry can unsubscribe again.
+                with self.lock:
+                    if sub_info is not None:
+                        self.subscriptions.setdefault(correlation_id, sub_info)
+                return self._create_error_response(
+                    "UNSUBSCRIBE_FAILED", f"Failed to unsubscribe from {symbol} on {exchange}"
+                )
 
         except Exception as e:
             self.logger.error(f"Unsubscribe error: {e}")
@@ -439,9 +452,7 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
             with self.lock:
                 self.subscriptions.clear()
                 self.subscription_queue.clear()
-                self._last_ltpc.clear()
-                self._subs_by_instrument.clear()
-                self._subs_by_token.clear()
+                self._snapshots.clear()
 
             self.cleanup_zmq()
             self.logger.info("Disconnected from Upstox WebSocket")
@@ -565,7 +576,7 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
           would throttle every depth feed to 1/40th of what Upstox allows.
         - `full_d30` is Plus-only, so emitting it for a Standard account would turn
           a working 5-level depth feed into a rejected subscription.
-        - `_extract_depth_data` publishes 5 levels regardless, so `full_d30` would
+        - `_merge_feed` keeps 5 levels regardless, so `full_d30` would
           buy 30 levels of bandwidth and throw 25 of them away.
 
         A request for more than 5 levels is therefore served as 5 (reported once by
@@ -575,65 +586,30 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
         mode_map = {1: "ltpc", 2: "full", 3: "full"}
         return mode_map.get(mode, "ltpc")
 
-    def _index_subscription(self, correlation_id: str, sub_info: dict[str, Any]) -> None:
-        """Add a subscription to the O(1) routing indexes. Caller holds self.lock."""
-        entry = (correlation_id, sub_info)
-        key = sub_info.get("instrument_key")
-        if key:
-            self._subs_by_instrument.setdefault(key, []).append(entry)
-        token = sub_info.get("token")
-        if token:
-            self._subs_by_token.setdefault(str(token), []).append(entry)
-
-    def _unindex_subscription(self, correlation_id: str, sub_info: dict[str, Any]) -> None:
-        """Remove a subscription from the routing indexes. Caller holds self.lock."""
-        for index, key in (
-            (self._subs_by_instrument, sub_info.get("instrument_key")),
-            (self._subs_by_token, str(sub_info.get("token") or "")),
-        ):
-            if not key:
+    def _needed_upstox_mode(self, instrument_key: str) -> str | None:
+        """Highest Upstox mode any live subscription needs for this key (caller holds lock)."""
+        needed = None
+        for sub in self.subscriptions.values():
+            if sub.get("instrument_key") != instrument_key:
                 continue
-            entries = index.get(key)
-            if not entries:
+            mode_str = self._get_upstox_mode(sub["mode"], sub.get("depth_level", 0))
+            if mode_str == "full":
+                return "full"
+            needed = mode_str
+        return needed
+
+    def _group_keys_by_mode(self, instrument_keys) -> dict[str, list[str]]:
+        """Group keys by the Upstox mode each needs, de-duplicated (caller holds lock)."""
+        keys_by_mode: dict[str, list[str]] = {}
+        seen: set = set()
+        for key in instrument_keys:
+            if key in seen:
                 continue
-            index[key] = [e for e in entries if e[0] != correlation_id]
-            if not index[key]:
-                del index[key]
-
-    def _effective_upstox_mode(self, instrument_key: str) -> str | None:
-        """The Upstox mode `instrument_key` must hold for everyone subscribed to it.
-
-        Upstox keeps ONE mode per instrument key (it has `change_mode` for an
-        already-subscribed key), while OpenAlgo keeps one subscription per
-        (symbol, exchange, mode). So the key carries the richest mode any of
-        them needs: `full` also serves an LTP subscriber, because
-        _extract_tick_ltpc reads ltpc from either branch, but `ltpc` cannot
-        serve a quote or depth subscriber at all. None once nobody holds it.
-
-        Caller holds self.lock.
-        """
-        entries = self._subs_by_instrument.get(instrument_key) or []
-        if not entries:
-            return None
-        modes = {
-            self._get_upstox_mode(info["mode"], info.get("depth_level", 0)) for _, info in entries
-        }
-        return "full" if "full" in modes else "ltpc"
-
-    def _keys_by_effective_mode(self, instrument_keys) -> dict[str, list[str]]:
-        """Group keys by the mode each must hold for all its subscribers.
-
-        Each key appears once. Grouping by the mode of whichever subscribe
-        happened to queue it sent an LTP subscribe for a key a quote client
-        already held in `full`, and Upstox moved the key to `ltpc` under it.
-        Caller holds self.lock.
-        """
-        grouped: dict[str, list[str]] = {}
-        for key in dict.fromkeys(instrument_keys):
-            mode_str = self._effective_upstox_mode(key)
-            if mode_str:
-                grouped.setdefault(mode_str, []).append(key)
-        return grouped
+            seen.add(key)
+            mode_str = self._needed_upstox_mode(key)
+            if mode_str is not None:
+                keys_by_mode.setdefault(mode_str, []).append(key)
+        return keys_by_mode
 
     def _create_topic(self, exchange: str, symbol: str, mode: int) -> str:
         """Create ZMQ topic for publishing"""
@@ -667,11 +643,8 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
         if not all_subs or not self.ws_client:
             return
 
-        # One message per mode, each key once in the richest mode it needs; a
-        # key held as both LTP and quote replayed in both, and whichever went
-        # second decided what Upstox kept.
         with self.lock:
-            keys_by_mode = self._keys_by_effective_mode(sub["instrument_key"] for sub in all_subs)
+            keys_by_mode = self._group_keys_by_mode(sub["instrument_key"] for sub in all_subs)
 
         for mode_str, instrument_keys in keys_by_mode.items():
             try:
@@ -763,116 +736,184 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
     def _process_feed(self, feed_key: str, feed_data: dict[str, Any], current_ts: int):
         """Process individual feed data"""
         try:
-            # O(1) index lookup (was a linear scan over every subscription per
-            # tick). Primary: exact instrument_key. Fallback: bare token or
-            # full feed_key, preserving the legacy "NSE_EQ|2885" vs "2885"
-            # matching — minus any subscription already matched primarily.
+            matching_subscriptions = []
             with self.lock:
-                primary = self._subs_by_instrument.get(feed_key, [])
-                matching_subscriptions = list(primary)
-                if "|" in feed_key:
-                    token = feed_key.split("|")[-1]
-                    primary_ids = {cid for cid, _ in primary}
-                    for entry in (
-                        self._subs_by_token.get(token, [])
-                        + self._subs_by_token.get(feed_key, [])
-                    ):
-                        if entry[0] not in primary_ids:
-                            matching_subscriptions.append(entry)
-                            primary_ids.add(entry[0])
+                for correlation_id, sub_info in self.subscriptions.items():
+                    if sub_info.get("instrument_key") == feed_key:
+                        matching_subscriptions.append((correlation_id, sub_info))
+                    elif "|" in feed_key:
+                        token = feed_key.split("|")[-1]
+                        if sub_info.get("token") == token or sub_info.get("token") == feed_key:
+                            matching_subscriptions.append((correlation_id, sub_info))
 
             if not matching_subscriptions:
                 self.logger.warning(f"No subscription found for feed key: {feed_key}")
                 return
 
-            for correlation_id, sub_info in matching_subscriptions:
+            # Merge the tick once per instrument, then build each subscriber's
+            # payload from the merged snapshot.
+            instrument_key = matching_subscriptions[0][1].get("instrument_key", feed_key)
+            snapshot = self._merge_feed(instrument_key, feed_data)
+
+            for _correlation_id, sub_info in matching_subscriptions:
                 symbol = sub_info["symbol"]
                 exchange = sub_info["exchange"]
                 mode = sub_info["mode"]
 
                 topic = self._create_topic(exchange, symbol, mode)
-                market_data = self._extract_market_data(feed_data, sub_info, current_ts)
+                market_data = self._build_payload(feed_data, snapshot, sub_info, current_ts)
 
                 if market_data:
-                    self.logger.debug(f"Publishing {symbol}.{exchange} mode={mode} topic={topic} ltp={market_data.get('ltp', 'N/A')}")
-                    if mode == 3:  # Depth mode
-                        depth_data = market_data.copy()
-                        depth_levels = {
-                            "buy": depth_data.pop("buy", []),
-                            "sell": depth_data.pop("sell", []),
-                            "timestamp": depth_data.get("timestamp", current_ts),
-                        }
-                        depth_data["depth"] = depth_levels
-                        self.publish_market_data(topic, depth_data)
-                    else:
-                        self.publish_market_data(topic, market_data)
+                    self.logger.debug(
+                        f"Publishing {symbol}.{exchange} mode={mode} topic={topic} "
+                        f"ltp={market_data.get('ltp', 'N/A')}"
+                    )
+                    self.publish_market_data(topic, market_data)
 
         except Exception as e:
             self.logger.error(f"Error processing feed for {feed_key}: {e}")
 
-    def _extract_market_data(
-        self, feed_data: dict[str, Any], sub_info: dict[str, Any], current_ts: int
+    @staticmethod
+    def _full_feed_body(feed_data: dict[str, Any]) -> dict[str, Any]:
+        """The MarketFullFeed or IndexFullFeed dict of a tick, or {}."""
+        full_feed = feed_data.get("fullFeed") or {}
+        return full_feed.get("marketFF") or full_feed.get("indexFF") or {}
+
+    def _merge_feed(self, instrument_key: str, feed_data: dict[str, Any]) -> dict[str, Any]:
+        """Merge one tick into the instrument's snapshot and return a copy of it."""
+        updates: dict[str, Any] = {}
+
+        ltpc = self._extract_tick_ltpc(feed_data)
+        if "ltp" in ltpc:
+            updates["ltp"] = float(ltpc["ltp"])
+        if "ltq" in ltpc:
+            updates["ltq"] = int(ltpc["ltq"])
+        if "ltt" in ltpc:
+            updates["ltt"] = int(ltpc["ltt"])
+        if "cp" in ltpc:
+            # LTPC.cp is the previous day's close (21a-websocket-market-data-v3.md).
+            updates["cp"] = float(ltpc["cp"])
+
+        ff = self._full_feed_body(feed_data)
+        # Only the day candle carries the session's OHLC. The other entries
+        # (e.g. I1) are intraday candles and must never stand in for it.
+        for candle in (ff.get("marketOHLC") or {}).get("ohlc") or []:
+            if candle.get("interval") != "1d":
+                continue
+            for key in ("open", "high", "low"):
+                if key in candle:
+                    updates[key] = float(candle[key])
+            if "vol" in candle:
+                updates["day_candle_volume"] = int(candle["vol"])
+            break
+
+        if "vtt" in ff:
+            updates["vtt"] = int(ff["vtt"])
+        if "atp" in ff:
+            updates["average_price"] = float(ff["atp"])
+        if "tbq" in ff:
+            updates["total_buy_quantity"] = int(float(ff["tbq"]))
+        if "tsq" in ff:
+            updates["total_sell_quantity"] = int(float(ff["tsq"]))
+        if "oi" in ff:
+            updates["oi"] = float(ff["oi"])
+
+        market_level = ff.get("marketLevel")
+        if isinstance(market_level, dict) and "bidAskQuote" in market_level:
+            buy_levels = []
+            sell_levels = []
+            for level in market_level.get("bidAskQuote") or []:
+                bid_price = float(level.get("bidP", 0))
+                if bid_price > 0:
+                    buy_levels.append(
+                        {"price": bid_price, "quantity": int(float(level.get("bidQ", 0)))}
+                    )
+                ask_price = float(level.get("askP", 0))
+                if ask_price > 0:
+                    sell_levels.append(
+                        {"price": ask_price, "quantity": int(float(level.get("askQ", 0)))}
+                    )
+            updates["buy"] = sorted(buy_levels, key=lambda x: x["price"], reverse=True)[:5]
+            updates["sell"] = sorted(sell_levels, key=lambda x: x["price"])[:5]
+
+        with self.lock:
+            snapshot = self._snapshots.setdefault(instrument_key, {})
+            snapshot.update(updates)
+            return dict(snapshot)
+
+    @staticmethod
+    def _quote_fields(snapshot: dict[str, Any]) -> dict[str, Any]:
+        """Quote fields under OpenAlgo's names; only those Upstox has sent."""
+        out: dict[str, Any] = {}
+        if "ltp" in snapshot:
+            out["ltp"] = snapshot["ltp"]
+        for key in ("open", "high", "low"):
+            if key in snapshot:
+                out[key] = snapshot[key]
+        if "cp" in snapshot:
+            out["close"] = snapshot["cp"]
+        if "ltq" in snapshot:
+            out["last_trade_quantity"] = snapshot["ltq"]
+            out["last_quantity"] = snapshot["ltq"]
+        if "vtt" in snapshot:
+            out["volume"] = snapshot["vtt"]
+        elif "day_candle_volume" in snapshot:
+            out["volume"] = snapshot["day_candle_volume"]
+        for key in ("average_price", "total_buy_quantity", "total_sell_quantity", "oi"):
+            if key in snapshot:
+                out[key] = snapshot[key]
+        if "ltt" in snapshot:
+            out["ltt"] = snapshot["ltt"]
+            out["last_trade_time"] = snapshot["ltt"]
+        return out
+
+    def _build_payload(
+        self,
+        feed_data: dict[str, Any],
+        snapshot: dict[str, Any],
+        sub_info: dict[str, Any],
+        current_ts: Any,
     ) -> dict[str, Any]:
-        """Extract market data based on subscription mode.
-
-        Wraps the per-mode extractors with a per-instrument LTPC cache: if
-        the current tick is incremental and didn't include `ltpc`, we
-        backfill from the last-seen value so `ltp` is always present
-        downstream. Bug observed in production: mode-3 (depth) packets that
-        only update `marketLevel` were producing `Missing LTP value`
-        validation failures because ltpc.get("ltp", 0) was emitting 0
-        (and in some paths returning an empty dict that dropped the key
-        entirely).
-        """
+        """Build the payload for one subscription from the merged snapshot."""
+        if not snapshot:
+            return {}
         mode = sub_info["mode"]
-        symbol = sub_info["symbol"]
-        exchange = sub_info["exchange"]
-        token = sub_info["token"]
-        instrument_key = sub_info.get("instrument_key", token)
+        result: dict[str, Any] = {
+            "symbol": sub_info["symbol"],
+            "exchange": sub_info["exchange"],
+            "token": sub_info["token"],
+        }
 
-        base_data = {"symbol": symbol, "exchange": exchange, "token": token}
-
-        # Cache any LTPC that arrived on this tick, regardless of mode.
-        ltpc_in_tick = self._extract_tick_ltpc(feed_data)
-        if ltpc_in_tick:
-            with self.lock:
-                self._last_ltpc[instrument_key] = ltpc_in_tick
-
-        # Per-mode extraction.
         if mode == 1:
-            result = self._extract_ltp_data(feed_data, base_data)
-        elif mode == 2:
-            result = self._extract_quote_data(feed_data, base_data, current_ts)
-        elif mode == 3:
-            depth_data = self._extract_depth_data(feed_data, current_ts)
-            depth_data.update(base_data)
-            result = depth_data
-        else:
+            for key in ("ltp", "ltq", "ltt", "cp"):
+                if key in snapshot:
+                    result[key] = snapshot[key]
+            # The indicative equilibrium price is valid only for the tick that
+            # carried it, so it comes from this tick and is never cached.
+            iep = self._read_optional_double(self._extract_tick_ltpc(feed_data).get("iep"))
+            if iep is not None:
+                result["indicative_equilibrium_price"] = iep
+            return result
+
+        if mode not in (2, 3):
             return {}
 
-        # Carry-forward: if the extractor produced an empty dict (no fullFeed
-        # wrapper) or its `ltp` is 0/missing, splice in the cached LTPC. Only the
-        # trade fields are carried forward — a cached `iep` is deliberately not,
-        # because an indicative auction price is only valid for the tick that
-        # carried it and a stale one would look like a live auction.
-        if not result:
-            cached = self._last_ltpc.get(instrument_key)
-            if cached:
-                result = base_data.copy()
-                result.update(
-                    {
-                        "ltp": float(cached.get("ltp", 0) or 0),
-                        "ltq": int(cached.get("ltq", 0) or 0),
-                        "ltt": int(cached.get("ltt", 0) or 0),
-                        "cp": float(cached.get("cp", 0) or 0),
-                        "timestamp": current_ts,
-                    }
-                )
-        elif not result.get("ltp"):
-            cached = self._last_ltpc.get(instrument_key)
-            if cached and cached.get("ltp"):
-                result["ltp"] = float(cached["ltp"])
+        result.update(self._quote_fields(snapshot))
+        if current_ts:
+            result["timestamp"] = int(current_ts)
+        # Additive CAS/pre-open extras, from this tick only.
+        ff = self._full_feed_body(feed_data)
+        if ff:
+            result.update(self._extract_cas_fields(ff))
 
+        if mode == 3:
+            depth: dict[str, Any] = {
+                "buy": list(snapshot.get("buy", [])),
+                "sell": list(snapshot.get("sell", [])),
+            }
+            if current_ts:
+                depth["timestamp"] = int(current_ts)
+            result["depth"] = depth
         return result
 
     def _extract_tick_ltpc(self, feed_data: dict[str, Any]) -> dict[str, Any]:
@@ -912,23 +953,6 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
             return float(value)
         except (TypeError, ValueError):
             return None
-
-    @staticmethod
-    def _extract_oi(ff: dict[str, Any]) -> dict[str, Any]:
-        """Open interest from a MarketFullFeed-as-dict, as `{"oi": n}` or `{}`.
-
-        proto3 omits a defaulted scalar, so a missing key means "not in this
-        packet" and not "zero". Publishing nothing leaves the client holding its
-        last known value instead of flashing a false 0. Indices and cash equity
-        have no OI and never carry the field. The key matches the other adapters
-        (`oi`), which is what the proxy forwards and the clients read.
-        """
-        if "oi" not in ff:
-            return {}
-        try:
-            return {"oi": int(float(ff["oi"]))}
-        except (TypeError, ValueError):
-            return {}
 
     def _extract_cas_fields(self, ff: dict[str, Any]) -> dict[str, Any]:
         """Extract the Closing Auction Session / pre-open extras from a
@@ -970,144 +994,3 @@ class UpstoxWebSocketAdapter(BaseBrokerWebSocketAdapter):
             cas["cas_eligible"] = bool(ff["casEligible"])
 
         return cas
-
-    def _extract_ltp_data(
-        self, feed_data: dict[str, Any], base_data: dict[str, Any]
-    ) -> dict[str, Any]:
-        """Extract LTP data from feed.
-
-        Upstox V3 feed packets can carry partial sub-fields (e.g., marketOHLC or
-        marketLevel without ltpc) — particularly around bar boundaries. If a
-        packet has no ltpc, we have nothing to publish for an LTP-mode
-        subscriber: returning an empty dict tells the caller to skip publishing,
-        avoiding the downstream "Missing LTP value" validation warning storm.
-
-        Mirrors the missing-field guard used by _extract_quote_data for
-        fullFeed.
-        """
-        if "ltpc" not in feed_data:
-            return {}
-
-        ltpc = feed_data["ltpc"]
-        ltp_val = float(ltpc.get("ltp", 0))
-        if ltp_val <= 0:
-            # Pre-open / suspended / bad-tick — drop upstream rather than send
-            # a sub-zero LTP that would just be rejected by the validator.
-            return {}
-
-        market_data = base_data.copy()
-        market_data.update(
-            {
-                "ltp": ltp_val,
-                "ltq": int(ltpc.get("ltq", 0)),
-                "ltt": int(ltpc.get("ltt", 0)),
-                "cp": float(ltpc.get("cp", 0)),
-                # Same value under the name every other broker adapter uses.
-                "prev_close": float(ltpc.get("cp", 0)),
-            }
-        )
-        # LTPC carries the wrapper-typed iep; the other CAS fields exist only
-        # on the full feed, so ltpc mode can gain this one and nothing else.
-        iep = self._read_optional_double(ltpc.get("iep"))
-        if iep is not None:
-            market_data["indicative_equilibrium_price"] = iep
-        return market_data
-
-    def _extract_quote_data(
-        self, feed_data: dict[str, Any], base_data: dict[str, Any], current_ts: int
-    ) -> dict[str, Any]:
-        """Extract QUOTE data from feed."""
-        if "fullFeed" not in feed_data:
-            return {}
-
-        full_feed = feed_data["fullFeed"]
-        ff = full_feed.get("marketFF") or full_feed.get("indexFF", {})
-
-        ltpc = ff.get("ltpc", {})
-        ltp = ltpc.get("ltp", 0)
-        ltq = ltpc.get("ltq", 0)
-
-        ohlc_list = ff.get("marketOHLC", {}).get("ohlc", [])
-        ohlc = next(
-            (o for o in ohlc_list if o.get("interval") == "1d"), ohlc_list[0] if ohlc_list else {}
-        )
-
-        volume = ohlc.get("vol", 0) if ohlc else 0
-        avg_price = float(ff.get("atp", 0))
-        total_buy_qty = int(ff.get("tbq", 0))
-        total_sell_qty = int(ff.get("tsq", 0))
-
-        market_data = base_data.copy()
-        market_data.update(
-            {
-                "open": float(ohlc.get("open", 0)),
-                "high": float(ohlc.get("high", 0)),
-                "low": float(ohlc.get("low", 0)),
-                # NOTE: this "close" is TODAY's running close from the 1d candle,
-                # i.e. it tracks LTP - it is NOT the previous session's close.
-                # ltpc.cp is, and clients need it for change% against prev close.
-                "close": float(ohlc.get("close", 0)),
-                "prev_close": float(ltpc.get("cp", 0)),
-                "ltp": float(ltp),
-                "last_trade_quantity": int(ltq),
-                "volume": int(volume),
-                "average_price": float(avg_price),
-                "total_buy_quantity": int(total_buy_qty),
-                "total_sell_quantity": int(total_sell_qty),
-                "timestamp": int(ohlc.get("ts", current_ts)),
-            }
-        )
-
-        # Additive CAS/pre-open extras — an empty merge outside an auction window.
-        market_data.update(self._extract_cas_fields(ff))
-        market_data.update(self._extract_oi(ff))
-
-        return market_data
-
-    def _extract_depth_data(self, feed_data: dict[str, Any], current_ts: int) -> dict[str, Any]:
-        """Extract depth data from feed."""
-        if "fullFeed" not in feed_data:
-            return {"buy": [], "sell": [], "timestamp": current_ts, "ltp": 0}
-
-        full_feed = feed_data["fullFeed"]
-        market_ff = full_feed.get("marketFF") or full_feed.get("indexFF", {})
-        market_level = market_ff.get("marketLevel", {})
-        bid_ask = market_level.get("bidAskQuote", [])
-
-        ltpc = market_ff.get("ltpc", {})
-        ltp = float(ltpc.get("ltp", 0))
-
-        buy_levels = []
-        sell_levels = []
-
-        for level in bid_ask:
-            bid_price = float(level.get("bidP", 0))
-            bid_qty = int(float(level.get("bidQ", 0)))
-            if bid_price > 0:
-                buy_levels.append({"price": bid_price, "quantity": bid_qty, "orders": 0})
-
-            ask_price = float(level.get("askP", 0))
-            ask_qty = int(float(level.get("askQ", 0)))
-            if ask_price > 0:
-                sell_levels.append({"price": ask_price, "quantity": ask_qty, "orders": 0})
-
-        buy_levels = sorted(buy_levels, key=lambda x: x["price"], reverse=True)
-        sell_levels = sorted(sell_levels, key=lambda x: x["price"])
-
-        buy_levels.extend([{"price": 0.0, "quantity": 0, "orders": 0}] * (5 - len(buy_levels)))
-        sell_levels.extend([{"price": 0.0, "quantity": 0, "orders": 0}] * (5 - len(sell_levels)))
-
-        depth_data = {
-            "buy": buy_levels[:5],
-            "sell": sell_levels[:5],
-            "timestamp": current_ts,
-            "ltp": ltp,
-        }
-
-        # Additive CAS/pre-open extras — an empty merge outside an auction window.
-        # They sit beside `depth` in the published payload, not inside it, since
-        # they describe the auction rather than a price level.
-        depth_data.update(self._extract_cas_fields(market_ff))
-        depth_data.update(self._extract_oi(market_ff))
-
-        return depth_data

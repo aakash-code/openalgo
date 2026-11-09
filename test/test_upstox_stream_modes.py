@@ -88,7 +88,7 @@ def test_dropping_one_mode_keeps_the_other_subscribers_stream(adapter):
     sent = frames(adapter)
     assert ("unsub", None, [NIFTY_KEY]) not in sent, f"LTP subscriber's stream was cut: {sent}"
     # The key is moved down to what the LTP subscriber needs, not dropped.
-    assert sent == [("change_mode", "ltpc", [NIFTY_KEY])], sent
+    assert sent == [("sub", "ltpc", [NIFTY_KEY])], sent
     assert "NIFTY_NSE_INDEX_1" in adapter.subscriptions
 
 
@@ -122,7 +122,7 @@ def test_a_quote_subscribe_on_an_ltp_key_changes_its_mode(adapter):
     subscribe(adapter, 2)
 
     # Already subscribed upstream, so it is a mode change, not a second `sub`.
-    assert frames(adapter) == [("change_mode", "full", [NIFTY_KEY])], frames(adapter)
+    assert frames(adapter) == [("sub", "full", [NIFTY_KEY])], frames(adapter)
     assert adapter.ws_client._keys_by_mode.get("ltpc", set()) == set()
     assert adapter.ws_client._keys_by_mode["full"] == {NIFTY_KEY}
 
