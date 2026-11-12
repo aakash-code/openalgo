@@ -18,11 +18,10 @@ No passcode set means nothing is locked.
 import re
 import time
 
-from utils import real_threading
-
 from flask import jsonify, redirect, request, session
 
 from database.owner_lock_db import is_passcode_set
+from utils import real_threading
 
 UNLOCK_SECONDS = 30 * 60
 SESSION_KEY = "owner_unlocked_until"
@@ -78,9 +77,7 @@ def record_failure() -> int:
         _attempts["failures"] += 1
         if _attempts["failures"] < FAIL_LIMIT:
             return 0
-        seconds = min(
-            LOCKOUT_FIRST_SECONDS * (2 ** _attempts["lockouts"]), LOCKOUT_MAX_SECONDS
-        )
+        seconds = min(LOCKOUT_FIRST_SECONDS * (2 ** _attempts["lockouts"]), LOCKOUT_MAX_SECONDS)
         _attempts["lockouts"] += 1
         _attempts["failures"] = 0
         _attempts["locked_until"] = time.time() + seconds
