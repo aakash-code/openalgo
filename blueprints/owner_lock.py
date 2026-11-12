@@ -14,8 +14,12 @@ from utils.owner_lock import (
     UNLOCK_SECONDS,
     guard_request,
     is_owner_unlocked,
+    lockout_message,
+    lockout_remaining,
     mark_locked,
     mark_unlocked,
+    record_failure,
+    record_success,
     unlock_expires_in,
 )
 from utils.session import check_session_validity
@@ -24,7 +28,7 @@ logger = get_logger(__name__)
 
 owner_lock_bp = Blueprint("owner_lock", __name__, url_prefix="/owner-lock")
 
-MIN_LENGTH = 4
+MIN_LENGTH = 6
 MAX_LENGTH = 128
 
 
@@ -39,6 +43,27 @@ def _payload() -> dict:
 
 def _error(message: str, status: int = 400):
     return jsonify({"status": "error", "message": message}), status
+
+
+def _check_passcode(code: str):
+    """Verify against the stored passcode, counting wrong ones across all IPs.
+
+    Returns None when it is correct, else the error response to send. While a
+    lockout runs nothing is verified, so guesses made during it cost nothing
+    and reveal nothing.
+    """
+    waiting = lockout_remaining()
+    if waiting:
+        return _error(lockout_message(waiting), 429)
+    if verify_passcode(code):
+        record_success()
+        return None
+    started = record_failure()
+    if started:
+        logger.warning("Owner passcode: too many wrong passcodes, entry paused for %ss", started)
+        return _error(lockout_message(started), 429)
+    logger.warning("Owner passcode: wrong passcode entered")
+    return _error("That passcode is not correct.")
 
 
 @owner_lock_bp.route("/", methods=["GET"], strict_slashes=False)
@@ -72,9 +97,9 @@ def status():
 def unlock():
     if not is_passcode_set():
         return jsonify({"status": "success", "unlocked": True})
-    if not verify_passcode(str(_payload().get("passcode", ""))):
-        logger.warning("Owner passcode: wrong passcode entered")
-        return _error("That passcode is not correct.")
+    refused = _check_passcode(str(_payload().get("passcode", "")))
+    if refused is not None:
+        return refused
     mark_unlocked()
     return jsonify({"status": "success", "unlocked": True, "expires_in": unlock_expires_in()})
 
@@ -101,8 +126,9 @@ def change_passcode():
     remove = bool(data.get("remove"))
 
     if is_passcode_set():
-        if not verify_passcode(str(data.get("current_passcode", ""))):
-            return _error("The current passcode is not correct.")
+        refused = _check_passcode(str(data.get("current_passcode", "")))
+        if refused is not None:
+            return refused
     else:
         if not authenticate_user(session.get("user"), str(data.get("login_password", ""))):
             return _error("Your login password is not correct.")

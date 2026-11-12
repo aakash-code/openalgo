@@ -18,6 +18,8 @@ No passcode set means nothing is locked.
 import re
 import time
 
+from utils import real_threading
+
 from flask import jsonify, redirect, request, session
 
 from database.owner_lock_db import is_passcode_set
@@ -47,6 +49,59 @@ _PAGE_PATTERNS = (
 )
 
 _LOCKED_EXACT = {"/apikey", "/apikey/", "/apikey/mode", "/auth/change", "/auth/change-password"}
+
+
+# Wrong passcodes counted across every IP. The per-IP rate limit alone let a
+# watcher who can switch networks (mobile data, Wi-Fi, a VPN) try five more
+# passcodes on each one. After FAIL_LIMIT wrong tries in a row from anywhere,
+# every passcode check is refused for a lockout that doubles each time, up to
+# a day. A correct passcode clears it. Kept in memory: a watcher cannot
+# restart the server, and a restart by the owner clearing it is harmless.
+FAIL_LIMIT = 5
+LOCKOUT_FIRST_SECONDS = 15 * 60
+LOCKOUT_MAX_SECONDS = 24 * 3600
+
+_attempts_lock = real_threading.Lock()
+_attempts = {"failures": 0, "lockouts": 0, "locked_until": 0.0}
+
+
+def lockout_remaining() -> int:
+    """Seconds until passcode checks are accepted again, 0 when they are."""
+    with _attempts_lock:
+        left = _attempts["locked_until"] - time.time()
+    return max(int(left + 0.999), 0)
+
+
+def record_failure() -> int:
+    """Count a wrong passcode. Returns the lockout it started, 0 if none."""
+    with _attempts_lock:
+        _attempts["failures"] += 1
+        if _attempts["failures"] < FAIL_LIMIT:
+            return 0
+        seconds = min(
+            LOCKOUT_FIRST_SECONDS * (2 ** _attempts["lockouts"]), LOCKOUT_MAX_SECONDS
+        )
+        _attempts["lockouts"] += 1
+        _attempts["failures"] = 0
+        _attempts["locked_until"] = time.time() + seconds
+        return int(seconds)
+
+
+def record_success() -> None:
+    with _attempts_lock:
+        _attempts.update(failures=0, lockouts=0, locked_until=0.0)
+
+
+def lockout_message(seconds: int) -> str:
+    minutes = max(1, (seconds + 59) // 60)
+    if minutes >= 120:
+        wait = f"{(minutes + 59) // 60} hours"
+    else:
+        wait = f"{minutes} minutes"
+    return (
+        "Too many wrong passcodes. Passcode entry is paused for everyone for "
+        f"{wait}. The owner can wait it out; no settings need changing."
+    )
 
 
 def unlock_expires_in() -> int:

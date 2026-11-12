@@ -118,7 +118,7 @@ export default function OwnerLockSettings({ embedded = false }: { embedded?: boo
             </div>
             <div className="space-y-1">
               <Label htmlFor="ol-new">
-                New passcode (at least 4 characters, not your login password)
+                New passcode (at least 6 characters, not your login password)
               </Label>
               <Input
                 id="ol-new"

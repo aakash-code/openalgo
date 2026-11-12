@@ -20,6 +20,7 @@ def state(monkeypatch):
     monkeypatch.setattr(bp_mod, "set_passcode", lambda c: s.update(code=c or None))
     monkeypatch.setattr(bp_mod, "authenticate_user", lambda u, p: p == "loginpw")
     monkeypatch.setattr(bp_mod.limiter, "enabled", False, raising=False)
+    lock.record_success()  # no lockout carried in from another test
     import utils.session as us
 
     monkeypatch.setattr(us, "is_session_valid", lambda: True)
@@ -112,15 +113,15 @@ def test_unlock_expires(client, state):
 def test_first_passcode_needs_login_password(client, state):
     assert (
         client.post(
-            "/owner-lock/passcode", json={"new_passcode": "1234", "login_password": "x"}
+            "/owner-lock/passcode", json={"new_passcode": "123456", "login_password": "x"}
         ).status_code
         == 400
     )
     assert state["code"] is None
     r = client.post(
-        "/owner-lock/passcode", json={"new_passcode": "1234", "login_password": "loginpw"}
+        "/owner-lock/passcode", json={"new_passcode": "123456", "login_password": "loginpw"}
     )
-    assert r.status_code == 200 and state["code"] == "1234"
+    assert r.status_code == 200 and state["code"] == "123456"
 
 
 def test_change_or_remove_needs_current_passcode(client, state):
@@ -169,3 +170,68 @@ def test_passcode_cannot_be_the_login_password(client, state):
         "/owner-lock/passcode", json={"new_passcode": "loginpw", "current_passcode": "1234"}
     )
     assert r.status_code == 400 and state["code"] == "1234"
+
+
+def test_four_character_passcode_now_refused(client, state):
+    r = client.post(
+        "/owner-lock/passcode", json={"new_passcode": "1234", "login_password": "loginpw"}
+    )
+    assert r.status_code == 400 and state["code"] is None
+
+
+def test_wrong_passcodes_lock_out_every_ip_and_the_right_one_too(client, state):
+    """The per-IP limit alone let a watcher switch networks for five more tries."""
+    state["code"] = "123456"
+    for i in range(lock.FAIL_LIMIT - 1):
+        r = client.post(
+            "/owner-lock/unlock",
+            json={"passcode": f"00000{i}"},
+            environ_base={"REMOTE_ADDR": f"10.0.0.{i}"},
+        )
+        assert r.status_code == 400
+    r = client.post(
+        "/owner-lock/unlock", json={"passcode": "999999"}, environ_base={"REMOTE_ADDR": "10.9.9.9"}
+    )
+    assert r.status_code == 429
+    # While it runs, even the right passcode from a fresh IP is not checked.
+    r = client.post(
+        "/owner-lock/unlock", json={"passcode": "123456"}, environ_base={"REMOTE_ADDR": "10.8.8.8"}
+    )
+    assert r.status_code == 429
+    assert client.get("/python/api/strategy/s1/content", headers=JSON).status_code == 403
+    # Changing or removing the passcode is paused too.
+    r = client.post("/owner-lock/passcode", json={"remove": True, "current_passcode": "123456"})
+    assert r.status_code == 429 and state["code"] == "123456"
+
+
+def test_lockout_doubles_and_a_right_passcode_clears_it(client, state, monkeypatch):
+    state["code"] = "123456"
+    now = [1_000_000.0]
+    monkeypatch.setattr(lock.time, "time", lambda: now[0])
+    for _ in range(lock.FAIL_LIMIT):
+        client.post("/owner-lock/unlock", json={"passcode": "bad"})
+    assert lock.lockout_remaining() == lock.LOCKOUT_FIRST_SECONDS
+    now[0] += lock.LOCKOUT_FIRST_SECONDS + 1
+    for _ in range(lock.FAIL_LIMIT):
+        client.post("/owner-lock/unlock", json={"passcode": "bad"})
+    assert lock.lockout_remaining() == 2 * lock.LOCKOUT_FIRST_SECONDS
+    now[0] += 2 * lock.LOCKOUT_FIRST_SECONDS + 1
+    assert client.post("/owner-lock/unlock", json={"passcode": "123456"}).status_code == 200
+    for _ in range(lock.FAIL_LIMIT - 1):
+        client.post("/owner-lock/unlock", json={"passcode": "bad"})
+    assert lock.lockout_remaining() == 0
+
+
+def test_unreadable_table_keeps_the_lock_closed(monkeypatch):
+    """A failed read used to report no passcode, which unlocked everything."""
+    import database.owner_lock_db as db
+
+    db._cache.clear()
+
+    class Broken:
+        def first(self):
+            raise RuntimeError("database is locked")
+
+    monkeypatch.setattr(db.OwnerLock, "query", Broken())
+    assert db.is_passcode_set() is True
+    assert db.verify_passcode("anything") is False

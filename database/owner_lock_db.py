@@ -27,6 +27,12 @@ _ph = PasswordHasher()
 _cache = LockedTTLCache(maxsize=2, ttl=3600)
 _KEY = "hash"
 
+#: Returned by get_passcode_hash() when the table cannot be read. It is not a
+#: valid Argon2 hash, so no passcode verifies against it, and it is truthy, so
+#: the lock reads as set: a read failure keeps the owner surface locked instead
+#: of opening it.
+UNREADABLE = "!unreadable"
+
 
 class OwnerLock(Base):
     __tablename__ = "owner_lock"
@@ -50,8 +56,8 @@ def get_passcode_hash() -> str | None:
         value = row.passcode_hash if row and row.passcode_hash else None
     except Exception:
         db_session.rollback()
-        logger.exception("Owner lock table could not be read; treating as no passcode")
-        return None
+        logger.exception("Owner lock table could not be read; keeping the owner lock closed")
+        return UNREADABLE  # not cached, so the next request reads again
     finally:
         db_session.remove()
     _cache.fill(_KEY, value, generation)
@@ -65,6 +71,8 @@ def is_passcode_set() -> bool:
 def verify_passcode(code: str) -> bool:
     stored = get_passcode_hash()
     if not stored or not code:
+        return False
+    if stored == UNREADABLE:
         return False
     try:
         return _ph.verify(stored, code + PEPPER)
