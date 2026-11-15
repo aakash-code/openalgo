@@ -1,0 +1,44 @@
+# Coolify deployment of this fork on the Oracle server (algo.lighthour.in).
+#
+# Coolify builds the image from this repository and runs it with the data
+# that the earlier systemd install kept in /var/python/openalgo, so the
+# databases, strategies, keys and .env are the same files in place, and
+# going back to the systemd service needs no copy.
+#
+# nginx on the host stays the front door (ports 80/443 and the certificates)
+# and forwards to the two ports published here on 127.0.0.1 only.
+#
+# The container runs as www-data (33:33), the owner of those files, so the
+# host scripts (auto-login, Telegram notify, the watch) keep reading them.
+services:
+  openalgo:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    user: "33:33"
+    ports:
+      - "127.0.0.1:5000:5000"
+      - "127.0.0.1:8765:8765"
+    volumes:
+      - /var/python/openalgo/db:/app/db
+      - /var/python/openalgo/log:/app/log
+      - /var/python/openalgo/strategies:/app/strategies
+      - /var/python/openalgo/keys:/app/keys
+      - /var/python/openalgo/tmp:/app/tmp
+      - /var/python/openalgo/.env:/app/.env
+    environment:
+      - TZ=Asia/Kolkata
+      - HOME=/app/tmp
+      # .env says 127.0.0.1 for the systemd install; inside a container the
+      # proxy must listen on every interface for the published port to reach it.
+      - WEBSOCKET_HOST=0.0.0.0
+      - STRATEGY_MEMORY_LIMIT_MB=2048
+    shm_size: 1g
+    stop_grace_period: 60s
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://127.0.0.1:5000/auth/check-setup"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 90s
+    restart: unless-stopped
