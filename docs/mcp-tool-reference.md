@@ -2,7 +2,7 @@
 
 Companion reference to the main MCP setup guide. Once the MCP server is wired into Claude Desktop, Cursor, Windsurf, Antigravity, or any other MCP-capable client, you can ask for these operations in plain English — the client decides which tool to call.
 
-The reference covers the 49 tools declared in `mcp/mcpserver.py` at the audited
+The reference covers the 51 tools declared in `mcp/mcpserver.py` at the audited
 revision. The live MCP `tools/list` schema remains authoritative for the installed
 revision and enabled toolsets. Example symbols and expiry dates are illustrative;
 resolve an available contract and its current lot size before placing an order.
@@ -231,9 +231,15 @@ Only executed fills.
 
 LTP, bid, ask, OHLC, volume for one symbol.
 
+| Param | Required | Notes |
+|---|---|---|
+| `symbol` | Yes | OpenAlgo symbol |
+| `exchange` | No | When omitted, an index uses its index exchange (`SENSEX`, `BANKEX`, `SENSEX50` use `BSE_INDEX`; `NIFTY`, `BANKNIFTY` and the other NSE indices use `NSE_INDEX`) and any other symbol uses `NSE`. Pass it for BSE equities and derivative contracts |
+
 **Prompts:**
 - *"Get the latest quote for RELIANCE"*
 - *"What's NIFTY trading at right now?"*
+- *"Where is SENSEX trading?"*
 
 ---
 
@@ -330,7 +336,15 @@ Put-call parity synthetic future price — useful for illiquid futures or weekly
 
 All tradeable expiries for an underlying.
 
-**Prompt:** *"List all NIFTY options expiries available on NFO"*
+| Param | Required | Notes |
+|---|---|---|
+| `symbol` | Yes | Underlying, e.g. `NIFTY`, `SENSEX` |
+| `exchange` | No | `NFO`, `BFO`, `MCX` or `CDS`. When omitted, `SENSEX`, `BANKEX` and `SENSEX50` use `BFO` and any other underlying uses `NFO` |
+| `instrument_type` | No | `options` (default) or `futures` |
+
+**Prompts:**
+- *"List all NIFTY options expiries available on NFO"*
+- *"What are the next SENSEX weekly expiries?"*
 
 ---
 
@@ -449,6 +463,23 @@ Push a Telegram notification via the OpenAlgo Telegram bot (must be configured i
 **Prompts:**
 - *"Send me a Telegram alert: NIFTY crossed 26000, priority 8"*
 - *"Ping me on Telegram if my NIFTY CE fills"*
+
+### `send_slack_alert`
+
+Post a message to the Slack channel whose incoming webhook is saved on OpenAlgo's `/slack` page. Slack must be switched on at `/alerts`; otherwise the tool returns an error naming the missing step. Takes `message` (at most 4000 characters) and optional `wait_for_delivery` (default false queues the post; true posts it and reports whether Slack accepted it). Mentions never ping anyone.
+
+**Prompts:**
+- *"Post to Slack: NIFTY broke 26000, long straddle hedged"*
+- *"Send the day's realized P&L to our Slack channel and confirm it was delivered"*
+
+### `send_discord_alert`
+
+Post a message to the Discord channel whose webhook is saved on OpenAlgo's `/discord` page. Discord must be switched on at `/alerts`. Takes `message` (at most 2000 characters) and optional `wait_for_delivery`. Mentions are never resolved, so `@everyone` cannot ping a server.
+
+**Prompts:**
+- *"Tell the Discord channel that all positions are squared off"*
+
+The Slack and Discord channels may have other readers. On the remote MCP server all three alert tools need `read:account`, not `write:orders`; all three are dropped in read-only mode.
 
 ---
 

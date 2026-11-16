@@ -59,6 +59,7 @@ need → drill into the specific file. Don't load everything at once.
 | Writer Flow: how to read it on the chart (colours, streak bars, markers, totals, what to look for) | [writer-flow-guide.md](writer-flow-guide.md) |
 | Option Levels: support and resistance from where option writers sit, ranked by a rolling month of open interest, on the `/trading` chart | [option-levels.md](option-levels.md) |
 | Market read: the `/trading` panel that reads writers, futures, levels and volatility together every minute, and its alerts | [market-read.md](market-read.md) |
+| Alerts: Telegram, WhatsApp, Slack and Discord on one page | [alerts.md](alerts.md) |
 | WhatsApp alerts | [whatsapp.md](whatsapp.md) |
 | Telegram chart rendering | [telegram-chart-rendering.md](telegram-chart-rendering.md) |
 | Health monitoring | [HEALTH_MONITORING_IMPLEMENTATION.md](HEALTH_MONITORING_IMPLEMENTATION.md) · [HEALTH_MONITOR_REACT_FRONTEND.md](HEALTH_MONITOR_REACT_FRONTEND.md) |
