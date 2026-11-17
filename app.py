@@ -974,6 +974,17 @@ def setup_environment(app):
                 except Exception:
                     logger.exception("Could not start the OI Flow recorder")
 
+            # Tick-level capture of index + option contracts to the Parquet lake.
+            # Opt-in and heavy: it streams every raw Depth tick for the ATM window
+            # and writes it off the hub on a real thread. The init is a no-op
+            # unless TICKS_RECORDER_ENABLED is set.
+            try:
+                from services.tick_capture_service import init_tick_capture
+
+                init_tick_capture()
+            except Exception:
+                logger.exception("Could not start the tick capture service")
+
             # Opt-in inside the service itself (SIGNAL_SUMMARY_ENABLED), so the
             # periodic channel summary never starts by accident.
             try:

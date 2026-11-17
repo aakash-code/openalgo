@@ -304,6 +304,56 @@ def get_history_from_db(
         return False, {"status": "error", "message": str(e)}, 500
 
 
+def get_history_from_ticks(
+    symbol: str, exchange: str, interval: str, start_date: str, end_date: str
+) -> tuple[bool, dict[str, Any], int]:
+    """Get OHLCV bars resampled from the tick store (``database/ticks_store``).
+
+    Same shape as ``get_history_from_db`` -- bars are derived from raw ticks in
+    DuckDB SQL, so the ``[{timestamp,open,high,low,close,volume,oi}]`` response
+    is identical and existing consumers work unchanged.
+    """
+    try:
+        from datetime import date, datetime
+
+        from database.ticks_store import get_ohlcv
+
+        if isinstance(start_date, date):
+            start_dt = datetime.combine(start_date, datetime.min.time())
+        else:
+            start_dt = datetime.strptime(start_date, "%Y-%m-%d")
+        if isinstance(end_date, date):
+            end_dt = datetime.combine(end_date, datetime.min.time())
+        else:
+            end_dt = datetime.strptime(end_date, "%Y-%m-%d")
+        end_dt = end_dt.replace(hour=23, minute=59, second=59)
+
+        df = get_ohlcv(
+            symbol,
+            exchange,
+            interval,
+            int(start_dt.timestamp()),
+            int(end_dt.timestamp()),
+        )
+        if df.empty:
+            return (
+                False,
+                {
+                    "status": "error",
+                    "message": f"No tick data found for {symbol}:{exchange} interval {interval}. "
+                    "Enable TICKS_RECORDER_ENABLED to capture it.",
+                },
+                404,
+            )
+        if "oi" not in df.columns:
+            df["oi"] = 0
+        df = df[["timestamp", "open", "high", "low", "close", "volume", "oi"]]
+        return True, {"status": "success", "data": df.to_dict(orient="records")}, 200
+    except Exception as e:
+        logger.exception(f"Error fetching history from tick store: {e}")
+        return False, {"status": "error", "message": str(e)}, 500
+
+
 def get_history(
     symbol: str,
     exchange: str,
@@ -331,7 +381,8 @@ def get_history(
         auth_token: Direct broker authentication token (for internal calls)
         feed_token: Direct broker feed token (for internal calls)
         broker: Direct broker name (for internal calls)
-        source: Data source - 'api' (broker, default) or 'db' (DuckDB/Historify).
+        source: Data source - 'api' (broker, default), 'db' (DuckDB/Historify),
+            or 'ticks' (bars resampled from the tick-level Parquet store).
             Unsupported values return 400 before a provider is called.
 
     Returns:
@@ -342,16 +393,26 @@ def get_history(
 
         Unsupported source values return a 400 error before either provider is called.
     """
-    if not isinstance(source, str) or source not in {"api", "db"}:
+    if not isinstance(source, str) or source not in {"api", "db", "ticks"}:
         return (
             False,
-            {"status": "error", "message": "Source must be either 'api' or 'db'."},
+            {"status": "error", "message": "Source must be 'api', 'db' or 'ticks'."},
             400,
         )
 
     # Source: 'db' - Fetch from DuckDB/Historify database
     if source == "db":
         return get_history_from_db(
+            symbol=symbol,
+            exchange=exchange,
+            interval=interval,
+            start_date=start_date,
+            end_date=end_date,
+        )
+
+    # Source: 'ticks' - Bars resampled from the tick-level Parquet store
+    if source == "ticks":
+        return get_history_from_ticks(
             symbol=symbol,
             exchange=exchange,
             interval=interval,
