@@ -137,7 +137,9 @@ class HistorySchema(Schema):
     start_date = fields.Date(required=True, format="%Y-%m-%d")  # YYYY-MM-DD
     end_date = fields.Date(required=True, format="%Y-%m-%d")  # YYYY-MM-DD
     # Optional: Data source - 'api' (broker, default) or 'db' (DuckDB/Historify)
-    source = fields.Str(required=False, load_default="api", validate=validate.OneOf(["api", "db"]))
+    source = fields.Str(
+        required=False, load_default="api", validate=validate.OneOf(["api", "db", "ticks"])
+    )
     # OI is now always included by default for F&O exchanges
 
 

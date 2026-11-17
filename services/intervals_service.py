@@ -1,4 +1,5 @@
 import importlib
+import os
 from typing import Any, Optional, Union
 
 from database.auth_db import get_auth_token_broker
@@ -77,8 +78,16 @@ def get_intervals_with_auth(auth_token: str, broker: str) -> tuple[bool, dict[st
                 ", ".join(sorted(dropped)),
             )
 
+        seconds = [k for k in offered if k.endswith("s")]
+        # The tick store serves any second interval for captured symbols, and the
+        # chart builds live second-candles from the feed itself. So when the tick
+        # recorder is on, advertise the standard seconds the chart should offer,
+        # regardless of whether the broker's own history exposes sub-minute.
+        if os.getenv("TICKS_RECORDER_ENABLED", "false").strip().lower() == "true":
+            seconds = list(set(seconds) | {"1s", "5s", "15s", "30s", "45s"})
+
         intervals = {
-            "seconds": sort_intervals([k for k in offered if k.endswith("s")]),
+            "seconds": sort_intervals(seconds),
             "minutes": sort_intervals([k for k in offered if k.endswith("m")]),
             "hours": sort_intervals([k for k in offered if k.endswith("h")]),
             "days": sorted([k for k in offered if k == "D"]),

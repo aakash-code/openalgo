@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import glob as _glob
 import os
+import re
 import time
 from contextlib import contextmanager
 from datetime import UTC, date, datetime
@@ -405,8 +406,21 @@ _INTERVAL_SECONDS = {
 }
 
 
+_INTERVAL_RE = re.compile(r"^(\d+)\s*([smhd])$")
+_UNIT_SECONDS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+
+
 def _interval_seconds(interval: str) -> int:
-    return _INTERVAL_SECONDS.get(str(interval).lower().strip(), 60)
+    """Seconds per bar for an interval string. Handles the dict above plus any
+    ``Ns`` / ``Nm`` / ``Nh`` / ``Nd`` form, so second intervals (1s, 5s, 45s)
+    bucket correctly instead of silently falling back to one minute."""
+    key = str(interval).lower().strip()
+    if key in _INTERVAL_SECONDS:
+        return _INTERVAL_SECONDS[key]
+    m = _INTERVAL_RE.match(key)
+    if m:
+        return max(1, int(m.group(1)) * _UNIT_SECONDS[m.group(2)])
+    return 60
 
 
 def get_ohlcv(

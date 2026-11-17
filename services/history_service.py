@@ -400,6 +400,13 @@ def get_history(
             400,
         )
 
+    # Sub-minute intervals (1s, 5s, ...) can only come from the tick store -
+    # brokers and Historify serve 1m and coarser. Route them there automatically
+    # so the chart need not know the source (it sends none). An explicit
+    # source="db" is still honoured as asked.
+    if source == "api" and str(interval).strip().lower().endswith("s"):
+        source = "ticks"
+
     # Source: 'db' - Fetch from DuckDB/Historify database
     if source == "db":
         return get_history_from_db(

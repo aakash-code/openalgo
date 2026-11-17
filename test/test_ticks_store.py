@@ -132,3 +132,34 @@ def test_empty_lake_reads_are_safe(lake):
     assert lake.query_ticks("NONE", "2026-11-18", "2026-11-18").empty
     assert lake.get_ohlcv("NONE", "NFO", "1m").empty
     assert lake.available_days() == []
+
+
+def test_interval_parser_handles_seconds():
+    # The bug this guards: an unparsed interval silently fell back to 60s, so
+    # every second request returned one-minute bars.
+    assert ts._interval_seconds("1s") == 1
+    assert ts._interval_seconds("5s") == 5
+    assert ts._interval_seconds("45s") == 45
+    assert ts._interval_seconds("1m") == 60
+    assert ts._interval_seconds("5m") == 300
+    assert ts._interval_seconds("1h") == 3600
+    assert ts._interval_seconds("garbage") == 60
+
+
+def test_resample_to_second_bars(lake):
+    # 60 ticks, one per second, spanning one UTC minute.
+    base = int(datetime(2026, 11, 18, 4, 0, tzinfo=timezone.utc).timestamp() * 1000)
+    rows = [
+        lake.row_from_tick(
+            "X", "NFO", "NIFTY",
+            {"ltp": 100.0 + (i % 5), "volume": 1000 + i * 2, "oi": 5000 + i,
+             "ltt": base + i * 1000, "timestamp": base + i * 1000},
+            date(2026, 11, 18),
+        )
+        for i in range(60)
+    ]
+    lake.write_batch(rows)
+    s = base // 1000
+    assert len(lake.get_ohlcv("X", "NFO", "5s", s - 5, s + 120)) == 12   # 60 / 5
+    assert len(lake.get_ohlcv("X", "NFO", "15s", s - 5, s + 120)) == 4   # 60 / 15
+    assert len(lake.get_ohlcv("X", "NFO", "1m", s - 5, s + 120)) == 1
