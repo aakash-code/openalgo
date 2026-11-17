@@ -61,6 +61,7 @@ const CAPITAL_OPTIONS = [
   { value: '2500000', label: '25,00,000 (25 Lakhs)' },
   { value: '5000000', label: '50,00,000 (50 Lakhs)' },
   { value: '10000000', label: '1,00,00,000 (1 Crore)' },
+  { value: '100000000', label: '10,00,00,000 (10 Crore)' },
 ]
 
 const ANALYZER_BROKER_MARGIN_MODES = [
