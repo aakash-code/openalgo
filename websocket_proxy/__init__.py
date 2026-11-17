@@ -74,6 +74,7 @@ from broker.mstock.streaming.mstock_adapter import MstockWebSocketAdapter
 
 # Import the nubra_adapter
 from broker.nubra.streaming.nubra_adapter import NubraWebSocketAdapter
+from broker.nuvama.streaming.nuvama_adapter import NuvamaWebSocketAdapter
 
 # Import the paytm_adapter
 from broker.paytm.streaming.paytm_adapter import PaytmWebSocketAdapter
@@ -145,6 +146,7 @@ register_adapter("jainamxts", JainamXTSWebSocketAdapter)
 register_adapter("samco", SamcoWebSocketAdapter)
 register_adapter("pocketful", PocketfulWebSocketAdapter)
 register_adapter("nubra", NubraWebSocketAdapter)
+register_adapter("nuvama", NuvamaWebSocketAdapter)
 register_adapter("rmoney", RMoneyWebSocketAdapter)
 register_adapter("arrow", ArrowWebSocketAdapter)
 register_adapter("rupeezy", RupeezyWebSocketAdapter)
@@ -200,6 +202,7 @@ __all__ = [
     "SamcoWebSocketAdapter",
     "PocketfulWebSocketAdapter",
     "NubraWebSocketAdapter",
+    "NuvamaWebSocketAdapter",
     "RMoneyWebSocketAdapter",
     "ArrowWebSocketAdapter",
     "RupeezyWebSocketAdapter",
