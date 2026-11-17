@@ -55,6 +55,7 @@ need → drill into the specific file. Don't load everything at once.
 | Intraday Boost: a trading day | [tf-boost-monday-runbook.md](tf-boost-monday-runbook.md) |
 | OI Profile: where Change in OI is anchored | [oi-profile-anchors.md](oi-profile-anchors.md) |
 | OI Profile: live open interest from the broker feed, per-broker capability | [oi-profile-live-oi.md](oi-profile-live-oi.md) |
+| Tick capture: opt-in raw tick-level storage (full depth + OI) for index/option contracts, to a Parquet lake for tick backtesting | [tick-capture.md](tick-capture.md) |
 | Writer Flow: where option writers added, covered or held, strike by strike through the day | [writer-flow.md](writer-flow.md) |
 | Writer Flow: how to read it on the chart (colours, streak bars, markers, totals, what to look for) | [writer-flow-guide.md](writer-flow-guide.md) |
 | Option Levels: support and resistance from where option writers sit, ranked by a rolling month of open interest, on the `/trading` chart | [option-levels.md](option-levels.md) |
