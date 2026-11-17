@@ -15,7 +15,8 @@ option-chain row it stores the raw feed, tick by tick.
   `BANKNIFTY` on `NSE_INDEX`), plus each underlying's index spot.
 - **Contracts:** the ATM ± `TICKS_STRIKES_AROUND_ATM` strike window (default 15,
   i.e. ~60 options/underlying) of the **nearest expiry**, recomputed every
-  minute so the set follows spot and rolls at expiry automatically.
+  minute so the set follows spot and rolls at expiry automatically, plus the
+  `TICKS_FUTURES_MONTHS` nearest futures (default 2 = current + next month).
 - **Per tick (Depth mode):** last price, day OHLC, cumulative volume, OI,
   total buy/sell quantity, average price, and the **5-level bid/ask book**
   (`price`, `quantity`; order counts where the broker sends them). Both the
@@ -70,6 +71,7 @@ Set these in `.env` (all optional except the first; defaults shown):
 | `TICKS_RECORDER_ENABLED` | `false` | Master switch |
 | `TICKS_UNDERLYINGS` | `NIFTY:NSE_INDEX,BANKNIFTY:NSE_INDEX` | `UNDERLYING:QUOTE_EXCHANGE` list |
 | `TICKS_STRIKES_AROUND_ATM` | `15` | Strikes each side of ATM (1-50) |
+| `TICKS_FUTURES_MONTHS` | `2` | Near futures per underlying (0-3); 2 = current + next |
 | `TICKS_MODE` | `Depth` | `LTP` / `Quote` / `Depth` |
 | `TICKS_DATA_DIR` | `db/ticks` | Lake root |
 | `TICKS_FLUSH_SECONDS` | `5` | Flush buffer every N seconds |

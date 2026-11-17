@@ -89,6 +89,12 @@ def strikes_around_atm() -> int:
     return _clamped_int("TICKS_STRIKES_AROUND_ATM", 15, 1, 50)
 
 
+def futures_months() -> int:
+    """How many near-month futures per underlying to also capture (0-3).
+    Default 2 = current + next month."""
+    return _clamped_int("TICKS_FUTURES_MONTHS", 2, 0, 3)
+
+
 def subscribe_mode() -> str:
     return os.getenv("TICKS_MODE", SUBSCRIBE_MODE_DEFAULT).strip() or SUBSCRIBE_MODE_DEFAULT
 
@@ -393,6 +399,17 @@ class TickCapture:
         spot_key = f"{quote_exchange}:{underlying}"
         out_active.add(spot_key)
         out_under[spot_key] = underlying
+        # Near futures (current + next month by default) on the F&O exchange.
+        n_fut = futures_months()
+        if n_fut > 0:
+            from services.option_symbol_service import near_month_futures
+
+            for fut in near_month_futures(underlying, opt_exchange, count=n_fut) or []:
+                sym = fut.get("symbol")
+                if sym:
+                    key = f"{opt_exchange}:{sym}"
+                    out_active.add(key)
+                    out_under[key] = underlying
 
     @staticmethod
     def _split(key: str) -> tuple[str, str]:
