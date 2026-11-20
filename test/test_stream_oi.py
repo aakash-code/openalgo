@@ -138,30 +138,37 @@ def test_groww_parser_reads_open_interest():
 # --- Aliceblue: contract `oi` is on depth frames only -----------------------
 
 
+# AliceBlue parses OI into `total_oi` and publishes it as `oi` (_quote_fields).
 def test_aliceblue_depth_frame_carries_oi():
     out = AliceBlueMessageMapper.parse_depth_data({"t": "dk", "e": "NFO", "tk": "1", "oi": "1500"})
-    assert out["oi"] == 1500
+    assert out["total_oi"] == 1500
 
 
 def test_aliceblue_depth_frame_without_oi():
-    assert "oi" not in AliceBlueMessageMapper.parse_depth_data({"t": "df", "e": "NFO", "tk": "1"})
+    assert "total_oi" not in AliceBlueMessageMapper.parse_depth_data({"t": "df", "e": "NFO", "tk": "1"})
 
 
 def test_aliceblue_depth_frame_forwards_a_real_zero():
     out = AliceBlueMessageMapper.parse_depth_data({"t": "df", "e": "NFO", "tk": "1", "oi": "0"})
-    assert out["oi"] == 0
+    assert out["total_oi"] == 0
+
+
+def test_aliceblue_underlying_total_is_not_taken_as_contract_oi():
+    # `toi` on a tick frame is the underlying's total, never the contract's OI.
+    tick = AliceBlueMessageMapper.parse_tick_data({"t": "tf", "e": "NFO", "tk": "1", "lp": "10", "toi": "99999999"})
+    assert "total_oi" not in tick
 
 
 def test_aliceblue_snapshot_keeps_oi_for_publishing():
     # The adapter publishes the merged snapshot, not the parsed frame, so the
-    # snapshot has to carry oi through, and keep it across a frame without it.
+    # snapshot has to carry OI through, and keep it across a frame without it.
     adapter = AliceblueWebSocketAdapter.__new__(AliceblueWebSocketAdapter)
     adapter.market_snapshots = {}
     adapter.logger = logging.getLogger("test_aliceblue")
-    first = adapter._update_market_snapshot("NFO:1", {"ltp": 10.0, "oi": 1500, "bids": []})
-    assert first["oi"] == 1500
-    second = adapter._update_market_snapshot("NFO:1", {"ltp": 10.5, "bids": []})
-    assert second["oi"] == 1500
+    first = adapter._update_market_snapshot("NFO:1", {"ltp": 10.0, "total_oi": 1500})
+    assert adapter._quote_fields(first)["oi"] == 1500
+    second = adapter._update_market_snapshot("NFO:1", {"ltp": 10.5})
+    assert adapter._quote_fields(second)["oi"] == 1500
 
 
 # --- Groww: Depth publishes send the merged cache entry ----------------------
