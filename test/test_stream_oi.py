@@ -39,7 +39,10 @@ from broker.zebu.streaming import zebu_adapter  # noqa: E402
 
 
 def _adapter():
-    return Adapter.__new__(Adapter)
+    adapter = Adapter.__new__(Adapter)
+    adapter.lock = threading.Lock()
+    adapter._snapshots = {}
+    return adapter
 
 
 def _feed(**extra):
@@ -48,19 +51,25 @@ def _feed(**extra):
     return {"fullFeed": {"marketFF": ff}}
 
 
+def _publish(feed, mode):
+    # The adapter merges each tick into a snapshot, then publishes from it.
+    adapter = _adapter()
+    snapshot = adapter._merge_feed("NSE_FO|1", feed)
+    sub = {"symbol": "NIFTY", "exchange": "NFO", "token": "1", "mode": mode}
+    return adapter._build_payload(feed, snapshot, sub, 1)
+
+
 def test_upstox_quote_publishes_oi_when_present():
-    out = _adapter()._extract_quote_data(_feed(oi=1234567.0), {}, 1)
-    assert out["oi"] == 1234567
+    assert _publish(_feed(oi=1234567.0), 2)["oi"] == 1234567
 
 
 def test_upstox_quote_omits_oi_when_absent():
     # proto3 drops a zero scalar; absent must stay absent, never become 0
-    assert "oi" not in _adapter()._extract_quote_data(_feed(), {}, 1)
+    assert "oi" not in _publish(_feed(), 2)
 
 
 def test_upstox_depth_publishes_oi():
-    out = _adapter()._extract_depth_data(_feed(oi=500.0), 1)
-    assert out["oi"] == 500
+    assert _publish(_feed(oi=500.0), 3)["oi"] == 500
 
 
 # --- Noren family (Flattrade, Zebu, Shoonya) ---------------------------------

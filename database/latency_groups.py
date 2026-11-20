@@ -180,6 +180,11 @@ GROUPS: tuple[Group, ...] = (
             Endpoint("WHATSAPP", "WhatsApp", ("whatsapp",)),
             Endpoint("SLACK", "Slack", ("slack",)),
             Endpoint("DISCORD", "Discord", ("discord",)),
+            Endpoint(
+                "TRADEFINDER", "TradeFinder", ("tfmarketpulse", "tfsectorscope", "tfjwtkeepalive")
+            ),
+            Endpoint("BOOST", "Intraday boost", ("boostsnapshots", "boostmovement")),
+            Endpoint("NSEEVENTS", "NSE events", ("nseevents",)),
         ),
     ),
 )

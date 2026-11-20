@@ -72,12 +72,15 @@ def test_transient_failure_is_not_abandoned():
     assert not svc._refreshing, "the in-flight guard must be cleared"
 
 
-def test_headed_fallback_runs_after_headless_exhausted():
+def test_headed_fallback_runs_after_headless_exhausted(monkeypatch):
     """When TradeFinder's own session is logged out, every headless attempt fails
     identically — the retry loop must fall back to one headed (visible) attempt
     rather than just giving up."""
     import services.tf_jwt_keepalive_service as svc
 
+    # Where the fallback may run depends on the host (Linux with Xvfb, or
+    # TF_HEADED_LOGIN=1); pin it so the test means the same on every machine.
+    monkeypatch.setattr(svc, "_headed_fallback_allowed", lambda: True)
     calls = []
 
     class FakeAuth:

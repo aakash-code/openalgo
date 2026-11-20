@@ -98,6 +98,11 @@ def test_invalid_sources_call_neither_provider(monkeypatch, source):
     )
     monkeypatch.setattr(
         history_service,
+        "get_history_from_ticks",
+        lambda *args, **kwargs: pytest.fail("tick provider should not be called"),
+    )
+    monkeypatch.setattr(
+        history_service,
         "_enforce_rate_limit",
         lambda: pytest.fail("rate limiting should not run for an invalid source"),
     )
@@ -110,5 +115,5 @@ def test_invalid_sources_call_neither_provider(monkeypatch, source):
     assert status_code == 400
     assert response == {
         "status": "error",
-        "message": "Source must be either 'api' or 'db'.",
+        "message": "Source must be 'api', 'db' or 'ticks'.",
     }

@@ -33,5 +33,6 @@ broker/kotak/api/data.py::BrokerData.__init__::self.base_url  # benign: set once
 utils/logging.py::SensitiveDataFilter.filter::record.exc_text  # benign: each log record belongs to the one call that emits it
 utils/logging.py::SensitiveDataFilter.filter::record.stack_info  # benign: each log record belongs to the one call that emits it
 upgrade/migrate_smtp_simple.py::setup_unicode_output::sys.stdout  # benign: a one-shot command line migration, single threaded
+services/oi_flow_analysis.py::analyse::run.net_move  # benign: run is a _Run built and mutated inside this one analyse call, never shared
 
 # --- Real races, fixes owned elsewhere --------------------------------------

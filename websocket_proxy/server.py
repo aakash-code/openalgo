@@ -1010,13 +1010,16 @@ class WebSocketProxy:
         if client_id in self.clients:
             del self.clients[client_id]
 
-        if self._client_linger_seconds <= 0:
+        # Read defensively, like _invalidated_clients below: a proxy built without
+        # __init__ (as tests do) has no linger setting and tears down inline.
+        linger = getattr(self, "_client_linger_seconds", 0)
+        if linger <= 0:
             await self._teardown_client(client_id)
             return
 
         async def _deferred():
             try:
-                await aio.sleep(self._client_linger_seconds)
+                await aio.sleep(linger)
                 await self._teardown_client(client_id)
             except aio.CancelledError:
                 # Proxy shutting down — stop() drains these, and the process is
