@@ -194,6 +194,24 @@ with the index's move:
 | Net of the index (default) | about 0 | +0.03 (NIFTY, positive on 18 of 25 days) | about 0 |
 | Trades | 0.57 to 0.75 | about 0 | about 0 |
 
+**How accurate the heatmap's amounts are.** Summed over the day, each
+strike's cells were held to NSE's own day change (that day's closing file
+less the previous one's), for every strike read from the open to the close,
+on 23 days each of NIFTY and BANKNIFTY (16-Oct to 23-Nov-2026). The typical
+strike differed by 0.56% of its OI on BANKNIFTY and 1.47% on NIFTY. Split
+by where it arises:
+
+- Between our first and last readings: 0.00% on every day. The cells carry
+  exactly the change recorded; drawing loses nothing.
+- Before the first reading: 1-4% on some days in late October, when the
+  first reading came after the opening minute; 0.00% on every day from 12 Nov.
+- After the last reading: 0.2-1% most days, up to 4.5% on 20 Nov. NSE
+  settles its official figure after 15:40; the live feed never carries that
+  last step (docs/eod-data-check.md).
+
+So the sizes are right. What the colour says is a reading of who acted, and
+its forecasting value is the table below.
+
 The raw and trade readings mostly repeat the candle: a call bought at the
 offer while the index rises is the rise itself. The net reading is the only one
 that adds anything the candles do not show, and only a little. So it stays the
