@@ -183,6 +183,24 @@ What it found, NIFTY 18-20 Nov 2026 (`scripts/writer_flow_trade_check.py`):
   reliably better over three days. That needs 20-30 sessions, which the
   check script collects in `log/writer_flow_trade_check.csv`, one run per day.
 
+Measured again on 23-Nov-2026 across every recorded day (26 sessions of
+NIFTY, BANKNIFTY and SENSEX from 16-Oct; trades on 18-23 Nov), as the rank
+correlation of each minute's signed flow within five strikes of the money
+with the index's move:
+
+| Reading | Same minute | Next 5 min | Next 15 min |
+| --- | --- | --- | --- |
+| Raw premium | 0.60 to 0.81 | about 0 | about 0 |
+| Net of the index (default) | about 0 | +0.03 (NIFTY, positive on 18 of 25 days) | about 0 |
+| Trades | 0.57 to 0.75 | about 0 | about 0 |
+
+The raw and trade readings mostly repeat the candle: a call bought at the
+offer while the index rises is the rise itself. The net reading is the only one
+that adds anything the candles do not show, and only a little. So it stays the
+default and the trade reading stays off; turn it on to see who was pressing,
+not as a better forecast. Moving OI that no reading can place (adding or
+reducing at an unchanged premium) is under 5% on most days and is left blank.
+
 Being the one in a hurry is not the same as opening the position: when OI
 rises, both sides of each trade opened one. The trade reading names the side
 that was pressing, which is the motivated side, not the only one.

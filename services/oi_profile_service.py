@@ -38,8 +38,59 @@ from services.strategy_chart_service import (
 from utils import runtime
 from utils.constants import CRYPTO_EXCHANGES, INSTRUMENT_PERPFUT
 from utils.logging import get_logger
+from utils.thread_safe_cache import LockedTTLCache
 
 logger = get_logger(__name__)
+
+# --- Max pain beyond the fetched window --------------------------------------
+#
+# Max pain is a property of the whole chain, but the profile fetches only the
+# strikes around the money. Over that window alone it is pulled toward the
+# window's middle: measured against NSE's own closing file on 50 days of NIFTY
+# and BANKNIFTY (16-Oct to 23-Nov-2026), a +/-25 strike window gave the
+# whole-chain max pain on 15 of them, and BANKNIFTY was up to 2000 points off.
+# The strikes outside the window hold old, slow open interest, so the previous
+# session's closing file stands in for them: with the window live and the rest
+# from that file, 40 of 50 matched and none was more than three strikes off.
+# Only from a file already in hand (no download inside a request), NSE only.
+_BEYOND_CACHE = LockedTTLCache(maxsize=16, ttl=12 * 60 * 60)
+
+
+def beyond_window(oi: dict[str, float], prefix: str, fetched: set[float]) -> list[dict]:
+    """One expiry's strikes the window did not fetch, at the file's OI. Pure.
+
+    `prefix` is the expiry's symbol prefix (NIFTY23NOV26); `fetched` the
+    strikes the window holds.
+    """
+    rows: dict[float, dict] = {}
+    p = prefix.upper()
+    for symbol, value in oi.items():
+        if not symbol.startswith(p) or symbol[-2:] not in ("CE", "PE"):
+            continue
+        try:
+            strike = float(symbol[len(p) : -2])
+        except ValueError:
+            continue
+        if strike in fetched:
+            continue
+        row = rows.setdefault(strike, {"strike": strike, "ce_oi": 0.0, "pe_oi": 0.0})
+        row["ce_oi" if symbol.endswith("CE") else "pe_oi"] += float(value or 0)
+    return [rows[k] for k in sorted(rows) if rows[k]["ce_oi"] or rows[k]["pe_oi"]]
+
+
+def _beyond_from_file(options_exchange: str, prefix: str, fetched: set[float]) -> dict | None:
+    book = _nse_cached_book(options_exchange)
+    if book is None:
+        return None
+    key = (book.trade_date, prefix.upper(), frozenset(fetched))
+    rows = _BEYOND_CACHE.get(key)
+    if rows is None:
+        rows = beyond_window(book.oi, prefix, fetched)
+        _BEYOND_CACHE[key] = rows
+    if not rows:
+        return None
+    return {"as_of": book.trade_date.isoformat(), "prefix": prefix.upper(), "rows": rows}
+
 
 # --- Shared profile cache -------------------------------------------------
 #
@@ -879,6 +930,22 @@ def get_oi_profile_data(
             # rather than wait out its usual beat.
             "oi_change_pending": change_pending,
         }
+        # The nearest expiry's strikes outside the window, for a whole-chain
+        # max pain (see beyond_window). Only that expiry: max pain is where one
+        # expiry settles. The window's own strikes are fetched only from it
+        # when one expiry is shown, so with several, every fetched strike is
+        # still excluded, which is what the window's legs already cover.
+        try:
+            beyond = _beyond_from_file(
+                options_exchange,
+                f"{underlying}{expiries[0]}",
+                {float(k) for k in strike_map},
+            )
+        except Exception:
+            logger.exception("OI Profile: max pain beyond the window could not be read")
+            beyond = None
+        if beyond:
+            payload["beyond_window"] = beyond
         if getattr(oi_change_map, "cut", False):
             # The gthread budget stopped the window short (there is no
             # deadline otherwise): say how much it covers rather than show a
