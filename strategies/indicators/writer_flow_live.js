@@ -94,7 +94,8 @@ const SHORT = {
   writing: 'write',
   covering: 'cover',
   buying: 'buy',
-  unwinding: 'exit',
+  // "Buyers exiting" in the legend; a bare "exit" read as writers leaving.
+  unwinding: 'buyer exit',
   adding: '+OI',
   reducing: '-OI',
 }
@@ -332,19 +333,45 @@ function sideText(label, side, unit) {
 // loaded on its own and cannot import another.
 const RIGHT_EDGE = (globalThis.__oaRightEdge ??= new WeakMap())
 
+// Keyed by the pane, not the canvas: a pane paints its 'bottom' and 'top'
+// primitives on two stacked canvases with one parent, so keyed by canvas the
+// heatmap and the OI bars never saw each other's hold (23-Nov-2026: today's
+// candles sat under the streaks and the status line ran into them).
+function edgeKey(canvas) {
+  const el = canvas && canvas.canvas
+  const pane = el && typeof el === 'object' ? el.parentElement : null
+  return pane && typeof pane === 'object' ? pane : canvas
+}
+
 export function holdRightEdge(canvas, owner, widthFor) {
-  let holders = RIGHT_EDGE.get(canvas)
-  if (!holders) RIGHT_EDGE.set(canvas, (holders = new Map()))
+  const key = edgeKey(canvas)
+  let holders = RIGHT_EDGE.get(key)
+  if (!holders) RIGHT_EDGE.set(key, (holders = new Map()))
   holders.set(owner, widthFor)
 }
 
 export function releaseRightEdge(canvas, owner) {
-  RIGHT_EDGE.get(canvas)?.delete(owner)
+  RIGHT_EDGE.get(edgeKey(canvas))?.delete(owner)
+}
+
+// Keep the latest candle clear of the right-edge strips. The studies draw
+// over the newest bars otherwise (today's whole session sat under the
+// heatmap and the OI bars on 23-Nov-2026). Only while the chart shows the
+// latest bar: a trader who has scrolled back into history keeps that view.
+// The same lines live in oi_profile_live.js.
+export function keepLatestClear(rc, px) {
+  const ts = rc?.timeScale
+  if (!ts || typeof ts.setRightOffset !== 'function' || !(px > 0)) return
+  const spacing = Number(ts.barSpacing) || 0
+  const now = Number(ts.rightOffset)
+  if (!(spacing > 0) || !Number.isFinite(now) || now < 0) return
+  const need = Math.ceil((px + 12) / spacing)
+  if (now < need) ts.setRightOffset(need)
 }
 
 export function rightEdgeHeld(canvas, rc, except) {
   let px = 0
-  for (const [owner, widthFor] of RIGHT_EDGE.get(canvas) ?? []) {
+  for (const [owner, widthFor] of RIGHT_EDGE.get(edgeKey(canvas)) ?? []) {
     if (owner === except) continue
     try {
       px = Math.max(px, Number(widthFor(rc)) || 0)
@@ -432,8 +459,25 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
     attach(ctx) {
       // edgeHeld: the right-edge strip another study holds (OI Profile), read
       // on every draw; streaks sit left of it and strips stop at it.
-      const state = { body: null, scale: 1, scaleFor: '', problem: null, updatedAt: 0, edgeHeld: 0 }
+      const state = { body: null, scale: 1, scaleFor: '', problem: null, updatedAt: 0, edgeHeld: 0, labelW: 0 }
       let hoverPoint = null
+      // Writer Flow's own hold on the right edge: the streak column and its
+      // labels, left of whatever OI Profile holds. Without it OI Profile's
+      // status line, Max Pain and wall labels printed over the streaks (seen
+      // live on NIFTY, 23-Nov-2026, at 1366 and 1600 px).
+      const edgeOwner = {}
+      let edgeCanvas = null
+      const holdEdge = (c) => {
+        if (edgeCanvas && edgeCanvas !== c) releaseRightEdge(edgeCanvas, edgeOwner)
+        edgeCanvas = c
+        holdRightEdge(c, edgeOwner, (frame) => {
+          const others = rightEdgeHeld(c, frame, edgeOwner)
+          const settings = ctx.settings()
+          if (!state.body || settings.streaks === false) return others
+          const bar = Math.max(30, Math.floor(Number(settings.barWidth) || 110))
+          return others + 4 + bar + (state.labelW ? state.labelW + 8 : 0)
+        })
+      }
 
       const timeX = (rc, t) => rc.timeScale.indexToX(rc.dataLayer.timeToIndexFloat(t))
 
@@ -503,7 +547,9 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
         },
         draw(c, rc) {
           const settings = ctx.settings()
-          state.edgeHeld = rightEdgeHeld(c, rc)
+          holdEdge(c)
+          state.edgeHeld = rightEdgeHeld(c, rc, edgeOwner)
+          keepLatestClear(rc, rightEdgeHeld(c, rc))
           const body = state.body
           if (!body || settings.heatmap === false) return
           const stripEnd = rc.plotWidth - state.edgeHeld
@@ -616,7 +662,8 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
         draw(c, rc) {
           const settings = ctx.settings()
           const dpr = rc.dpr || 1
-          state.edgeHeld = rightEdgeHeld(c, rc)
+          holdEdge(c)
+          state.edgeHeld = rightEdgeHeld(c, rc, edgeOwner)
           const body = state.body
           c.save()
           c.textBaseline = 'middle'
@@ -675,12 +722,16 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
             labels.sort((a, b) => b.weight - a.weight)
             c.globalAlpha = 1
             c.fillStyle = rc.theme?.axisText || TOOLTIP_FG
+            let widest = 0
             for (const l of labels) {
               if (placed.some((y) => Math.abs(y - l.mid) < LABEL_GAP_PX)) continue
               placed.push(l.mid)
               const tw = c.measureText(l.text).width / dpr
+              widest = Math.max(widest, tw + l.len - geom.width)
               c.fillText(l.text, (geom.right - l.len - tw - 4) * dpr, l.mid * dpr)
             }
+            // How far labels reach left of the streak column, held next frame.
+            state.labelW = Math.max(0, Math.ceil(widest))
 
             const hovered = rc.hoverId && String(rc.hoverId).startsWith(HOVER_ID)
               ? Number(String(rc.hoverId).slice(HOVER_ID.length))
@@ -766,6 +817,7 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
 
       return () => {
         stop()
+        if (edgeCanvas) releaseRightEdge(edgeCanvas, edgeOwner)
         ctx.removePrimitive(heatPrimitive)
         ctx.removePrimitive(overlayPrimitive)
       }
@@ -782,8 +834,10 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
     inputs: [underlyingInput, stepInput, readInput],
 
     plots: [
-      { key: 'calls', type: 'line', title: 'Call OI added since open', style: { color: RED, lineWidth: 2 } },
-      { key: 'puts', type: 'line', title: 'Put OI added since open', style: { color: GREEN, lineWidth: 2 } },
+      // No dashed last-value line: the day's total is usually the pane's high,
+      // so the line ran through the pane title (23-Nov-2026). The axis tag stays.
+      { key: 'calls', type: 'line', title: 'Call OI added since open', style: { color: RED, lineWidth: 2, priceLineVisible: false } },
+      { key: 'puts', type: 'line', title: 'Put OI added since open', style: { color: GREEN, lineWidth: 2, priceLineVisible: false } },
       {
         key: 'net',
         type: 'histogram',

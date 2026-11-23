@@ -1620,14 +1620,17 @@ export function ChartPane({
                 target="_blank"
                 rel="noopener noreferrer"
                 aria-label={branding.label}
-                className="inline-flex min-h-11 items-center whitespace-nowrap px-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground sm:min-h-0"
+                // From 2xl only. At 1366 px its 110 px pushed One-Click, Undo
+                // and Redo off the end of the row (23-Nov-2026); the row must
+                // fit there, and the credit is the part that can give way.
+                className="hidden min-h-11 items-center whitespace-nowrap px-1 text-[11px] text-muted-foreground transition-colors hover:text-foreground sm:min-h-0 2xl:inline-flex"
               >
                 {branding.label}
               </a>
             )}
             <span
               className={cn('mx-1 inline-block h-2 w-2 shrink-0 rounded-full', ledClass(wsState))}
-              title={`WebSocket ${wsState}`}
+              title={`Live feed ${wsState}`}
             />
             <ToolbarDivider />
             {/* Full screen chart (additive) */}

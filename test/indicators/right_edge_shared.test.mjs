@@ -168,3 +168,85 @@ test('Writer Flow alone still uses the whole width', async () => {
     stop()
   }
 })
+
+test('Writer Flow holds its streak column left of what OI Profile holds, and lets go when removed', async () => {
+  const shared = canvas()
+  const oiOwner = {}
+  wf.holdRightEdge(shared.c, oiOwner, () => 200)
+  const { primitives, stop } = writerFlow()
+  try {
+    await new Promise((r) => setTimeout(r, 50))
+    for (const p of primitives) p.draw(shared.c, rc())
+    // 200 for OI Profile, 4 of gap and the 110 px default streak column.
+    assert.ok(wf.rightEdgeHeld(shared.c, rc()) >= 200 + 4 + 110, 'the streak column was not held')
+    assert.equal(wf.rightEdgeHeld(shared.c, rc(), oiOwner) >= 314, true)
+  } finally {
+    stop()
+  }
+  assert.equal(wf.rightEdgeHeld(shared.c, rc()), 200, 'a removed Writer Flow still held its column')
+  wf.releaseRightEdge(shared.c, oiOwner)
+})
+
+test("OI Profile's status line sits left of everything held, not over Writer Flow's streaks", async () => {
+  const { primitive, stop } = await oiProfile()
+  try {
+    const texts = []
+    const frame = canvas()
+    const c = new Proxy(frame.c, {
+      get: (t, k) => (k === 'fillText' ? (s, x) => texts.push({ s: String(s), x }) : t[k]),
+      set: () => true,
+    })
+    // Held wider than OI Profile's own bar column, so only reading the other
+    // holders can put the line left of it; narrow enough that the line still
+    // fits on this 800 px canvas, which measures text at 6 px a character.
+    primitive.draw(c, rc())
+    const own = oi.rightEdgeHeld(c, rc())
+    const held = own + 60
+    const streaks = {}
+    oi.holdRightEdge(c, streaks, () => held)
+    texts.length = 0
+    primitive.draw(c, rc())
+    const status = texts.find((t) => t.s.startsWith('OI Profile:'))
+    assert.ok(status, 'no status line was drawn')
+    const right = status.x + status.s.length * 6
+    assert.ok(status.x > 10, `the line did not fit at all (x ${status.x}), so this proves nothing`)
+    assert.ok(right <= PLOT - held, `status line reaches ${PLOT - right}px from the edge, inside the held ${held}`)
+    oi.releaseRightEdge(c, streaks)
+  } finally {
+    stop()
+  }
+})
+
+test('the latest candle is kept clear of the strips only while the chart shows it', () => {
+  const ts = (rightOffset) => ({
+    barSpacing: 10,
+    rightOffset,
+    setRightOffset(v) {
+      this.rightOffset = v
+    },
+  })
+  const live = ts(2)
+  wf.keepLatestClear({ timeScale: live }, 300)
+  assert.equal(live.rightOffset, 32, '300 px held plus 12 of air at 10 px a bar')
+  const roomy = ts(50)
+  oi.keepLatestClear({ timeScale: roomy }, 300)
+  assert.equal(roomy.rightOffset, 50, 'more room than needed is left alone')
+  const history = ts(-40)
+  wf.keepLatestClear({ timeScale: history }, 300)
+  assert.equal(history.rightOffset, -40, 'a trader scrolled back into history keeps that view')
+  wf.keepLatestClear({ timeScale: ts(2) }, 0)
+})
+
+test('a hold made on one of a pane’s canvases is seen from the other, and not from another pane', () => {
+  const pane = {}
+  const otherPane = {}
+  const bottom = { canvas: { parentElement: pane } }
+  const top = { canvas: { parentElement: pane } }
+  const elsewhere = { canvas: { parentElement: otherPane } }
+  const owner = {}
+  oi.holdRightEdge(bottom, owner, () => 120)
+  assert.equal(wf.rightEdgeHeld(top, rc()), 120, 'the top canvas did not see the bottom canvas’s hold')
+  assert.equal(wf.rightEdgeHeld(elsewhere, rc()), 0, 'a hold leaked into another pane')
+  wf.releaseRightEdge(top, owner)
+  assert.equal(oi.rightEdgeHeld(bottom, rc()), 0, 'released from the other canvas, the hold stayed')
+})

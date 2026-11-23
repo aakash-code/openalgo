@@ -423,19 +423,54 @@ export function forgetAnswers() {
 // loaded on its own and cannot import another.
 const RIGHT_EDGE = (globalThis.__oaRightEdge ??= new WeakMap())
 
+// Keyed by the pane, not the canvas: a pane paints its 'bottom' and 'top'
+// primitives on two stacked canvases with one parent, so keyed by canvas the
+// heatmap and the OI bars never saw each other's hold (23-Nov-2026: today's
+// candles sat under the streaks and the status line ran into them).
+function edgeKey(canvas) {
+  const el = canvas && canvas.canvas
+  const pane = el && typeof el === 'object' ? el.parentElement : null
+  return pane && typeof pane === 'object' ? pane : canvas
+}
+
 export function holdRightEdge(canvas, owner, widthFor) {
-  let holders = RIGHT_EDGE.get(canvas)
-  if (!holders) RIGHT_EDGE.set(canvas, (holders = new Map()))
+  const key = edgeKey(canvas)
+  let holders = RIGHT_EDGE.get(key)
+  if (!holders) RIGHT_EDGE.set(key, (holders = new Map()))
   holders.set(owner, widthFor)
 }
 
 export function releaseRightEdge(canvas, owner) {
-  RIGHT_EDGE.get(canvas)?.delete(owner)
+  RIGHT_EDGE.get(edgeKey(canvas))?.delete(owner)
+}
+
+// Keep the latest candle clear of the right-edge strips (see writer_flow_live.js).
+export function keepLatestClear(rc, px) {
+  const ts = rc?.timeScale
+  if (!ts || typeof ts.setRightOffset !== 'function' || !(px > 0)) return
+  const spacing = Number(ts.barSpacing) || 0
+  const now = Number(ts.rightOffset)
+  if (!(spacing > 0) || !Number.isFinite(now) || now < 0) return
+  const need = Math.ceil((px + 12) / spacing)
+  if (now < need) ts.setRightOffset(need)
+}
+
+// A label drawn over bars or stripes, on a backing so it reads.
+function labelOnBacking(c, text, x, y, dpr, baseline) {
+  const w = c.measureText(text).width / dpr
+  const h = 12
+  const top = baseline === 'bottom' ? y - h : y
+  c.save()
+  c.globalAlpha = 0.75
+  c.fillStyle = TOOLTIP_BG
+  c.fillRect((x - 2) * dpr, top * dpr, (w + 4) * dpr, h * dpr)
+  c.restore()
+  c.fillText(text, x * dpr, y * dpr)
 }
 
 export function rightEdgeHeld(canvas, rc, except) {
   let px = 0
-  for (const [owner, widthFor] of RIGHT_EDGE.get(canvas) ?? []) {
+  for (const [owner, widthFor] of RIGHT_EDGE.get(edgeKey(canvas)) ?? []) {
     if (owner === except) continue
     try {
       px = Math.max(px, Number(widthFor(rc)) || 0)
@@ -738,7 +773,13 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
         // bars of whichever strike sat near the top of the pane. Seen on the
         // live chart, not in a test. A pane too narrow for both gives the
         // line its left edge.
-        const barColumn = columnWidths(rc, settings, state.valueMode).total
+        // And left of anything else holding the edge: Writer Flow's streak
+        // column sits left of the bars, and the line printed over its labels
+        // ("Call buy 14m" was unreadable at 1366 px, 23-Nov-2026).
+        const barColumn = Math.max(
+          columnWidths(rc, settings, state.valueMode).total,
+          rightEdgeHeld(canvasCtx, rc, edgeOwner)
+        )
         const x = Math.max(4, rc.plotWidth - barColumn - w - pad * 2 - 10)
         // The second row, under the chart's own legend: on the first, a Both
         // view pushed the line far enough left to print over the symbol's
@@ -804,6 +845,7 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
           // screen, which is exactly what it looks like: drawn, but nowhere
           // near the price it belongs to.
           const dpr = rc.dpr || 1
+          keepLatestClear(rc, rightEdgeHeld(canvasCtx, rc))
           // Read at paint time, so flipping the scheme repaints immediately
           // instead of waiting for the next poll.
           const settings = ctx.settings()
@@ -934,14 +976,17 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
               canvasCtx.fillStyle = MAX_PAIN_COLOR
               canvasCtx.font = `${10 * dpr}px ui-sans-serif, system-ui, sans-serif`
               canvasCtx.textBaseline = 'bottom'
-              canvasCtx.fillText(
+              labelOnBacking(
+                canvasCtx,
                 // With expiries combined, say which one it is for: it is the
                 // nearest expiry's, not the summed bars'.
                 state.nearestPrefix
                   ? `Max Pain ${strike} (${state.nearestExpiry})`
                   : `Max Pain ${strike}`,
-                left * dpr,
-                (row.y - 2) * dpr
+                left,
+                row.y - 2,
+                dpr,
+                'bottom'
               )
             }
           }
@@ -968,7 +1013,7 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
               canvasCtx.fillStyle = m.color
               canvasCtx.font = `bold ${10 * dpr}px ui-sans-serif, system-ui, sans-serif`
               canvasCtx.textBaseline = 'top'
-              canvasCtx.fillText(`${m.label} ${m.strike}`, left * dpr, (row.y + 2) * dpr)
+              labelOnBacking(canvasCtx, `${m.label} ${m.strike}`, left, row.y + 2, dpr, 'top')
             }
           }
 
