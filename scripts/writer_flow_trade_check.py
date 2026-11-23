@@ -1,19 +1,20 @@
 """Does reading the trades make Writer Flow more useful? A day-by-day check.
 
 For each recorded day that has both an OI Flow record and ticks, Writer Flow
-is read three ways: premium net of the index move (the default), raw premium,
-and trades (services.tick_trade_flow). For each reading, the writers'
+is read four ways: premium net of the index move (the default), raw premium,
+trades (services.tick_trade_flow), and trades with the index's own move taken
+out of the lean (the chart's "Trades, net of the index move"). For each reading, the writers'
 near-the-money pressure over the last 15 minutes is compared with the index's
-move over the next 15 and 30 minutes:
+move over the next 5, 15 and 30 minutes:
 
-- ic15 / ic30: Spearman rank correlation of that signal with the move ahead
+- ic5 / ic15 / ic30: Spearman rank correlation of that signal with the move ahead
   (0 is no use; it is read across many days, never from one).
-- hit15 / hit30: how often the signal's sign matched the move's, over minutes
+- hit5 / hit15 / hit30: how often the signal's sign matched the move's, over minutes
   where both were non-zero.
 
 The minutes overlap, so one day's numbers are not independent samples. Judge
 the readings by how they compare day after day, over 20-30 sessions, not by
-any single day. Each run appends its rows to log/writer_flow_trade_check.csv.
+any single day. Each run appends its rows to log/writer_flow_reading_check.csv.
 
 Usage:
     uv run python scripts/writer_flow_trade_check.py --underlying NIFTY
@@ -38,8 +39,11 @@ from services.oi_flow_analysis import FlowSettings, analyse  # noqa: E402
 from services.tick_trade_flow import minute_trades  # noqa: E402
 
 LOOKBACK = 15
-HORIZONS = (15, 30)
-OUT = os.path.join("log", "writer_flow_trade_check.csv")
+# 5 minutes added 24-Nov-2026: the only forward edge measured so far (net
+# premium, +0.03 on NIFTY) showed there. A new file, so the old one's header
+# still matches its rows.
+HORIZONS = (5, 15, 30)
+OUT = os.path.join("log", "writer_flow_reading_check.csv")
 
 
 def _scores(out: dict) -> dict:
@@ -80,6 +84,14 @@ def check_day(underlying: str, day: date) -> list[dict]:
     ]
     if trades:
         readings.append(("trades", FlowSettings(step_seconds=60, read_trades=True), trades))
+        # The chart's "Trades, net of the index move" reading.
+        readings.append(
+            (
+                "trades_index_out",
+                FlowSettings(step_seconds=60, read_trades=True, index_out=True),
+                trades,
+            )
+        )
     rows = []
     for name, settings, t in readings:
         out = analyse(samples, settings, trades=t)

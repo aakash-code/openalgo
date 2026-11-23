@@ -181,7 +181,8 @@ What it found, NIFTY 18-20 Nov 2026 (`scripts/writer_flow_trade_check.py`):
   on only 50-52% of steps: the premium was a weak guide to who acted.
 - Against the index's move over the next 15 and 30 minutes, no reading was
   reliably better over three days. That needs 20-30 sessions, which the
-  check script collects in `log/writer_flow_trade_check.csv`, one run per day.
+  check script collects in `log/writer_flow_reading_check.csv` (until 23-Nov,
+  `log/writer_flow_trade_check.csv`), one run per day at 16:00.
 
 Measured again on 23-Nov-2026 across every recorded day (26 sessions of
 NIFTY, BANKNIFTY and SENSEX from 16-Oct; trades on 18-23 Nov), as the rank
