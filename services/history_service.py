@@ -1,9 +1,13 @@
 import importlib
+import os
+import re
 import time
 from collections import deque
+from datetime import datetime, timedelta
 from typing import Any
 
 import pandas as pd
+import pytz
 
 from database.auth_db import get_auth_token_broker
 from database.token_db import get_token
@@ -354,6 +358,88 @@ def get_history_from_ticks(
         return False, {"status": "error", "message": str(e)}, 500
 
 
+_IST = pytz.timezone("Asia/Kolkata")
+_INTRADAY_RE = re.compile(r"^\d+(m|h)$")
+
+
+def missing_days(bars: list[dict], held: list[str]) -> list[str]:
+    """The days the tick store holds that the broker's bars do not. Pure.
+
+    `held` is ISO dates; a bar's day is read in IST.
+    """
+    have = {
+        datetime.fromtimestamp(int(b["timestamp"]), _IST).date().isoformat()
+        for b in bars
+        if b.get("timestamp") is not None
+    }
+    return [d for d in held if d not in have]
+
+
+def _fill_from_ticks(result, symbol, exchange, interval, start_date, end_date):
+    """Add the days the broker's answer lacks from the tick store, for intraday bars.
+
+    Upstox serves nothing for the last session between midnight and when it
+    publishes the day (23-Nov-2026: from 00:00 both its historical and
+    intraday endpoints were empty for 23 Nov), so every chart opened then
+    lost the whole last session and Writer Flow's strips sat beyond the
+    candles. The tick store recorded that day. Only days the broker returned
+    nothing for are filled, so its bars are never replaced; the common path
+    costs one directory listing. Recorded symbols only (TICKS_RECORDER_ENABLED).
+    """
+    ok, body, status = result
+    try:
+        if (
+            not ok
+            or not _INTRADAY_RE.match(str(interval).strip().lower())
+            or os.getenv("TICKS_RECORDER_ENABLED", "false").strip().lower() != "true"
+        ):
+            return result
+        from database.ticks_store import data_dir, get_ohlcv
+
+        start, end = str(start_date)[:10], str(end_date)[:10]
+        root = data_dir()
+        held = sorted(
+            name[5:]
+            for name in (os.listdir(root) if os.path.isdir(root) else [])
+            if name.startswith("date=") and start <= name[5:] <= end
+        )
+        bars = body.get("data") or []
+        todo = missing_days(bars, held)
+        if not todo:
+            return result
+        added = []
+        for day in todo:
+            begin = _IST.localize(datetime.strptime(day, "%Y-%m-%d"))
+            df = get_ohlcv(
+                symbol,
+                exchange,
+                interval,
+                int(begin.timestamp()),
+                int((begin + timedelta(days=1)).timestamp()) - 1,
+            )
+            if df is not None and not df.empty:
+                if "oi" not in df.columns:
+                    df["oi"] = 0
+                rows = df[["timestamp", "open", "high", "low", "close", "volume", "oi"]].to_dict(
+                    orient="records"
+                )
+                if str(exchange).upper().endswith("_INDEX"):
+                    # The index stops at 15:30; the feed repeats its close after.
+                    close = int((begin + timedelta(hours=15, minutes=30)).timestamp())
+                    rows = [r for r in rows if int(r["timestamp"]) < close]
+                added += rows
+        if not added:
+            return result
+        logger.info(
+            f"History {exchange}:{symbol} {interval}: {', '.join(todo)} filled from the tick store"
+        )
+        merged = sorted(bars + added, key=lambda b: int(b["timestamp"]))
+        return ok, {**body, "data": merged}, status
+    except Exception:
+        logger.exception(f"History {exchange}:{symbol}: tick-store fill failed")
+        return result
+
+
 def get_history(
     symbol: str,
     exchange: str,
@@ -458,14 +544,35 @@ def get_history(
         )
         if AUTH_TOKEN is None:
             return False, {"status": "error", "message": "Invalid openalgo apikey"}, 403
-        return get_history_with_auth(
-            AUTH_TOKEN, FEED_TOKEN, broker_name, symbol, exchange, interval, start_date, end_date
+        return _fill_from_ticks(
+            get_history_with_auth(
+                AUTH_TOKEN,
+                FEED_TOKEN,
+                broker_name,
+                symbol,
+                exchange,
+                interval,
+                start_date,
+                end_date,
+            ),
+            symbol,
+            exchange,
+            interval,
+            start_date,
+            end_date,
         )
 
     # Case 2: Direct internal call with auth_token and broker
     elif auth_token and broker:
-        return get_history_with_auth(
-            auth_token, feed_token, broker, symbol, exchange, interval, start_date, end_date
+        return _fill_from_ticks(
+            get_history_with_auth(
+                auth_token, feed_token, broker, symbol, exchange, interval, start_date, end_date
+            ),
+            symbol,
+            exchange,
+            interval,
+            start_date,
+            end_date,
         )
 
     # Case 3: Invalid parameters

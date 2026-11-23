@@ -740,10 +740,12 @@ class BrokerData:
                 chunk_count += 1
                 # Calculate chunk end date
                 current_end = min(current_start + timedelta(days=chunk_days - 1), to_date)
-                if current_start < today <= current_end:
-                    # Chunk would span past days AND today — stop it at yesterday;
-                    # the next iteration emits today as its own chunk.
-                    current_end = today - timedelta(days=1)
+                # Today and yesterday each get a chunk of their own: neither is
+                # final (see chunk_is_final), and a chunk spanning older days
+                # with either would refetch all of them on the short TTL.
+                for edge in (today - timedelta(days=1), today):
+                    if current_start < edge <= current_end:
+                        current_end = edge - timedelta(days=1)
 
                 logger.debug(
                     f"Processing chunk {chunk_count}: {current_start.date()} to {current_end.date()}"
@@ -857,7 +859,13 @@ class BrokerData:
             # weekly/monthly requests (the current week/month candle is still
             # forming even in "past" ranges), use the short TTL.
             cache_key = (instrument_key, unit, interval_value, from_date, to_date, interval)
-            chunk_is_final = end_date.date() < current_date.date() and unit not in (
+            # Yesterday is not final either: Upstox serves nothing for the last
+            # session between midnight and when it publishes the day (23-Nov-2026
+            # from 00:00), and a chunk fetched then was held for six hours
+            # without it.
+            chunk_is_final = end_date.date() < (
+                current_date - timedelta(days=1)
+            ).date() and unit not in (
                 "weeks",
                 "months",
             )
