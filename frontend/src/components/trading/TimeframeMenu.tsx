@@ -121,8 +121,11 @@ export function TimeframeMenu({
   }
   return (
     <div className="flex shrink-0 items-center gap-1" data-timeframe-controls>
+      {/* From 1440 px. The picker beside it reaches every interval, these
+        included; at 1366 px their 165 px pushed Undo and Redo off the end of
+        the toolbar row, which must fit there (23-Nov-2026). */}
       <div
-        className="hidden max-w-56 items-center gap-0.5 overflow-x-auto sm:flex"
+        className="hidden max-w-56 items-center gap-0.5 overflow-x-auto min-[1440px]:flex"
         role="toolbar"
         aria-label="Favorite intervals"
       >

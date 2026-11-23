@@ -1054,8 +1054,6 @@ function nextPaint(): Promise<void> {
 }
 
 export class TradingTerminal {
-  /** Volume study instances this terminal folded because the symbol had no volume. */
-  private foldedVolume = new Set<string>()
   private alerts: AlertController | null = null
   private alertUi: AlertUi | null = null
   private offAlertFullscreen: (() => void) | null = null
@@ -7048,28 +7046,6 @@ export class TradingTerminal {
     return true
   }
 
-  /**
-   * Fold a Volume study's pane while the symbol is an index, which has no
-   * volume: NIFTY showed an empty pane reading "Volume 20 0.00" (23-Nov-2026).
-   * Only panes this terminal folded are unfolded again, on the next symbol
-   * that trades, so a pane the trader folded stays folded.
-   */
-  private foldVolumeForQuoteOnly(): void {
-    const chart = this.chart
-    if (!chart) return
-    const quoteOnly = this.sym?.quoteOnly === true && this.sym?.synthetic !== true
-    for (const inst of chart.indicators()) {
-      if (inst.indicatorId !== 'volume' || !(inst.paneIndex > 0)) continue
-      if (quoteOnly) {
-        if (!chart.paneCollapsed(inst.paneIndex) && chart.setPaneCollapsed(inst.paneIndex, true)) {
-          this.foldedVolume.add(inst.id)
-        }
-      } else if (this.foldedVolume.delete(inst.id)) {
-        chart.setPaneCollapsed(inst.paneIndex, false)
-      }
-    }
-  }
-
   loadSymbol(pick: SearchRow, opts: { silent?: boolean; strict?: boolean } = {}): Promise<boolean> {
     const run = this.runLoadSymbol(pick, opts)
     this.loading = run
@@ -7280,8 +7256,6 @@ export class TradingTerminal {
     }
     this.cb.onLtp(this.lastLtp)
     this.cb.onSymbolLoaded(this.sym)
-    // After the repaint, so studies a rebuilt chart restores are in place.
-    void nextPaint().then(() => this.foldVolumeForQuoteOnly())
 
     // live subscription (swap the previous symbol's stream)
     this.connectLive()
