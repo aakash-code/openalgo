@@ -32,6 +32,93 @@ const NEUTRAL = '#94a3b8'
 const TOOLTIP_BG = 'rgba(23, 23, 23, 0.94)'
 const TOOLTIP_FG = '#f8fafc'
 const HOVER_ID = 'writer-flow-strike:'
+
+// What the Writer Flow Totals pane shows, for its "?" help.
+const TOTALS_HELP_ID = 'writer-flow-totals-help'
+const HELP_RADIUS_PX = 7
+export const TOTALS_HELP = (unit) => [
+  `Writer Flow Totals: open interest added since the record began today, on the strikes Writer Flow watches (${unit === 'lots' ? 'lots' : 'lakh'}).`,
+  'Red line: call OI added (rising: writers usually building resistance above). Green line: put OI added (rising: support building below).',
+  'Bars, this candle only: put OI added minus call OI added. Green leans bullish, red bearish. Own scale: compare colours, not heights.',
+  'Open interest only, not who added it. A strike that enters the watched range later counts from then, so a strong trend reads low.',
+]
+
+function helpSpot(rc) {
+  return { cx: rc.plotWidth - 14, cy: 12 }
+}
+
+function wrapText(c, text, maxPx, dpr) {
+  const words = String(text).split(' ')
+  const lines = []
+  let line = ''
+  for (const w of words) {
+    const next = line ? `${line} ${w}` : w
+    if (line && c.measureText(next).width / dpr > maxPx) {
+      lines.push(line)
+      line = w
+    } else {
+      line = next
+    }
+  }
+  if (line) lines.push(line)
+  return lines
+}
+
+/** The "?" mark, and while it is hovered the note under it. */
+export function drawTotalsHelp(c, rc, open, unit) {
+  const dpr = rc.dpr || 1
+  const { cx, cy } = helpSpot(rc)
+  c.save()
+  c.globalAlpha = open ? 1 : 0.7
+  c.strokeStyle = rc.theme?.axisText || NEUTRAL
+  c.fillStyle = rc.theme?.axisText || NEUTRAL
+  c.lineWidth = Math.max(1, dpr)
+  c.beginPath()
+  c.arc(cx * dpr, cy * dpr, HELP_RADIUS_PX * dpr, 0, Math.PI * 2)
+  c.stroke()
+  c.font = `bold ${10 * dpr}px sans-serif`
+  c.textAlign = 'center'
+  c.textBaseline = 'middle'
+  c.fillText('?', cx * dpr, (cy + 0.5) * dpr)
+  if (open) {
+    const fontPx = 10.5
+    const pad = 6
+    // Wide and short: a study pane is often only about 100 px tall, and
+    // anything drawn past its edge is cut off.
+    const width = Math.max(160, Math.min(760, rc.plotWidth - 40))
+    c.font = `${fontPx * dpr}px sans-serif`
+    c.textAlign = 'left'
+    c.textBaseline = 'top'
+    const paras = TOTALS_HELP(unit)
+    const rows = []
+    paras.forEach((p, i) => {
+      wrapText(c, p, width, dpr).forEach((l, k) => rows.push({ l, bold: i === 0 && k === 0 }))
+    })
+    const lineH = fontPx + 2
+    const h = rows.reduce((s, r) => s + (r.gap ? 4 : lineH), 0) + pad * 2
+    const x = Math.max(4, cx + HELP_RADIUS_PX - (width + pad * 2))
+    // Under the mark, or above it when the pane is too short to hold it: the
+    // pane's own height clips anything drawn past its bottom.
+    const y = Math.max(2, Math.min(cy + HELP_RADIUS_PX + 4, rc.plotHeight - h - 2))
+    c.globalAlpha = 1
+    c.fillStyle = TOOLTIP_BG
+    c.beginPath()
+    c.roundRect(x * dpr, y * dpr, (width + pad * 2) * dpr, h * dpr, 4 * dpr)
+    c.fill()
+    c.fillStyle = TOOLTIP_FG
+    let ty = y + pad
+    for (const r of rows) {
+      if (r.gap) {
+        ty += 4
+        continue
+      }
+      c.font = `${r.bold ? 'bold ' : ''}${fontPx * dpr}px sans-serif`
+      c.fillText(r.l, (x + pad) * dpr, ty * dpr)
+      ty += lineH
+    }
+  }
+  c.restore()
+}
 const EVENT_ID = 'writer-flow-event:'
 const REFRESH_MS = 60 * 1000
 const SETTINGS_POLL_MS = 1000
@@ -897,7 +984,25 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
     },
 
     attach(ctx) {
-      return startPolling(
+      // A "?" at the pane's top right; hovered, it says what the lines and
+      // bars mean. The engine has no description field for a study, and the
+      // pane was being read as "red is bad, green is good" without its limits.
+      const help = {
+        zOrder() {
+          return 'top'
+        },
+        hitTest(x, y, rc) {
+          const { cx, cy } = helpSpot(rc)
+          if (Math.hypot(x - cx, y - cy) > HELP_RADIUS_PX + 3) return null
+          return { externalId: TOTALS_HELP_ID, zOrder: 'top', distance: 0 }
+        },
+        draw(c, rc) {
+          drawTotalsHelp(c, rc, rc.hoverId === TOTALS_HELP_ID, ctx.store?.writerFlowUnit)
+        },
+      }
+      // A host without primitives still gets the totals.
+      if (typeof ctx.addPrimitive === 'function') ctx.addPrimitive(help)
+      const stop = startPolling(
         ctx,
         (body) => {
           ctx.store.writerFlowTotals = body.totals
@@ -909,6 +1014,10 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
           ctx.requestRecompute()
         },
       )
+      return () => {
+        if (typeof stop === 'function') stop()
+        if (typeof ctx.removePrimitive === 'function') ctx.removePrimitive(help)
+      }
     },
   })
 
