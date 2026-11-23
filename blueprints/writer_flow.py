@@ -41,6 +41,8 @@ def _trades_wanted(value: str | None) -> bool:
     if text in ("off", "0", "false", "no"):
         return False
     return read_trades_default()
+
+
 _CHART_EXCHANGES = ("NFO", "BFO", "MCX", "NSE", "BSE", "NSE_INDEX", "BSE_INDEX")
 
 
@@ -118,6 +120,7 @@ def flow():
     if not (0 <= noise_pct <= 50 and 0 <= noise_lots <= 10000 and 1 <= quiet <= 60):
         return jsonify({"status": "error", "message": "One of the settings is out of range."}), 400
 
+    read = (request.args.get("read") or "net").strip().lower()
     view = FlowView(
         underlying=underlying,
         expiry=expiry,
@@ -128,8 +131,10 @@ def flow():
         quiet_minutes=quiet,
         all_strikes=(request.args.get("all_strikes") or "").strip().lower() in _TRUE,
         lite=(request.args.get("lite") or "").strip().lower() in _TRUE,
-        net=(request.args.get("read") or "net").strip().lower() != "raw",
-        trades=_trades_wanted(request.args.get("trades")),
+        net=read != "raw",
+        # "trades": sides from the trades, the index's own move taken out of the lean.
+        trades=True if read == "trades" else _trades_wanted(request.args.get("trades")),
+        index_out=read == "trades",
     )
     try:
         built = flow_answer(view)
@@ -193,7 +198,10 @@ def levels():
     except Exception:
         logger.exception(f"Option levels: reading {underlying} failed")
         return jsonify(
-            {"status": "error", "message": "Could not read the option levels. Try again in a moment."}
+            {
+                "status": "error",
+                "message": "Could not read the option levels. Try again in a moment.",
+            }
         ), 500
     zipped = "gzip" in (request.headers.get("Accept-Encoding") or "").lower()
     response = Response(

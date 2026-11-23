@@ -94,6 +94,8 @@ class FlowView:
     net: bool = True
     # Read who acted from the trades in the tick store (FlowSettings.read_trades).
     trades: bool = False
+    # Take the index's own move out of the lean (FlowSettings.index_out).
+    index_out: bool = False
 
 
 @dataclass(frozen=True)
@@ -241,6 +243,7 @@ def flow_payload(view: FlowView) -> dict:
             quiet_minutes_to_break=view.quiet_minutes,
             net_of_underlying=view.net,
             read_trades=view.trades,
+            index_out=view.index_out,
         ),
     )
 
@@ -318,6 +321,7 @@ def flow_payload(view: FlowView) -> dict:
                 quiet_minutes_to_break=view.quiet_minutes,
                 net_of_underlying=view.net,
                 read_trades=view.trades,
+                index_out=view.index_out,
             ),
         )
         trend = fine.get("trend")
@@ -331,7 +335,7 @@ def flow_payload(view: FlowView) -> dict:
             "since": _hhmm(trend["since"]),
             "since_epoch": _epoch(trend["since"]),
         }
-    payload["read"] = "net" if view.net else "raw"
+    payload["read"] = "trades" if view.index_out else "net" if view.net else "raw"
     # Whether the sides were read from trades, and how that went today. None
     # when trades were not asked for or the tick store has none for this day.
     payload["trades"] = out.get("trades")

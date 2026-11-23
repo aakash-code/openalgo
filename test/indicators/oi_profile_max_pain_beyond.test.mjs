@@ -39,3 +39,33 @@ test('nothing beyond leaves the window as it is', () => {
   assert.equal(oi.withBeyond(window, null), window)
   assert.equal(oi.withBeyond(window, []), window)
 })
+
+// Rows 10 px apart, as NIFTY's are on a 5-minute chart.
+const rows = [{ strike: 25400, y: 340 }, { strike: 25350, y: 350 }, { strike: 25300, y: 360 }]
+
+test('a wall one strike up takes the space above: max pain goes below', () => {
+  // Rows 20 px apart (zoomed in): resistance's label (322-336) fills the
+  // space above 340 (324-338) and leaves below (342-356) clear.
+  const wide = [{ strike: 25400, y: 320 }, { strike: 25350, y: 340 }]
+  const ys = oi.wallYs(wide, { support: null, resistance: 25400 })
+  assert.deepEqual(ys, [320])
+  assert.equal(oi.maxPainLabelPlace(340, ys), 'below')
+})
+
+test('rows 10 px apart, one wall above: its label covers both sides, so beside', () => {
+  assert.equal(oi.maxPainLabelPlace(350, oi.wallYs(rows, { resistance: 25400 })), 'beside')
+})
+
+test('walls one strike either side, as live on 23-Nov: max pain goes beside them', () => {
+  const ys = oi.wallYs(rows, { support: 25300, resistance: 25400 })
+  assert.deepEqual(ys, [360, 340])
+  assert.equal(oi.maxPainLabelPlace(350, ys), 'beside')
+})
+
+test('with no wall near, max pain keeps its label above the line', () => {
+  assert.equal(oi.maxPainLabelPlace(350, [200, 500]), 'above')
+})
+
+test('max pain on a wall strike keeps its label above, the wall label is below', () => {
+  assert.equal(oi.maxPainLabelPlace(340, [340]), 'above')
+})

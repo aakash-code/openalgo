@@ -168,6 +168,14 @@ class FlowSettings:
     # And at least this share of the step's volume must have traded at the
     # bid or the offer. About 20% trades inside the spread on an ATM strike.
     trade_min_share: float = 0.5
+    # Take out of the writers' lean what the index's own move that minute
+    # explains (remove_index_move). Read from the trades, the lean mostly
+    # repeats the candle: rank correlation 0.57-0.75 with the same minute's
+    # move over 18-23 Nov 2026, against about 0 for the net premium reading.
+    # With the move taken out the echo is gone (about 0) and the forward
+    # read was +0.022 over the next 5 minutes against +0.017 for the net
+    # premium, eight sessions, within noise: offered to compare, not default.
+    index_out: bool = False
 
 
 def trade_lean(buy: float, sell: float) -> float | None:
@@ -176,7 +184,9 @@ def trade_lean(buy: float, sell: float) -> float | None:
     return (buy - sell) / placed if placed > 0 else None
 
 
-def trade_class(up: bool, buy: float, sell: float, mid: float, settings: FlowSettings) -> str | None:
+def trade_class(
+    up: bool, buy: float, sell: float, mid: float, settings: FlowSettings
+) -> str | None:
     """The class of an OI move read from its trades, or None when they do not decide.
 
     OI up with sellers pressing is writing, with buyers pressing is buying; OI
@@ -823,6 +833,30 @@ def near_weight(strike: float, ref: float, gap: float, strikes: int) -> float:
     return max(0.0, 1.0 - abs(strike - ref) / reach)
 
 
+INDEX_OUT_MIN_STEPS = 10
+
+
+def remove_index_move(pressure: list[float], moves: list[float | None]) -> list[float]:
+    """Each step's pressure less what the index's move that step explains. Pure.
+
+    The share explained is fitted (least squares through the origin) on the
+    steps before this one only, so a live chart reads each minute exactly as
+    it will read later. Until INDEX_OUT_MIN_STEPS steps have both, nothing is
+    taken out; a step whose move is unknown is left as it is.
+    """
+    out: list[float] = []
+    sxy = sxx = 0.0
+    n = 0
+    for p, m in zip(pressure, moves, strict=False):
+        beta = sxy / sxx if n >= INDEX_OUT_MIN_STEPS and sxx > 0 else 0.0
+        out.append(p - beta * m if m is not None else p)
+        if m is not None:
+            sxy += p * m
+            sxx += m * m
+            n += 1
+    return out
+
+
 def trend_read(
     cells: list[dict],
     steps: list[datetime],
@@ -895,6 +929,20 @@ def trend_read(
         below = [(v, k) for (k, sd), v in oi_now.items() if sd == "PE" and k <= spot]
         resistance.append(max(above)[1] if above else None)
         support.append(max(below)[1] if below else None)
+
+    if settings.index_out:
+        moves = []
+        prev_spot = None
+        for t in steps:
+            s_t = spot_at.get(t)
+            moves.append(s_t - prev_spot if s_t is not None and prev_spot is not None else None)
+            prev_spot = s_t if s_t is not None else prev_spot
+        pressure = remove_index_move(pressure, moves)
+        total = 0.0
+        cumulative = []
+        for p in pressure:
+            total += p
+            cumulative.append(total)
 
     moved = sum(abs(p) for p in pressure)
     strength = (total / moved) if moved > 0 else 0.0
