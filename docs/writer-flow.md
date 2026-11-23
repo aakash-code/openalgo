@@ -146,6 +146,47 @@ minutes.
 Every threshold above is a setting (`FlowSettings` in
 `services/oi_flow_analysis.py`).
 
+### Reading the side from the trades (opt-in)
+
+When tick capture is on ([tick-capture.md](tick-capture.md)), Writer Flow can
+read who acted from the trades instead of guessing from the premium. A trade
+at or above the offer standing before it was a buyer in a hurry; one at or
+below the bid, a seller. Trades inside the spread are kept apart and never
+guessed. Between two OI readings:
+
+| OI | Trades lean | Reading |
+| --- | --- | --- |
+| up | sellers | **Writing** |
+| down | buyers | **Covering** |
+| up | buyers | Buying |
+| down | sellers | Unwinding |
+
+The trades decide only when at least half the volume traded at the bid or the
+offer and the lean, (bought - sold) / (bought + sold), is at least 0.10.
+Otherwise the premium reading above stands. A streak's reading comes from the
+trades summed across it, in the same way.
+
+Turn it on for every view with `WRITER_FLOW_READ_TRADES=true` in `.env`, or
+per request with `trades=on|off` on `/writerflow/api/flow`. The answer carries
+`trades`: steps that had trades, steps they decided, and how often they agreed
+with the premium. A heatmap cell the trades decided keeps the premium's
+reading as `premium_cls`, with the lean as `trade_lean`.
+
+What it found, NIFTY 18-20 Nov 2026 (`scripts/writer_flow_trade_check.py`):
+
+- Exchange OI is published once a minute (median gap 60.1 s), so ticks do
+  not make OI itself finer. They add who traded between two readings.
+- About 89% of option volume traded at the bid or the offer.
+- Where the trades decided, they agreed with the net-of-index premium reading
+  on only 50-52% of steps: the premium was a weak guide to who acted.
+- Against the index's move over the next 15 and 30 minutes, no reading was
+  reliably better over three days. That needs 20-30 sessions, which the
+  check script collects in `log/writer_flow_trade_check.csv`, one run per day.
+
+Being the one in a hurry is not the same as opening the position: when OI
+rises, both sides of each trade opened one. The trade reading names the side
+that was pressing, which is the motivated side, not the only one.
+
 ## What it showed on its first morning
 
 NIFTY, 16-Oct-2026, 09:15 to 10:44, ATM plus or minus 3 strikes:

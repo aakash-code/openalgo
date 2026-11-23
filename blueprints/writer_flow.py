@@ -21,6 +21,7 @@ from flask import Blueprint, Response, jsonify, request
 
 from database.oi_flow_db import EXPIRY_RE, UNDERLYING_RE, available_sessions
 from services.oi_flow_recorder_service import on_demand_state, request_recording
+from services.tick_trade_flow import read_trades_default
 from services.writer_flow_service import STEPS, FlowView, flow_answer, recorder_enabled
 from utils.logging import get_logger
 from utils.session import check_session_validity
@@ -30,6 +31,16 @@ logger = get_logger(__name__)
 writer_flow_bp = Blueprint("writer_flow_bp", __name__, url_prefix="/")
 
 _TRUE = ("1", "true", "yes")
+
+
+def _trades_wanted(value: str | None) -> bool:
+    """`trades=on|off` from the request, else WRITER_FLOW_READ_TRADES."""
+    text = (value or "").strip().lower()
+    if text in ("on", *_TRUE):
+        return True
+    if text in ("off", "0", "false", "no"):
+        return False
+    return read_trades_default()
 _CHART_EXCHANGES = ("NFO", "BFO", "MCX", "NSE", "BSE", "NSE_INDEX", "BSE_INDEX")
 
 
@@ -118,6 +129,7 @@ def flow():
         all_strikes=(request.args.get("all_strikes") or "").strip().lower() in _TRUE,
         lite=(request.args.get("lite") or "").strip().lower() in _TRUE,
         net=(request.args.get("read") or "net").strip().lower() != "raw",
+        trades=_trades_wanted(request.args.get("trades")),
     )
     try:
         built = flow_answer(view)

@@ -42,6 +42,7 @@ import pytz
 
 from database.oi_flow_db import available_sessions, generation, load_day
 from services.oi_flow_analysis import FlowSettings, analyse, bias
+from services.tick_trade_flow import minute_trades
 from utils import real_threading
 from utils.keyed_locks import KeyedLocks
 from utils.logging import get_logger
@@ -91,6 +92,8 @@ class FlowView:
     lite: bool = False
     # Read premiums net of the underlying's move (see FlowSettings).
     net: bool = True
+    # Read who acted from the trades in the tick store (FlowSettings.read_trades).
+    trades: bool = False
 
 
 @dataclass(frozen=True)
@@ -226,15 +229,18 @@ def flow_payload(view: FlowView) -> dict:
         )
         return {"status": "empty", "message": reason, "recorder_enabled": recorder_enabled()}
     chosen = held[0]
+    trades = minute_trades(view.underlying, chosen["trade_date"]) if view.trades else None
     out = analyse(
         load_day(view.underlying, chosen["expiry"], chosen["trade_date"], pause=_pause),
         pause=_pause,
+        trades=trades,
         settings=FlowSettings(
             step_seconds=STEPS[view.step],
             noise_pct=view.noise_pct,
             noise_lots=view.noise_lots,
             quiet_minutes_to_break=view.quiet_minutes,
             net_of_underlying=view.net,
+            read_trades=view.trades,
         ),
     )
 
@@ -304,12 +310,14 @@ def flow_payload(view: FlowView) -> dict:
         fine = analyse(
             load_day(view.underlying, chosen["expiry"], chosen["trade_date"], pause=_pause),
             pause=_pause,
+            trades=trades,
             settings=FlowSettings(
                 step_seconds=60,
                 noise_pct=view.noise_pct,
                 noise_lots=view.noise_lots,
                 quiet_minutes_to_break=view.quiet_minutes,
                 net_of_underlying=view.net,
+                read_trades=view.trades,
             ),
         )
         trend = fine.get("trend")
@@ -324,6 +332,9 @@ def flow_payload(view: FlowView) -> dict:
             "since_epoch": _epoch(trend["since"]),
         }
     payload["read"] = "net" if view.net else "raw"
+    # Whether the sides were read from trades, and how that went today. None
+    # when trades were not asked for or the tick store has none for this day.
+    payload["trades"] = out.get("trades")
     if not view.lite:
         payload["heat_cls"] = {"ce": codes["CE"], "pe": codes["PE"]}
     return payload

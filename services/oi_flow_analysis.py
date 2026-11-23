@@ -154,6 +154,72 @@ class FlowSettings:
     # 8% in a minute 46 times on SENSEX and 8 on NIFTY as the price moved the
     # window; at +-15, tapered, 13 and 1, with the same open and close.
     pcr_strikes: int = 15
+    # Read who acted from the trades themselves when the tick store has them:
+    # a trade at or above the offer was a buyer in a hurry, one at or below
+    # the bid a seller. Over 18-20 Nov 2026 the premium's direction agreed
+    # with that on only 71-72% of NIFTY's OI steps (about 21,000 a day), so
+    # roughly one step in four was read from a premium move the trades
+    # contradict. Where the trades do not decide (too little volume could be
+    # placed at the bid or the offer, or the two sides were nearly even) the
+    # premium reading below is used, so nothing reads worse than before.
+    read_trades: bool = False
+    # The lean (buy - sell) / (buy + sell) must reach this to decide.
+    trade_min_lean: float = 0.10
+    # And at least this share of the step's volume must have traded at the
+    # bid or the offer. About 20% trades inside the spread on an ATM strike.
+    trade_min_share: float = 0.5
+
+
+def trade_lean(buy: float, sell: float) -> float | None:
+    """(buy - sell) / (buy + sell): +1 all buyers lifting the offer, -1 all sellers hitting the bid."""
+    placed = buy + sell
+    return (buy - sell) / placed if placed > 0 else None
+
+
+def trade_class(up: bool, buy: float, sell: float, mid: float, settings: FlowSettings) -> str | None:
+    """The class of an OI move read from its trades, or None when they do not decide.
+
+    OI up with sellers pressing is writing, with buyers pressing is buying; OI
+    down with buyers pressing is covering, with sellers pressing is unwinding.
+    """
+    total = buy + sell + mid
+    if total <= 0 or (buy + sell) / total < settings.trade_min_share:
+        return None
+    lean = trade_lean(buy, sell)
+    if lean is None or abs(lean) < settings.trade_min_lean:
+        return None
+    if up:
+        return BUYING if lean > 0 else WRITING
+    return COVERING if lean > 0 else UNWINDING
+
+
+def trades_between(
+    minutes: dict[datetime, tuple[int, int, int]] | None, start: datetime, end: datetime
+) -> tuple[int, int, int] | None:
+    """Buy, sell and unplaced volume in the whole minutes from start's to end's (end's excluded).
+
+    Two samples a step apart bracket the trades that moved OI between them.
+    Exchange OI is published once a minute (60.1 s median gap on NIFTY options,
+    18-20 Nov 2026), so a minute is the finest the two can be lined up.
+    """
+    if not minutes:
+        return None
+    lo = start.replace(second=0, microsecond=0)
+    hi = end.replace(second=0, microsecond=0)
+    if hi <= lo:
+        return None
+    buy = sell = mid = 0
+    seen = False
+    m = lo
+    while m < hi:
+        got = minutes.get(m)
+        if got:
+            seen = True
+            buy += got[0]
+            sell += got[1]
+            mid += got[2]
+        m += timedelta(minutes=1)
+    return (buy, sell, mid) if seen else None
 
 
 @dataclass
@@ -170,9 +236,18 @@ class _Run:
     raised: set[int] = field(default_factory=set)
     # The premium move over the run net of the underlying's, when reading net.
     net_move: float | None = None
+    # Trades across the run, when they are read (FlowSettings.read_trades).
+    trade_settings: FlowSettings | None = None
+    buy: int = 0
+    sell: int = 0
+    mid: int = 0
 
     @property
     def cls(self) -> str:
+        if self.trade_settings is not None:
+            by_trades = trade_class(self.up, self.buy, self.sell, self.mid, self.trade_settings)
+            if by_trades is not None:
+                return by_trades
         # A premium unknown at either end says nothing about who acted.
         if self.start_ltp is None or self.last_ltp is None:
             return ADDING if self.up else REDUCING
@@ -343,8 +418,15 @@ def analyse(
     samples: list[dict],
     settings: FlowSettings | None = None,
     pause: Callable[[], None] | None = None,
+    trades: dict[str, dict[datetime, tuple[int, int, int]]] | None = None,
 ) -> dict:
     """Read a day of samples for one underlying and expiry.
+
+    `trades`, when given and settings.read_trades is on, is each contract's
+    traded volume per minute split by aggressor, keyed by symbol and then by
+    the minute's start (IST wall clock, like sample_time): (bought at the
+    offer, sold at the bid, inside the spread). services.tick_trade_flow
+    builds it from the tick store.
 
     `pause`, if given, is called every PAUSE_EVERY rows and every strike side.
     The Writer Flow builder passes a 1 ms sleep, so a request thread waiting
@@ -369,7 +451,10 @@ def analyse(
             "strikes": [],
             "events": [],
             "trend": None,
+            "trades": None,
         }
+    reading_trades = bool(settings.read_trades and trades)
+    trade_stats = {"steps": 0, "decided": 0, "compared": 0, "agree": 0}
     step = settings.step_seconds or choose_step_seconds(samples)
     step_minutes = step / 60.0
     # A contract unseen for longer than this starts over from its next reading
@@ -489,6 +574,9 @@ def analyse(
                 seed = vol
             return d
 
+        symbol_trades = (
+            trades.get(next(iter(series.values())).get("symbol") or "") if reading_trades else None
+        )
         prev: dict | None = None
         prev_delta: float | None = None
         prev_index = -1
@@ -529,17 +617,34 @@ def analyse(
             ):
                 d_read = d_ltp - prev_delta * (spot_now - spot_before)
             cls = classify(d_oi, d_read, prev_oi, lot, settings)
-            cells.append(
-                {
-                    "time": t,
-                    "strike": strike,
-                    "side": side,
-                    "cls": cls,
-                    "oi_change": d_oi,
-                    "ltp_change": round(d_ltp, 2),
-                    "oi": oi,
-                }
+            cell = {
+                "time": t,
+                "strike": strike,
+                "side": side,
+                "cls": cls,
+                "oi_change": d_oi,
+                "ltp_change": round(d_ltp, 2),
+                "oi": oi,
+            }
+            flow = (
+                trades_between(symbol_trades, prev["sample_time"], s["sample_time"])
+                if symbol_trades
+                else None
             )
+            if flow is not None:
+                trade_stats["steps"] += 1
+                lean = trade_lean(flow[0], flow[1])
+                cell["trade_lean"] = round(lean, 2) if lean is not None else None
+                if cls != STEADY:
+                    by_trades = trade_class(d_oi > 0, *flow, settings)
+                    if by_trades is not None:
+                        trade_stats["decided"] += 1
+                        if cls in (WRITING, COVERING, BUYING, UNWINDING):
+                            trade_stats["compared"] += 1
+                            trade_stats["agree"] += by_trades == cls
+                        cell["premium_cls"] = cls
+                        cls = cell["cls"] = by_trades
+            cells.append(cell)
             totals[t]["ce_change" if side == "CE" else "pe_change"] += d_oi
 
             if cls == STEADY:
@@ -547,6 +652,12 @@ def analyse(
                     # A move too small to count still belongs to the run.
                     run.quiet_minutes += step_minutes
                     run.oi_change += d_oi
+                    if flow is not None:
+                        run.buy, run.sell, run.mid = (
+                            run.buy + flow[0],
+                            run.sell + flow[1],
+                            run.mid + flow[2],
+                        )
                     if run.net_move is not None:
                         run.net_move += d_read
                     if ltp is not None:
@@ -559,6 +670,12 @@ def analyse(
                 if run is not None and run.up == up:
                     run.quiet_minutes = 0.0
                     run.oi_change += d_oi
+                    if flow is not None:
+                        run.buy, run.sell, run.mid = (
+                            run.buy + flow[0],
+                            run.sell + flow[1],
+                            run.mid + flow[2],
+                        )
                     if run.net_move is not None:
                         run.net_move += d_read
                     if ltp is not None:
@@ -571,6 +688,10 @@ def analyse(
                         last_ltp=ltp,
                         oi_change=d_oi,
                         net_move=d_read if settings.net_of_underlying else None,
+                        trade_settings=settings if symbol_trades else None,
+                        buy=flow[0] if flow else 0,
+                        sell=flow[1] if flow else 0,
+                        mid=flow[2] if flow else 0,
                     )
                 if run.cls in WRITER_CLASSES:
                     minutes = (i - run.start_index + 1) * step_minutes
@@ -654,6 +775,20 @@ def analyse(
         "totals": [{"time": t, "spot": spot_at.get(t), **totals[t]} for t in steps],
         "strikes": rows,
         "events": sorted(events, key=lambda e: (e["time"], e["strike"], e["side"])),
+        # How the trades read today: steps that had trades, steps they decided,
+        # and how often they agreed with the premium where both named a side.
+        "trades": (
+            {
+                **trade_stats,
+                "agree_share": (
+                    round(trade_stats["agree"] / trade_stats["compared"], 3)
+                    if trade_stats["compared"]
+                    else None
+                ),
+            }
+            if reading_trades
+            else None
+        ),
     }
 
 
