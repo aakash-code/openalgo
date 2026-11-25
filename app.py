@@ -1187,6 +1187,7 @@ def _restore_caches_background():
             # calendar needs to work out which session to anchor on. A failure
             # here is not recorded, so it cannot hold off the first real request.
             previous_session_oi("NFO", record_failure=False)
+            previous_session_oi("BFO", record_failure=False)  # BSE's, for SENSEX
         except Exception as e:
             logger.debug(f"NSE open interest warm-up skipped: {e}")
 
@@ -1212,7 +1213,6 @@ def shutdown_database_sessions(exception=None):
     from utils.db_sessions import remove_all_scoped_sessions
 
     remove_all_scoped_sessions()
-
 
 
 # Integrate the WebSocket proxy server with the Flask app. Where it runs is

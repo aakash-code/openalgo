@@ -16,8 +16,10 @@ to: NIFTY22SEP2623200PE read 7,467,135 in the 16-Sep-2026 file with a day's
 change of 2,914,210, which is exactly the 4,552,925 close of 15-Sep that NSE
 reported. Same units as the broker's feed - no lot-size conversion.
 
-NSE only. BSE publishes its own file in a different format, and crypto has
-none; both keep the per-leg fallback in `oi_profile_service`.
+BSE publishes the same UDiFF layout for BFO (SENSEX, BANKEX), as a plain CSV
+rather than a zip; it is read the same way. Checked 26-Oct to 23-Nov-2026: the
+BSE file's SENSEX open interest matched the broker's to a median 0.3%, same
+units. Crypto has no file and keeps the per-leg fallback in `oi_profile_service`.
 """
 
 from __future__ import annotations
@@ -40,6 +42,13 @@ from utils.logging import get_logger
 logger = get_logger(__name__)
 
 _URL = "https://nsearchives.nseindia.com/content/fo/BhavCopy_NSE_FO_0_0_0_{day}_F_0000.csv.zip"
+_BSE_URL = (
+    "https://www.bseindia.com/download/BhavCopy/Derivative/BhavCopy_BSE_FO_0_0_0_{day}_F_0000.CSV"
+)
+_SOURCES = {
+    "NFO": (_URL, "https://www.nseindia.com/"),
+    "BFO": (_BSE_URL, "https://www.bseindia.com/"),
+}
 # nsearchives serves the file to anything with a browser User-Agent; unlike
 # www.nseindia.com it needs no warmed cookie (see services/nse_events_service).
 _HEADERS = {
@@ -61,13 +70,13 @@ _MAX_LOOKBACK_DAYS = 10
 # resolved for, so the first request after midnight resolves again; two entries
 # are enough to hold today's and last night's.
 _CACHE_TTL = 12 * 60 * 60
-_book_cache: TTLCache = TTLCache(maxsize=2, ttl=_CACHE_TTL)
+_book_cache: TTLCache = TTLCache(maxsize=4, ttl=_CACHE_TTL)  # (exchange, day)
 _lock = threading.Lock()
 
 # A failed resolve must not be retried on every miss - nor cached for the day,
 # or an NSE hiccup at 09:15 would cost the whole session.
 _RETRY_AFTER_SECONDS = 600
-_failed_at: dict[date, float] = {}
+_failed_at: dict[tuple[str, date], float] = {}
 
 _IST = pytz.timezone("Asia/Kolkata")
 
@@ -102,34 +111,42 @@ def _option_symbol(ticker: str, expiry: str, strike: str, option_type: str) -> s
     return f"{ticker}{expiry_part}{strike_part}{option_type}"
 
 
+def _rows(raw: bytes):
+    """The file's CSV rows: NSE zips it, BSE serves it plain."""
+    if raw[:2] != b"PK":
+        yield from csv.DictReader(io.StringIO(raw.decode("utf-8-sig")))
+        return
+    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
+        name = next((n for n in archive.namelist() if n.lower().endswith(".csv")), None)
+        if name is None:
+            raise ValueError("bhavcopy archive holds no CSV")
+        with archive.open(name) as handle:
+            yield from csv.DictReader(io.TextIOWrapper(handle, encoding="utf-8"))
+
+
 def _parse(raw: bytes) -> tuple[dict[str, float], frozenset[str]]:
-    """Read the zipped CSV into {symbol: closing OI} plus the names it covers."""
+    """Read the CSV (zipped or plain) into {symbol: closing OI} plus the names it covers."""
     oi: dict[str, float] = {}
     underlyings: set[str] = set()
     # A ticker with any row whose OI will not parse cannot be spoken for: one of
     # its contracts would be missing from `oi` while the ticker looked covered,
     # which reads as "held no open interest" and anchors it at zero.
     unreadable: set[str] = set()
-    with zipfile.ZipFile(io.BytesIO(raw)) as archive:
-        name = next((n for n in archive.namelist() if n.lower().endswith(".csv")), None)
-        if name is None:
-            raise ValueError("bhavcopy archive holds no CSV")
-        with archive.open(name) as handle:
-            for row in csv.DictReader(io.TextIOWrapper(handle, encoding="utf-8")):
-                option_type = (row.get("OptnTp") or "").strip()
-                if option_type not in ("CE", "PE"):
-                    continue
-                ticker = (row.get("TckrSymb") or "").strip()
-                symbol = _option_symbol(
-                    ticker, (row.get("XpryDt") or "").strip(), row.get("StrkPric"), option_type
-                )
-                if not symbol:
-                    continue
-                underlyings.add(ticker)
-                try:
-                    oi[symbol] = float(row.get("OpnIntrst") or 0)
-                except (TypeError, ValueError):
-                    unreadable.add(ticker)
+    for row in _rows(raw):
+        option_type = (row.get("OptnTp") or "").strip()
+        if option_type not in ("CE", "PE"):
+            continue
+        ticker = (row.get("TckrSymb") or "").strip()
+        symbol = _option_symbol(
+            ticker, (row.get("XpryDt") or "").strip(), row.get("StrkPric"), option_type
+        )
+        if not symbol:
+            continue
+        underlyings.add(ticker)
+        try:
+            oi[symbol] = float(row.get("OpnIntrst") or 0)
+        except (TypeError, ValueError):
+            unreadable.add(ticker)
     return oi, frozenset(underlyings - unreadable)
 
 
@@ -137,15 +154,18 @@ class _NseUnavailable(Exception):
     """NSE could not be reached or refused the request: not a missing file."""
 
 
-def _download(day: date) -> bytes | None:
+def _download(day: date, exchange: str = "NFO") -> bytes | None:
     """The file for one date, or None if NSE published none for it.
 
     Raises _NseUnavailable when NSE did not answer the question at all, so the
     caller stops searching instead of reading an outage as ten missing dates.
     """
-    url = _URL.format(day=day.strftime("%Y%m%d"))
+    template, referer = _SOURCES[exchange]
+    url = template.format(day=day.strftime("%Y%m%d"))
     try:
-        response = get_httpx_client().get(url, headers=_HEADERS, timeout=_TIMEOUT)
+        response = get_httpx_client().get(
+            url, headers={**_HEADERS, "Referer": referer}, timeout=_TIMEOUT
+        )
     except Exception as e:
         logger.warning(f"Could not reach NSE for the {day} bhavcopy", exc_info=True)
         raise _NseUnavailable from e
@@ -157,12 +177,12 @@ def _download(day: date) -> bytes | None:
     return response.content
 
 
-def _newest_before(cutoff: date) -> Bhavcopy | None:
+def _newest_before(cutoff: date, exchange: str = "NFO") -> Bhavcopy | None:
     """The newest published file strictly before `cutoff`."""
     for back in range(1, _MAX_LOOKBACK_DAYS + 1):
         day = cutoff - timedelta(days=back)
         try:
-            raw = _download(day)
+            raw = _download(day, exchange)
         except _NseUnavailable:
             # The broker fallback is better than walking ten dates of timeouts.
             return None
@@ -171,14 +191,18 @@ def _newest_before(cutoff: date) -> Bhavcopy | None:
         try:
             oi, underlyings = _parse(raw)
         except Exception:
+            if exchange == "BFO":
+                continue  # BSE answers a holiday with a page, not a 404
             logger.exception(f"Could not read the {day} bhavcopy")
             return None
-        logger.info(f"Loaded NSE open interest for {day}: {len(oi)} option contracts")
+        if not oi:
+            continue  # no options in it: a holiday's placeholder, not a session
+        logger.info(f"Loaded {exchange} open interest for {day}: {len(oi)} option contracts")
         return Bhavcopy(day, oi, underlyings)
     return None
 
 
-def _displayed_session(today: date) -> date:
+def _displayed_session(today: date, exchange: str = "NFO") -> date:
     """The session the chart's *current* open interest belongs to.
 
     On a trading day that is today, whether or not the close has passed - the
@@ -187,7 +211,7 @@ def _displayed_session(today: date) -> date:
     traded, so a chart opened on a Saturday still shows Friday's build.
     """
     try:
-        if not is_market_holiday(today, "NFO"):
+        if not is_market_holiday(today, exchange):
             return today
     except Exception:
         # A calendar that will not answer is no reason to skip the anchor; a
@@ -197,20 +221,20 @@ def _displayed_session(today: date) -> date:
     for back in range(1, _MAX_LOOKBACK_DAYS + 1):
         day = today - timedelta(days=back)
         try:
-            if not is_market_holiday(day, "NFO"):
+            if not is_market_holiday(day, exchange):
                 return day
         except Exception:
             return today
     return today
 
 
-def _session_before(day: date) -> date | None:
+def _session_before(day: date, exchange: str = "NFO") -> date | None:
     """The last trading session strictly before `day`, or None if the calendar
     will not say. Used to check that the file found is the one expected."""
     for back in range(1, _MAX_LOOKBACK_DAYS + 1):
         candidate = day - timedelta(days=back)
         try:
-            if not is_market_holiday(candidate, "NFO"):
+            if not is_market_holiday(candidate, exchange):
                 return candidate
         except Exception:
             logger.warning("Could not read the market calendar", exc_info=True)
@@ -226,7 +250,7 @@ def previous_session_oi(exchange: str, record_failure: bool = True) -> Bhavcopy 
     Blocking - call it from the anchor worker, never from a request.
 
     Args:
-        exchange: Options exchange. Anything but NFO returns None.
+        exchange: Options exchange: NFO (NSE's file) or BFO (BSE's). Anything else returns None.
         record_failure: False for a speculative warm-up. A failed warm-up then
             leaves no retry cooldown behind, so the first chart after NSE
             recovers still tries the file instead of falling back per leg.
@@ -234,26 +258,28 @@ def previous_session_oi(exchange: str, record_failure: bool = True) -> Bhavcopy 
     Returns:
         The parsed file, or None when NSE cannot supply one.
     """
-    if (exchange or "").upper() != "NFO":
+    exchange = (exchange or "").upper()
+    if exchange not in _SOURCES:
         return None
 
     today = datetime.now(_IST).date()
+    key = (exchange, today)
     with _lock:
-        cached = _book_cache.get(today)
+        cached = _book_cache.get(key)
         if cached is not None:
             return cached
-        failed = _failed_at.get(today)
+        failed = _failed_at.get(key)
     if failed is not None and (datetime.now(_IST).timestamp() - failed) < _RETRY_AFTER_SECONDS:
         return None
 
-    displayed = _displayed_session(today)
-    book = _newest_before(displayed)
+    displayed = _displayed_session(today, exchange)
+    book = _newest_before(displayed, exchange)
 
     # The walk back takes the newest file it finds. If NSE has not published the
     # session before the one on screen yet, that is an older session's file,
     # and anchoring on it would report two days of build as one, cached for
     # half a day. Refuse it: the per-leg broker fallback has the right anchor.
-    expected = _session_before(displayed)
+    expected = _session_before(displayed, exchange)
     if book is not None and expected is not None and book.trade_date < expected:
         logger.warning(
             f"NSE has not published the {expected} bhavcopy yet (newest is "
@@ -264,12 +290,13 @@ def previous_session_oi(exchange: str, record_failure: bool = True) -> Bhavcopy 
     with _lock:
         if book is None:
             if record_failure:
-                _failed_at.clear()  # only today's attempt matters
-                _failed_at[today] = datetime.now(_IST).timestamp()
+                for k in [k for k in _failed_at if k[1] != today]:
+                    del _failed_at[k]  # only today's attempts matter
+                _failed_at[key] = datetime.now(_IST).timestamp()
             logger.warning("No NSE bhavcopy available; anchors fall back to per-leg history")
         else:
-            _book_cache[today] = book
-            _failed_at.pop(today, None)
+            _book_cache[key] = book
+            _failed_at.pop(key, None)
     return book
 
 
@@ -280,10 +307,11 @@ def cached_previous_session_oi(exchange: str) -> Bhavcopy | None:
     warmed it, every later symbol switch is answered from here with no network
     at all.
     """
-    if (exchange or "").upper() != "NFO":
+    exchange = (exchange or "").upper()
+    if exchange not in _SOURCES:
         return None
     with _lock:
-        return _book_cache.get(datetime.now(_IST).date())
+        return _book_cache.get((exchange, datetime.now(_IST).date()))
 
 
 def underlying_of(symbol: str) -> str | None:

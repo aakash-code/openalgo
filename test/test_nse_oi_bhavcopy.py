@@ -133,19 +133,52 @@ def test_an_underlying_the_file_does_not_cover_still_goes_to_the_broker():
     assert remaining == ["NEWNAME29SEP261000CE"]
 
 
-def test_only_nse_is_served_from_the_file():
-    # BSE publishes its own file in a different format and crypto has none;
-    # both must keep the per-leg fallback rather than get a wrong anchor.
-    assert bhav.previous_session_oi("BFO") is None
-    assert bhav.cached_previous_session_oi("BFO") is None
+def test_only_exchanges_with_a_file_are_served_from_one():
+    # Crypto has no closing file and keeps the per-leg fallback.
+    assert bhav.previous_session_oi("CRYPTO") is None
+    assert bhav.cached_previous_session_oi("CRYPTO") is None
+
+
+def test_bse_plain_csv_reads_like_the_nse_zip():
+    # BSE serves the same UDiFF columns unzipped. Without its file, SENSEX max
+    # pain was worked out from the fetched strikes alone, and on 9 of 20 days
+    # (26-Oct to 23-Nov-2026) it differed from the full chain by 100-500 points.
+    raw = (
+        b"TckrSymb,XpryDt,StrkPric,OptnTp,OpnIntrst\n"
+        b"SENSEX,2026-11-26,83500.00,CE,123460\n"
+        b"SENSEX,2026-11-26,81000.00,PE,98760\n"
+        b"SENSEX,2026-11-26,0,,555\n"
+    )
+    oi, names = bhav._parse(raw)
+    assert oi == {"SENSEX26NOV2683500CE": 123460.0, "SENSEX26NOV2681000PE": 98760.0}
+    assert names == frozenset({"SENSEX"})
+
+
+def test_each_exchange_keeps_its_own_file(monkeypatch):
+    asked = []
+    monkeypatch.setattr(bhav, "_displayed_session", lambda today, *_: today)
+    monkeypatch.setattr(bhav, "_session_before", lambda day, *_: None)
+    monkeypatch.setattr(
+        bhav,
+        "_newest_before",
+        lambda day, exchange="NFO": (
+            asked.append(exchange) or bhav.Bhavcopy(day, {exchange: 1.0}, frozenset())
+        ),
+    )
+    bhav._book_cache.clear()
+    assert bhav.previous_session_oi("NFO").oi == {"NFO": 1.0}
+    assert bhav.previous_session_oi("BFO").oi == {"BFO": 1.0}
+    assert bhav.cached_previous_session_oi("NFO").oi == {"NFO": 1.0}
+    assert asked == ["NFO", "BFO"]
+    bhav._book_cache.clear()
 
 
 def test_a_failure_is_not_retried_on_every_miss(monkeypatch):
     # NSE being unreachable at 09:15 must not cost the session, but it must
     # also not put a download in front of every leg that misses.
     attempts = []
-    monkeypatch.setattr(bhav, "_download", lambda day: attempts.append(day) or None)
-    monkeypatch.setattr(bhav, "_displayed_session", lambda today: today)
+    monkeypatch.setattr(bhav, "_download", lambda day, *_: attempts.append(day) or None)
+    monkeypatch.setattr(bhav, "_displayed_session", lambda today, *_: today)
 
     assert bhav.previous_session_oi("NFO") is None
     first = len(attempts)
@@ -159,7 +192,7 @@ def test_an_nse_outage_stops_the_search(monkeypatch):
     # the per-leg broker fallback starts instead of waiting out ten timeouts.
     attempts = []
 
-    def down(day):
+    def down(day, *_):
         attempts.append(day)
         raise bhav._NseUnavailable
 
@@ -172,8 +205,8 @@ def test_a_failed_warm_up_leaves_no_cooldown(monkeypatch):
     # The boot warm-up is speculative. If it fails, the first real request must
     # still try NSE rather than sit out the retry window.
     attempts = []
-    monkeypatch.setattr(bhav, "_download", lambda day: attempts.append(day) or None)
-    monkeypatch.setattr(bhav, "_displayed_session", lambda today: today)
+    monkeypatch.setattr(bhav, "_download", lambda day, *_: attempts.append(day) or None)
+    monkeypatch.setattr(bhav, "_displayed_session", lambda today, *_: today)
     bhav._failed_at.clear()
 
     assert bhav.previous_session_oi("NFO", record_failure=False) is None
@@ -187,12 +220,12 @@ def test_an_older_file_is_not_taken_for_the_expected_session(monkeypatch):
     # Caching that would anchor two days of build as one; it must be refused.
     calls = []
 
-    def download(day):
+    def download(day, *_):
         calls.append(day)
         return _zipped_csv() if day == date(2026, 9, 14) else None
 
     monkeypatch.setattr(bhav, "_download", download)
-    monkeypatch.setattr(bhav, "_displayed_session", lambda today: date(2026, 9, 16))
+    monkeypatch.setattr(bhav, "_displayed_session", lambda today, *_: date(2026, 9, 16))
     monkeypatch.setattr(bhav, "is_market_holiday", lambda day, exchange=None: day.weekday() >= 5)
     bhav._failed_at.clear()
 
@@ -204,12 +237,22 @@ def test_an_older_file_is_not_taken_for_the_expected_session(monkeypatch):
 
 def test_the_expected_file_is_cached(monkeypatch):
     monkeypatch.setattr(
-        bhav, "_download", lambda day: _zipped_csv() if day == date(2026, 9, 15) else None
+        bhav, "_download", lambda day, *_: _zipped_csv() if day == date(2026, 9, 15) else None
     )
-    monkeypatch.setattr(bhav, "_displayed_session", lambda today: date(2026, 9, 16))
+    monkeypatch.setattr(bhav, "_displayed_session", lambda today, *_: date(2026, 9, 16))
     monkeypatch.setattr(bhav, "is_market_holiday", lambda day, exchange=None: day.weekday() >= 5)
     bhav._failed_at.clear()
 
     book = bhav.previous_session_oi("NFO")
     assert book is not None and book.trade_date == date(2026, 9, 15)
     assert bhav.cached_previous_session_oi("NFO") is book
+
+
+def test_a_file_with_no_options_is_not_a_session(monkeypatch):
+    # BSE served a file for the 24-Nov-2026 holiday with no options in it.
+    empty = b"TckrSymb,XpryDt,StrkPric,OptnTp,OpnIntrst\n"
+    full = b"TckrSymb,XpryDt,StrkPric,OptnTp,OpnIntrst\nSENSEX,2026-11-26,83500,CE,10\n"
+    files = {date(2026, 11, 24): empty, date(2026, 11, 23): full}
+    monkeypatch.setattr(bhav, "_download", lambda day, *_: files.get(day))
+    book = bhav._newest_before(date(2026, 11, 25), "BFO")
+    assert book.trade_date == date(2026, 11, 23)
