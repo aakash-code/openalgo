@@ -404,7 +404,7 @@ def available_sessions(limit_days: int = 10) -> list[dict]:
             ORDER BY trade_date DESC, underlying, expiry
             """
         )
-        return [
+        rows = [
             {
                 "trade_date": r[0],
                 "underlying": r[1],
@@ -414,6 +414,24 @@ def available_sessions(limit_days: int = 10) -> list[dict]:
             }
             for r in cur.fetchall()
         ]
+        # Nearest expiry first within a day: as text "02DEC26" sorts before
+        # "25NOV26", and the readers take the first one held.
+        rows.sort(
+            key=lambda r: (
+                -r["trade_date"].toordinal(),
+                r["underlying"],
+                _expiry_order(r["expiry"]),
+            )
+        )
+        return rows
+
+
+def _expiry_order(expiry: str) -> tuple:
+    """An expiry such as 25NOV26 as a sortable date; anything else after every date."""
+    try:
+        return (0, datetime.strptime(expiry, "%d%b%y").date())
+    except (TypeError, ValueError):
+        return (1, str(expiry))
 
 
 def expiry_for_day(underlying: str, trade_date: date) -> str | None:

@@ -811,6 +811,8 @@ TREND_RECENT_MINUTES = 15
 # 4-Nov-2026 forty minutes in, a few steps of opening build-up decided the
 # lean at a five minute step, and it read the opposite of one minute.
 TREND_EARLY_MINUTES = 15
+# A strike unread for longer than this no longer places a wall.
+WALL_FRESH_MINUTES = 10
 
 
 def _gap(strikes: list[float]) -> float:
@@ -901,13 +903,20 @@ def trend_read(
     for key, series in (readings or {}).items():
         for t, sample in series.items():
             at_step[t].append((key, sample["oi"]))
-    for t in steps:
+    # A wall is read only from strikes recorded lately: one that left the
+    # recorder's window keeps its last reading, and on 18-Nov-2026 SENSEX's
+    # resistance came from a strike last read six hours earlier.
+    fresh_steps = max(2, math.ceil(WALL_FRESH_MINUTES / step_minutes))
+    seen_at: dict[tuple[float, str], int] = {}
+    for i_step, t in enumerate(steps):
         spot = spot_at.get(t, spot)
         step_sum = 0.0
         for key, oi in at_step.get(t, ()):
             oi_now[key] = oi
+            seen_at[key] = i_step
         for c in by_time.get(t, ()):
             oi_now[(c["strike"], c["side"])] = c["oi"]
+            seen_at[(c["strike"], c["side"])] = i_step
             if spot is None or gap <= 0:
                 continue
             w = near_weight(c["strike"], spot, gap, settings.trend_strikes)
@@ -925,8 +934,11 @@ def trend_read(
         ce = sum(v * near_weight(k, spot, gap, n) for (k, sd), v in oi_now.items() if sd == "CE")
         pe = sum(v * near_weight(k, spot, gap, n) for (k, sd), v in oi_now.items() if sd == "PE")
         pcr.append(round(pe / ce, 3) if ce > 0 else None)
-        above = [(v, k) for (k, sd), v in oi_now.items() if sd == "CE" and k >= spot]
-        below = [(v, k) for (k, sd), v in oi_now.items() if sd == "PE" and k <= spot]
+        live = {
+            key: v for key, v in oi_now.items() if i_step - seen_at.get(key, -(10**9)) < fresh_steps
+        }
+        above = [(v, k) for (k, sd), v in live.items() if sd == "CE" and k >= spot]
+        below = [(v, k) for (k, sd), v in live.items() if sd == "PE" and k <= spot]
         resistance.append(max(above)[1] if above else None)
         support.append(max(below)[1] if below else None)
 

@@ -190,7 +190,10 @@ def _levels(book, expiry_day):
                 )
                 tr.anchor, tr.since = top, t
                 tr.challenger, tr.challenger_minutes, tr.beyond_minutes = None, 0, 0
-            elif tr.beyond_minutes >= HOLD_MINUTES:
+            elif tr.beyond_minutes >= HOLD_MINUTES and top != tr.anchor:
+                # Just past the strike, it can still be the biggest on its side
+                # (a break needs BREAK_SHARE, the side ends half a strike out):
+                # that is no new level, so it waits until another strike leads.
                 turned = any(tr.since <= x <= t for x in turns.get((role, tr.anchor), []))
                 changes.append(
                     {
