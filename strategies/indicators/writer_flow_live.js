@@ -1165,7 +1165,7 @@ function trendIndicator(underlyingInput, stepInput, readInput) {
         at('tResOpen', trend.resistance_open)
         at('tResNow', trend.resistance_now)
         at('tPrice', trend.price_change)
-        at('tNet', body.read === 'raw' ? 0 : 1)
+        at('tNet', body.read === 'raw' ? 0 : body.read === 'trades' ? 2 : 1)
         at('tEarly', trend.early ? 1 : 0)
         at('tMinutes', trend.minutes)
       }
@@ -1237,6 +1237,7 @@ function trendIndicator(underlyingInput, stepInput, readInput) {
         ],
       ]
       if (v('tNet') === 0) rows[0][1].text += ' (raw premium)'
+      else if (v('tNet') === 2) rows[0][1].text += ' (trades)'
       // A solid backing, as the tooltips have: the lean line and its bars run
       // under the table, and through it the text could not be read.
       for (const row of rows) {
@@ -1272,8 +1273,6 @@ const LEVEL_SHARE = 0.33 // a second level shows only if it holds this share of 
 const LINE_MIN = 1 // px, the weakest level drawn
 const LINE_MAX = 6 // px, the strongest wall of the recorded cycle
 
-/** A level's line thickness from its month strength, across the full range so
- * the dominant wall is unmistakable; the primary on each side gets a touch more. */
 /**
  * Whether a strike is drawn as support (true) or resistance (false). Puts
  * count only at or below the price and calls only at or above it, the rule
@@ -1290,11 +1289,24 @@ export function levelSide(wall, spot, half) {
   return wall.put >= wall.call
 }
 
+/** A level's line thickness from its month strength, across the full range so
+ * the dominant wall is unmistakable; the primary on each side gets a touch more. */
 function lineWeight(cell) {
   return Math.min(
     LINE_MAX,
     LINE_MIN + (LINE_MAX - LINE_MIN) * (cell.strength || 0) + (cell.primary ? 0.5 : 0)
   )
+}
+
+/**
+ * Label centres, top to bottom, pushed down so no two sit closer than `gap`.
+ * Each is compared with where the one above it ended up, not where it started:
+ * three levels within a few pixels otherwise printed the third over the second.
+ */
+export function spreadLabels(ys, gap) {
+  const out = []
+  for (const y of ys) out.push(out.length && y - out[out.length - 1] < gap ? out[out.length - 1] + gap : y)
+  return out
 }
 
 function formatStrike(k) {
@@ -1568,10 +1580,10 @@ function levelsIndicator(underlyingInput, nulls) {
           // a trader watches is named and ranked at a glance.
           if (body && settings.labels !== false && state.cells.length) {
             const named = [...state.cells].sort((a, b) => (a.top + a.bottom) / 2 - (b.top + b.bottom) / 2)
-            for (let i = 1; i < named.length; i++) {
-              const prev = (named[i - 1].top + named[i - 1].bottom) / 2
-              if ((named[i].top + named[i].bottom) / 2 - prev < 15) named[i]._y = prev + 15
-            }
+            const ys = spreadLabels(named.map((cell) => (cell.top + cell.bottom) / 2), 15)
+            named.forEach((cell, i) => {
+              cell._y = ys[i]
+            })
             c.font = `${10 * dpr}px sans-serif`
             c.textBaseline = 'middle'
             const right = rc.plotWidth - 6 - state.edgeHeld

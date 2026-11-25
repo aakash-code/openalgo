@@ -20,3 +20,9 @@ test('within half a strike the bigger side holds it', () => {
 test('without a price the bigger side decides, as before', () => {
   assert.equal(levelSide({ strike: 1, put: 2, call: 1 }, Number.NaN, 25), true)
 })
+
+import { spreadLabels } from '../../strategies/indicators/writer_flow_live.js'
+
+test('three close level labels do not print over one another', () => {
+  assert.deepEqual(spreadLabels([100, 104, 108, 200], 15), [100, 115, 130, 200])
+})
