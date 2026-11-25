@@ -62,3 +62,23 @@ def test_the_nearest_expiry_sorts_first():
     expiries = ["02DEC26", "25NOV26", "30DEC26"]
     assert sorted(expiries, key=_expiry_order) == ["25NOV26", "02DEC26", "30DEC26"]
     assert sorted(["x", "25NOV26"], key=_expiry_order) == ["25NOV26", "x"]
+
+
+def test_a_round_strike_touched_from_above_counts_even_landing_just_under_it():
+    from services.oi_levels import core
+
+    rows = []
+    path = [25080, 25060, 25040, 25020, 24995] + [25060] * 10  # touches 25000, lands under
+    for m, spot in enumerate(path):
+        rows += [
+            _row(m, 25100, "CE", 900_000, spot),
+            _row(m, 24900, "PE", 900_000, spot),
+            _row(m, 25000, "CE", 100_000, spot),
+            _row(m, 25000, "PE", 100_000, spot),
+        ]
+    book = core._book(rows)
+    history, _ = core._levels(book, False)
+    touches = [x for x in core._touches(book, history) if x["kind"] == "round"]
+    assert [(x["strike"], x["role"], x["outcome"]) for x in touches] == [
+        (25000.0, "support", "held")
+    ]

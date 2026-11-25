@@ -930,13 +930,15 @@ def trend_read(
             support.append(None)
             resistance.append(None)
             continue
-        n = settings.pcr_strikes
-        ce = sum(v * near_weight(k, spot, gap, n) for (k, sd), v in oi_now.items() if sd == "CE")
-        pe = sum(v * near_weight(k, spot, gap, n) for (k, sd), v in oi_now.items() if sd == "PE")
-        pcr.append(round(pe / ce, 3) if ce > 0 else None)
+        # The ratio too: a strike that left the window keeps a frozen reading
+        # (NIFTY 24850 PE on 20-Nov-2026: 3.8M held from 12:00, NSE closed 1.9M).
         live = {
             key: v for key, v in oi_now.items() if i_step - seen_at.get(key, -(10**9)) < fresh_steps
         }
+        n = settings.pcr_strikes
+        ce = sum(v * near_weight(k, spot, gap, n) for (k, sd), v in live.items() if sd == "CE")
+        pe = sum(v * near_weight(k, spot, gap, n) for (k, sd), v in live.items() if sd == "PE")
+        pcr.append(round(pe / ce, 3) if ce > 0 else None)
         above = [(v, k) for (k, sd), v in live.items() if sd == "CE" and k >= spot]
         below = [(v, k) for (k, sd), v in live.items() if sd == "PE" and k <= spot]
         resistance.append(max(above)[1] if above else None)

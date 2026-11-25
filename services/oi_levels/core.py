@@ -350,7 +350,10 @@ def _touches(book, history) -> list[dict]:
                 )
         for k in _near(book, t, LEVEL_STEPS):
             if abs(k / round_step - round(k / round_step)) < 1e-9:
-                tests.append(("round", SUPPORT if k <= spot else RESISTANCE, k, k, k, "round"))
+                # The side is where the price came from: arriving from above
+                # and stopping a few points under the strike is still a test of
+                # it as support (judged on the price now, that touch was lost).
+                tests.append(("round", SUPPORT if prev > k else RESISTANCE, k, k, k, "round"))
         for kind, role, anchor, low, high, status in tests:
             if role == SUPPORT:
                 touched = low - tol <= spot <= high + tol and prev > high + tol
