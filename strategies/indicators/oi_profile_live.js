@@ -143,6 +143,47 @@ export function nearestExpiryRows(chain, prefix, legOi = (leg) => Number(leg.oi)
 
 export { maxPainStrike }
 
+// A label's height with its backing, in CSS pixels.
+const LABEL_PX = 14
+
+/** The y of each wall strike's row on screen. */
+export function wallYs(rows, walls) {
+  const out = []
+  for (const k of [walls?.support, walls?.resistance]) {
+    const row = k == null ? null : rows.find((r) => r.strike === k)
+    if (row) out.push(row.y)
+  }
+  return out
+}
+
+/**
+ * Where max pain's label goes: 'above' its line, or 'below' when a wall's
+ * label (which hangs below the wall's line) fills the space above, or
+ * 'beside' the wall labels when both are taken (support and resistance one
+ * strike either side, as on NIFTY 23-Nov-2026: S 25300, max pain 25350,
+ * R 25400). Not moved when max pain is itself a wall.
+ */
+export function maxPainLabelPlace(y, wallY) {
+  const blocked = (top) => wallY.some((w) => w !== y && w + 2 < top + LABEL_PX && w + 2 + LABEL_PX > top)
+  if (wallY.includes(y) || !blocked(y - 2 - LABEL_PX)) return 'above'
+  return blocked(y + 2) ? 'beside' : 'below'
+}
+
+/**
+ * The window's rows plus the nearest expiry's strikes outside it, which the
+ * server sends at the previous session's closing OI (`beyond_window`). Max
+ * pain over the window alone leans to the window's middle: on 50 days against
+ * NSE's closing file it matched the whole chain on 15, BANKNIFTY up to 2000
+ * points off; with the rows beyond added it matched on 40 and was never more
+ * than three strikes off. A strike the window holds is never taken from beyond.
+ */
+export function withBeyond(rows, beyond) {
+  if (!Array.isArray(rows) || !Array.isArray(beyond) || !beyond.length) return rows
+  const held = new Set(rows.map((r) => Number(r.strike)))
+  const extra = beyond.filter((r) => Number.isFinite(Number(r.strike)) && !held.has(Number(r.strike)))
+  return extra.length ? [...rows, ...extra] : rows
+}
+
 /**
  * The walls: the strike at or below `ref` holding the most put open interest
  * (support) and the one at or above it holding the most call open interest
@@ -535,7 +576,8 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
         // not apply `activeWhen`.
         tooltip: "Yesterday's open interest outlined over today's bar. Open Interest and Both only.",
       },
-      { key: 'maxPain', type: 'boolean', label: 'Max Pain Marker (strikes fetched)', default: true, group: 'Display' },
+      { key: 'maxPain', type: 'boolean', label: 'Max Pain Marker', default: true, group: 'Display',
+        tooltip: "Over the whole chain on NSE: the strikes shown at live open interest, the rest at the previous session's close. Elsewhere, over the strikes fetched." },
       {
         key: 'walls', type: 'boolean', label: 'Support And Resistance Walls', default: true, group: 'Display',
         tooltip: 'Marks the strike at or below the at-the-money one holding the most put open interest (support) and the one at or above it holding the most call open interest (resistance).',
@@ -569,6 +611,7 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
         valueMode: 'oi',
         hasChange: false,
         maxPain: null,
+        beyond: null,
         marketOpen: true,
         // Set from the backend: some legs' previous-session OI is still being
         // fetched, so the change columns are incomplete and the next beat
@@ -975,7 +1018,21 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
               canvasCtx.setLineDash([])
               canvasCtx.fillStyle = MAX_PAIN_COLOR
               canvasCtx.font = `${10 * dpr}px ui-sans-serif, system-ui, sans-serif`
-              canvasCtx.textBaseline = 'bottom'
+              // Above its line, unless a wall's label (drawn below the wall's
+              // line) sits in that space: on NIFTY 23-Nov-2026 max pain at
+              // 25350 printed under "Resistance 25400" one strike above.
+              const place = maxPainLabelPlace(row.y, settings.walls === false ? [] : wallYs(rows, state.walls))
+              let x = left
+              if (place === 'beside') {
+                // Past the wider of the two wall labels, in their bold font.
+                canvasCtx.font = `bold ${10 * dpr}px ui-sans-serif, system-ui, sans-serif`
+                const wide = [state.walls.support, state.walls.resistance]
+                  .map((k, i) => (k == null ? 0 : canvasCtx.measureText(`${i ? 'Resistance' : 'Support'} ${k}`).width / dpr))
+                x = left + Math.max(0, ...wide) + 14
+                canvasCtx.font = `${10 * dpr}px ui-sans-serif, system-ui, sans-serif`
+              }
+              const below = place === 'below'
+              canvasCtx.textBaseline = below ? 'top' : 'bottom'
               labelOnBacking(
                 canvasCtx,
                 // With expiries combined, say which one it is for: it is the
@@ -983,10 +1040,10 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
                 state.nearestPrefix
                   ? `Max Pain ${strike} (${state.nearestExpiry})`
                   : `Max Pain ${strike}`,
-                left,
-                row.y - 2,
+                x,
+                below ? row.y + 2 : row.y - 2,
                 dpr,
-                'bottom'
+                below ? 'top' : 'bottom'
               )
             }
           }
@@ -1253,6 +1310,7 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
         state.nearestExpiry = meta.expiry ?? ''
         state.optionsExchange = body.options_exchange ?? ''
         state.atmStrike = Number.isFinite(Number(body.atm_strike)) ? Number(body.atm_strike) : null
+        state.beyond = Array.isArray(body.beyond_window?.rows) ? body.beyond_window.rows : null
         syncLive()
         redraw()
       }
@@ -1296,7 +1354,7 @@ export default function ({ registerIndicator, nulls, subscribeQuotes }) {
             : chain
         if (state.chain) {
           const nearest = chain ? nearestExpiryRows(chain, state.nearestPrefix, legOi) : null
-          state.maxPain = maxPainStrike(nearest ?? state.chain)
+          state.maxPain = maxPainStrike(withBeyond(nearest ?? state.chain, state.beyond))
           state.walls = wallStrikes(state.chain, state.atmStrike)
         } else {
           state.maxPain = null

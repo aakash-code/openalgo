@@ -222,7 +222,8 @@ function stepOf(settings) {
 
 /** How premiums are read: net of the underlying's move (default) or raw. */
 function readOf(settings) {
-  return String(settings.read ?? 'net') === 'raw' ? 'raw' : 'net'
+  const r = String(settings.read ?? 'net')
+  return r === 'raw' || r === 'trades' ? r : 'net'
 }
 
 /**
@@ -491,9 +492,10 @@ export default function ({ registerIndicator, nulls, onServerEvent: listen }) {
     options: [
       { value: 'net', label: 'Net of the index move' },
       { value: 'raw', label: 'Raw premium' },
+      { value: 'trades', label: 'Trades, net of the index move' },
     ],
     tooltip:
-      'Net: a side is judged by its premium move after taking out what the index move alone explains (delta times the index change). On a rally every call premium rises, so the raw premium reads falling call open interest as writers covering even when buyers are the ones leaving.',
+      'Net: a side is judged by its premium move after taking out what the index move alone explains (delta times the index change). On a rally every call premium rises, so the raw premium reads falling call open interest as writers covering even when buyers are the ones leaving. Trades: each side read from who traded at the bid or the offer, with the index move taken out of the lean; for comparing, its forward read is not yet proven better than Net.',
   }
 
   registerIndicator({
@@ -1272,6 +1274,22 @@ const LINE_MAX = 6 // px, the strongest wall of the recorded cycle
 
 /** A level's line thickness from its month strength, across the full range so
  * the dominant wall is unmistakable; the primary on each side gets a touch more. */
+/**
+ * Whether a strike is drawn as support (true) or resistance (false). Puts
+ * count only at or below the price and calls only at or above it, the rule
+ * the server's levels use: chosen by the bigger side alone, in-the-money calls
+ * drew BANKNIFTY 64,500 as resistance under a price of 64,635 (20-Nov-2026).
+ * Within half a strike of the price either side may hold it.
+ */
+export function levelSide(wall, spot, half) {
+  if (!Number.isFinite(spot)) return wall.put >= wall.call
+  const below = wall.strike <= spot + half
+  const above = wall.strike >= spot - half
+  if (below && !above) return true
+  if (above && !below) return false
+  return wall.put >= wall.call
+}
+
 function lineWeight(cell) {
   return Math.min(
     LINE_MAX,
@@ -1362,7 +1380,7 @@ function levelsIndicator(underlyingInput, nulls) {
           // price. Strength is the month: how strongly that side has held this
           // strike over the cycle, so the primary level is the one positions
           // built through, not just today's. Without a month yet, fall back to today.
-          const support = w.put >= w.call
+          const support = levelSide(w, Number(body.spot), half)
           const role = support ? 'support' : 'resistance'
           const pPut = w.persist_put ?? w.put / peak
           const pCall = w.persist_call ?? w.call / peak
