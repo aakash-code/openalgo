@@ -40,6 +40,7 @@ _day_oi = LockedTTLCache(
     maxsize=512, ttl=7 * 86400
 )  # (underlying, day, expiry) -> {strike: (put, call)}
 _building = KeyedLocks(name="oi_levels")
+_beyond = LockedTTLCache(maxsize=32, ttl=12 * 3600)  # (underlying, expiry, file day) -> legs
 
 
 @dataclass(frozen=True)
@@ -143,6 +144,59 @@ def _cycle_strength(
     return {k: (round(v[0] / peak, 3), round(v[1] / peak, 3)) for k, v in acc.items()}
 
 
+def _beyond_legs(
+    underlying: str, expiry: str, exchange: str, trade_date: date, expiry_at: datetime | None
+) -> list[tuple[float, str, float, float]]:
+    """The previous session's chain, from its closing file: (strike, side, oi, iv).
+
+    Only the copy already in memory is read (the OI Profile and startup load
+    it), so the builder thread makes no network call. Used only when that file
+    is the session before the day shown: a later file would be look-ahead.
+    """
+    from services.nse_oi_bhavcopy import cached_previous_session_oi
+    from services.oi_flow_analysis import option_delta
+
+    options_exchange = {"NSE_INDEX": "NFO", "BSE_INDEX": "BFO"}.get(exchange, exchange)
+    book = cached_previous_session_oi(options_exchange)
+    if book is None or expiry_at is None or book.trade_date >= trade_date or not book.close:
+        return []
+    key = (underlying, expiry, book.trade_date)
+    held = _beyond.get(key)
+    if held is not None:
+        return held
+    prefix = f"{underlying}{expiry}".upper()
+    chain: dict[float, dict[str, tuple[float, float]]] = {}
+    for symbol, oi in book.oi.items():
+        if not symbol.startswith(prefix) or symbol[-2:] not in ("CE", "PE"):
+            continue
+        try:
+            strike = float(symbol[len(prefix) : -2])
+        except ValueError:
+            continue
+        chain.setdefault(strike, {})[symbol[-2:]] = (oi, book.close.get(symbol, 0.0))
+    # The forward at that close, by put-call parity where the two sides are nearest.
+    pairs = sorted(
+        (abs(v["CE"][1] - v["PE"][1]), k + v["CE"][1] - v["PE"][1])
+        for k, v in chain.items()
+        if "CE" in v and "PE" in v and v["CE"][1] > 0 and v["PE"][1] > 0
+    )[:3]
+    out: list[tuple[float, str, float, float]] = []
+    if pairs:
+        forward = sorted(f for _, f in pairs)[len(pairs) // 2]
+        close_at = datetime.combine(book.trade_date, expiry_at.time())
+        years = (expiry_at - close_at).total_seconds() / (365.0 * 86400.0)
+        if years > 0:
+            for strike, sides in chain.items():
+                for side, (oi, price) in sides.items():
+                    if oi <= 0 or price <= 0:
+                        continue
+                    _, vol = option_delta(price, forward, strike, years, side)
+                    if vol is not None and vol < 3.0:
+                        out.append((strike, side, oi, vol))
+    _beyond[key] = out
+    return out
+
+
 def levels_payload(view: LevelsView) -> dict:
     """The zones for the chart. Raises on a read failure."""
     from services.option_greeks_service import calculate_chain_greeks
@@ -174,6 +228,9 @@ def levels_payload(view: LevelsView) -> dict:
             greeks=calculate_chain_greeks,
             flip=find_gamma_flip,
             past_touches=_past_touches(view.underlying, chosen["trade_date"], sessions),
+            beyond=_beyond_legs(
+                view.underlying, chosen["expiry"], exchange, chosen["trade_date"], expiry_at
+            ),
         )
     )
     if read is None:
@@ -290,3 +347,4 @@ def forget_views() -> None:
     _asked.clear()
     _past.clear()
     _day_oi.clear()
+    _beyond.clear()

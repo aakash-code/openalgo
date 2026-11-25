@@ -51,7 +51,9 @@ BREAK_SHARE = 0.0008  # and broke once it goes this far through
 AFTER_MINUTES = 20  # how long a touch is followed
 TOUCH_COOLDOWN = 15  # a level touched again sooner is the same test
 GAMMA_EVERY = 5  # minutes between gamma reads (always on the last minute)
-FLIP_POINTS = 81  # hypothetical prices tried for the gamma flip
+FLIP_POINTS = 201  # hypothetical prices tried for the gamma flip
+FLIP_RANGE = 0.05  # searched this far either side of the price
+
 MIN_JUDGED = 20  # touches before a hold rate means anything
 CHANCE = BREAK_SHARE / (BOUNCE_SHARE + BREAK_SHARE)
 
@@ -74,6 +76,12 @@ class LevelInputs:
     # (strike, forward, years, iv, oi, sign): strike_profile_service.find_gamma_flip.
     flip: Callable | None = None
     past_touches: list[dict] = field(default_factory=list)  # earlier days, for the hold rates
+    # Strikes the recorder does not hold, from the previous session's closing
+    # file: (strike, side, oi, iv as a decimal). The flip needs the whole chain:
+    # from the recorded window alone it missed BANKNIFTY's flip on 16 of 18
+    # days (26-Oct to 20-Nov-2026) and was a median 412 points off, measured
+    # against the full chain at the close; with these, 73 points and none missed.
+    beyond: list[tuple[float, str, float, float]] = field(default_factory=list)
 
 
 # ----------------------------------------------------------------------- zones
@@ -268,7 +276,9 @@ def _gamma_at(book, t, inputs) -> dict | None:
         return None
     years = max(years, 0.0001)
     legs = book.legs[t]
-    strikes = [k for k in _near(book, t, LEVEL_STEPS) if ("CE", k) in legs and ("PE", k) in legs]
+    # Every strike recorded this minute, not only the ten either side: the far
+    # ones carry the open interest that decides where net gamma turns.
+    strikes = sorted(k for (s, k) in legs if s == "CE" and ("PE", k) in legs)
     if len(strikes) < 3:
         return None
     ce, pe = inputs.greeks(
@@ -288,12 +298,21 @@ def _gamma_at(book, t, inputs) -> dict | None:
                 flip_legs.append((k, forward, years, leg["iv"] / 100.0, oi, sign))
     if not net:
         return None
+    held = set(strikes)
+    for k, side, oi, iv in inputs.beyond:
+        if k not in held and oi > 0 and iv > 0:
+            flip_legs.append((k, forward, years, iv, oi, 1.0 if side == "CE" else -1.0))
     flip = None
+    spot = book.spot[t]
     if inputs.flip is not None and flip_legs:
-        flip = inputs.flip(flip_legs, book.spot[t], min(strikes), max(strikes), FLIP_POINTS)
+        flip = inputs.flip(
+            flip_legs, spot, spot * (1 - FLIP_RANGE), spot * (1 + FLIP_RANGE), FLIP_POINTS
+        )
+    near = set(_near(book, t, LEVEL_STEPS))
     return {
         "forward": forward,
-        "top_strike": max(net, key=lambda k: abs(net[k])),
+        "top_strike": max((k for k in net if k in near), key=lambda k: abs(net[k]), default=None)
+        or max(net, key=lambda k: abs(net[k])),
         "flip": round(flip, 1) if flip else None,
     }
 

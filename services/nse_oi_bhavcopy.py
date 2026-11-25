@@ -94,6 +94,9 @@ class Bhavcopy(NamedTuple):
     # underlying is here genuinely held no open interest that session; one
     # whose underlying is absent means the file cannot speak for it at all.
     underlyings: frozenset[str]
+    # Each option's closing price, for the strikes a live window does not
+    # fetch: the levels' gamma solves their volatility from it.
+    close: dict[str, float] = {}
 
 
 def _option_symbol(ticker: str, expiry: str, strike: str, option_type: str) -> str | None:
@@ -122,6 +125,28 @@ def _rows(raw: bytes):
             raise ValueError("bhavcopy archive holds no CSV")
         with archive.open(name) as handle:
             yield from csv.DictReader(io.TextIOWrapper(handle, encoding="utf-8"))
+
+
+def closing_prices(raw: bytes) -> dict[str, float]:
+    """{symbol: closing price} for every option in the file with one."""
+    out: dict[str, float] = {}
+    for row in _rows(raw):
+        option_type = (row.get("OptnTp") or "").strip()
+        if option_type not in ("CE", "PE"):
+            continue
+        symbol = _option_symbol(
+            (row.get("TckrSymb") or "").strip(),
+            (row.get("XpryDt") or "").strip(),
+            row.get("StrkPric"),
+            option_type,
+        )
+        try:
+            price = float(row.get("ClsPric") or 0)
+        except (TypeError, ValueError):
+            continue
+        if symbol and price > 0:
+            out[symbol] = price
+    return out
 
 
 def _parse(raw: bytes) -> tuple[dict[str, float], frozenset[str]]:
@@ -198,7 +223,12 @@ def _newest_before(cutoff: date, exchange: str = "NFO") -> Bhavcopy | None:
         if not oi:
             continue  # no options in it: a holiday's placeholder, not a session
         logger.info(f"Loaded {exchange} open interest for {day}: {len(oi)} option contracts")
-        return Bhavcopy(day, oi, underlyings)
+        try:
+            close = closing_prices(raw)
+        except Exception:
+            logger.exception(f"Could not read the closing prices in the {day} file")
+            close = {}
+        return Bhavcopy(day, oi, underlyings, close)
     return None
 
 

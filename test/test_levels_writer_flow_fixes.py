@@ -82,3 +82,65 @@ def test_a_round_strike_touched_from_above_counts_even_landing_just_under_it():
     assert [(x["strike"], x["role"], x["outcome"]) for x in touches] == [
         (25000.0, "support", "held")
     ]
+
+
+def test_the_gamma_flip_reads_every_recorded_strike_and_the_chain_beyond():
+    from services.oi_levels import core
+
+    seen = {}
+
+    def flip(legs, spot, low, high, points):
+        seen.update(strikes={k for k, *_ in legs}, low=low, high=high, spot=spot)
+        return spot
+
+    def greeks(strikes, ce, pe, forward, years):
+        leg = {"iv": 15.0, "gamma": 0.0005}
+        return [leg] * len(strikes), [leg] * len(strikes)
+
+    rows = []
+    for m in range(6):
+        for k in range(24250, 25751, 50):  # 31 strikes, as the recorder keeps
+            rows += [
+                _row(m, k, "CE", 100_000, 25000.0, 40.0),
+                _row(m, k, "PE", 100_000, 25000.0, 40.0),
+            ]
+    read = build_levels(
+        LevelInputs(
+            "NIFTY",
+            rows,
+            expiry_at=datetime(2026, 11, 24, 15, 30),
+            greeks=greeks,
+            flip=flip,
+            beyond=[(23000.0, "PE", 900_000, 0.2), (25000.0, "CE", 5, 0.2)],
+        )
+    )
+    assert read["gamma"]["flip"] == 25000.0
+    assert 24250 in seen["strikes"] and 25750 in seen["strikes"]  # beyond the ten either side
+    assert 23000 in seen["strikes"]  # from the closing file
+    assert seen["low"] == 25000 * 0.95 and seen["high"] == 25000 * 1.05
+
+
+def test_beyond_legs_come_from_the_previous_close_and_never_from_a_later_day(monkeypatch):
+    from datetime import date
+
+    import services.nse_oi_bhavcopy as bhav
+    import services.oi_levels_service as svc
+
+    svc.forget_views()
+    book = bhav.Bhavcopy(
+        date(2026, 11, 19),
+        {
+            "NIFTY24NOV2625000CE": 1000.0,
+            "NIFTY24NOV2625000PE": 2000.0,
+            "NIFTY24NOV2624000PE": 3000.0,
+        },
+        frozenset({"NIFTY"}),
+        {"NIFTY24NOV2625000CE": 120.0, "NIFTY24NOV2625000PE": 110.0, "NIFTY24NOV2624000PE": 8.0},
+    )
+    monkeypatch.setattr(bhav, "cached_previous_session_oi", lambda exchange: book)
+    expiry_at = datetime(2026, 11, 24, 15, 30)
+    legs = svc._beyond_legs("NIFTY", "24NOV26", "NFO", date(2026, 11, 20), expiry_at)
+    assert {(k, s) for k, s, _, _ in legs} == {(25000.0, "CE"), (25000.0, "PE"), (24000.0, "PE")}
+    assert all(0 < iv < 3 for *_, iv in legs)
+    svc.forget_views()
+    assert svc._beyond_legs("NIFTY", "24NOV26", "NFO", date(2026, 11, 19), expiry_at) == []
