@@ -2,8 +2,12 @@
 GEX (Gamma Exposure) Service
 Computes Gamma Exposure across strikes using live option chain data + Black-76 model.
 
-GEX = gamma * open_interest * lot_size
+GEX = gamma * open interest as a quantity of the underlying
 Net GEX = Call GEX - Put GEX
+
+NFO and BFO quote open interest as a quantity already; MCX quotes it in lots,
+so only MCX is multiplied by the lot size. Multiplying every exchange made
+NIFTY's GEX 65 times too large and BANKNIFTY's 30, while MCX was right.
 """
 
 from typing import Any
@@ -66,6 +70,9 @@ def get_gex_data(
         lot_size = None
         gex_chain = []
 
+        def units_per_oi(lots: int) -> int:
+            return lots if options_exchange == "MCX" else 1
+
         for item in full_chain:
             strike = item["strike"]
             ce = item.get("ce")
@@ -98,7 +105,7 @@ def get_gex_data(
                         if ok and greeks_resp.get("status") == "success":
                             greeks = greeks_resp.get("greeks", {})
                             ce_gamma = greeks.get("gamma", 0) or 0
-                            ce_gex = ce_gamma * ce_oi * current_lotsize
+                            ce_gex = ce_gamma * ce_oi * units_per_oi(current_lotsize)
                     except Exception as e:
                         logger.warning(f"Failed to calculate greeks for CE {ce.get('symbol')}: {e}")
 
@@ -121,7 +128,7 @@ def get_gex_data(
                         if ok and greeks_resp.get("status") == "success":
                             greeks = greeks_resp.get("greeks", {})
                             pe_gamma = greeks.get("gamma", 0) or 0
-                            pe_gex = pe_gamma * pe_oi * current_lotsize
+                            pe_gex = pe_gamma * pe_oi * units_per_oi(current_lotsize)
                     except Exception as e:
                         logger.warning(f"Failed to calculate greeks for PE {pe.get('symbol')}: {e}")
 

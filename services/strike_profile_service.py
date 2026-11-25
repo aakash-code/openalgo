@@ -75,7 +75,22 @@ def _round(value: float, digits: int = 2) -> float:
     return round(float(value), digits)
 
 
-def _leg_exposure(leg: dict[str, Any] | None, spot: float, sign: float) -> dict[str, Any]:
+def _oi_quantity(leg: dict[str, Any], exchange: str) -> float:
+    """A leg's open interest as a quantity of the underlying.
+
+    NFO and BFO quote open interest in quantity already. MCX quotes it in lots
+    (CRUDEOIL 9000 PE held 6,094 with a lot of 100 on 16-Oct-2026), so GEX and
+    DEX in rupees came out a lot size too small there.
+    """
+    oi = leg.get("oi") or 0
+    if (exchange or "").upper() == "MCX":
+        return oi * (leg.get("lotsize") or 1)
+    return oi
+
+
+def _leg_exposure(
+    leg: dict[str, Any] | None, spot: float, sign: float, exchange: str = "NFO"
+) -> dict[str, Any]:
     """
     GEX and DEX contributed by one option leg.
 
@@ -91,11 +106,12 @@ def _leg_exposure(leg: dict[str, Any] | None, spot: float, sign: float) -> dict[
         return {"oi": 0, "gex": 0.0, "dex": 0.0, "iv": 0.0, "priced": False}
 
     oi = leg.get("oi") or 0
+    quantity = _oi_quantity(leg, exchange)
     has_greeks = "gamma" in leg and "delta" in leg
     gamma = leg.get("gamma") or 0.0
     delta = leg.get("delta") or 0.0
-    gex = sign * gamma * oi * spot * spot * 0.01 / CRORE
-    dex = delta * oi * spot / CRORE
+    gex = sign * gamma * quantity * spot * spot * 0.01 / CRORE
+    dex = delta * quantity * spot / CRORE
     return {
         "oi": oi,
         "gex": gex,
@@ -308,8 +324,8 @@ def get_strike_profile(
                 strike = row.get("strike")
                 if not isinstance(strike, (int, float)) or strike <= 0:
                     continue
-                ce = _leg_exposure(row.get("ce"), spot, 1.0)
-                pe = _leg_exposure(row.get("pe"), spot, -1.0)
+                ce = _leg_exposure(row.get("ce"), spot, 1.0, exchange)
+                pe = _leg_exposure(row.get("pe"), spot, -1.0, exchange)
                 gex = ce["gex"] + pe["gex"]
                 dex = ce["dex"] + pe["dex"]
                 # Open interest with no Greeks to weight it is unknown, not zero.
