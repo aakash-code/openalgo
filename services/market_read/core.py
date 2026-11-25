@@ -95,6 +95,7 @@ class MarketMinute:
     fut: float | None = None  # current-month futures price
     fut_oi: float | None = None  # current plus next month open interest
     vix: float | None = None
+    index: float | None = None  # the underlying index itself, quoted from 09:15
 
 
 @dataclass
@@ -579,10 +580,24 @@ def _vix_events(market: list[MarketMinute]) -> list[dict]:
     return out
 
 
-def _price_events(underlying: str, book: _Book, prev_close: float | None) -> list[dict]:
+def _day_open(book: _Book, market: list[MarketMinute]) -> tuple[datetime, float]:
+    """The index's open: its own first quote, when that is earlier than the
+    first option minute. The option recording can start late (09:44 on
+    11-Nov-2026) while the index was quoted from 09:15, and the open, the gap
+    and its fill were then read from the 09:44 price."""
+    first = book.times[0]
+    early = [m for m in market if m.index and m.time <= first]
+    if early:
+        return early[0].time, early[0].index
+    return first, book.spot[first]
+
+
+def _price_events(
+    underlying: str, book: _Book, prev_close: float | None, market: list[MarketMinute] = ()
+) -> list[dict]:
     out = []
     times = book.times
-    open_ = book.spot[times[0]]
+    open_t, open_ = _day_open(book, list(market))
     if prev_close and abs(open_ - prev_close) >= GAP_SHARE * prev_close:
         up = open_ > prev_close
         for t in times[1:]:
@@ -600,7 +615,7 @@ def _price_events(underlying: str, book: _Book, prev_close: float | None) -> lis
                 )
                 break
     high = low = open_
-    high_t = low_t = times[0]
+    high_t = low_t = open_t
     for t in times[1:]:
         s = book.spot[t]
         if s > high:
@@ -723,7 +738,7 @@ def build_read(inputs: ReadInputs) -> dict | None:
         + level_events
         + _futures_events(fut_changes)
         + _vix_events(inputs.market)
-        + _price_events(u, book, inputs.prev_close)
+        + _price_events(u, book, inputs.prev_close, inputs.market)
         + _other_events(u, regimes, other_regimes)
     )
     first, last_t = book.times[0], book.times[-1]
@@ -766,6 +781,7 @@ def build_read(inputs: ReadInputs) -> dict | None:
         }
 
     spot = book.spot[last_t]
+    _, day_open = _day_open(book, inputs.market)
     day_high = max(book.spot.values())
     day_low = min(book.spot.values())
 
@@ -812,10 +828,10 @@ def build_read(inputs: ReadInputs) -> dict | None:
         "others": other_now,
         "price": {
             "spot": round(spot, 2),
-            "open": round(book.spot[first], 2),
-            "prev_close": inputs.prev_close,
-            "day_high": round(day_high, 2),
-            "day_low": round(day_low, 2),
+            "open": round(day_open, 2),
+            "prev_close": round(inputs.prev_close, 2) if inputs.prev_close else None,
+            "day_high": round(max(day_high, day_open), 2),
+            "day_low": round(min(day_low, day_open), 2),
         },
     }
     series = [

@@ -144,3 +144,20 @@ def test_beyond_legs_come_from_the_previous_close_and_never_from_a_later_day(mon
     assert all(0 < iv < 3 for *_, iv in legs)
     svc.forget_views()
     assert svc._beyond_legs("NIFTY", "24NOV26", "NFO", date(2026, 11, 19), expiry_at) == []
+
+
+def test_the_market_read_opens_at_the_index_quote_when_options_start_late():
+    from services.market_read.core import MarketMinute, ReadInputs, build_read
+
+    late = START + timedelta(minutes=29)  # options recorded from 09:44
+    rows = []
+    for m in range(5):
+        spot = 25200.0 + m
+        t = m + 29
+        rows += [_row(t, 25200, "CE", 100_000, spot), _row(t, 25200, "PE", 100_000, spot)]
+        rows += [_row(t, 25250, "CE", 100_000, spot), _row(t, 25150, "PE", 100_000, spot)]
+    market = [MarketMinute(time=START + timedelta(minutes=m), index=25000.0 + m) for m in range(34)]
+    read = build_read(ReadInputs("NIFTY", rows, market=market, prev_close=24900.0))
+    assert read["state"]["price"]["open"] == 25000.0  # 09:15, not 09:44's 25,200
+    assert read["state"]["price"]["day_low"] == 25000.0
+    assert late == read["minute"] - timedelta(minutes=4)

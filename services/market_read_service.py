@@ -319,7 +319,8 @@ def market_minutes(base: str, quotes: list[dict]):
         # Both months together, so a rollover does not read as positions closing.
         oi = sum(last_oi.values()) if len(last_oi) == len(futures) and futures else None
         vix = row.get(VIX[0], {}).get("ltp")
-        out.append(MarketMinute(time=t, fut=fut, fut_oi=oi, vix=vix))
+        index = row.get(base, {}).get("ltp")
+        out.append(MarketMinute(time=t, fut=fut, fut_oi=oi, vix=vix, index=index))
     return out, prev_close
 
 
