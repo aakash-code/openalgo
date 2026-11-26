@@ -908,6 +908,8 @@ def trend_read(
     # resistance came from a strike last read six hours earlier.
     fresh_steps = max(2, math.ceil(WALL_FRESH_MINUTES / step_minutes))
     seen_at: dict[tuple[float, str], int] = {}
+    first_oi: dict[tuple[float, str], int] = {}
+    last_oi: dict[tuple[float, str], int] = {}
     for i_step, t in enumerate(steps):
         spot = spot_at.get(t, spot)
         step_sum = 0.0
@@ -943,6 +945,9 @@ def trend_read(
         below = [(v, k) for (k, sd), v in live.items() if sd == "PE" and k <= spot]
         resistance.append(max(above)[1] if above else None)
         support.append(max(below)[1] if below else None)
+        if not first_oi:
+            first_oi = dict(live)
+        last_oi = live
 
     if settings.index_out:
         moves = []
@@ -1007,9 +1012,16 @@ def trend_read(
             max(above)[1] if above else None,
         )
 
-    open_pcr, open_support, open_resistance = snapshot(opening_oi or {}, opening_spot)
-    pcr_open = open_pcr if open_pcr is not None else first_known(pcr)
+    open_book = dict(opening_oi or first_oi)
+    open_pcr, open_support, open_resistance = snapshot(open_book, opening_spot)
     pcr_now = last_known(pcr)
+    # The open's ratio is read around today's price, over the same strikes as
+    # the ratio now, so the vote is the positioning changing, not the price:
+    # read around the open's price, a 0.7% rally with no open interest moving
+    # took the ratio from 0.93 to 0.78 and voted down.
+    pcr_open, _, _ = snapshot(open_book, spot) if open_book and spot is not None else (None, 0, 0)
+    if pcr_open is None:
+        pcr_open = open_pcr if open_pcr is not None else first_known(pcr)
     pcr_vote = 0
     if pcr_open and pcr_now:
         change = (pcr_now - pcr_open) / pcr_open
@@ -1017,11 +1029,20 @@ def trend_read(
     s_open = open_support if open_support is not None else first_known(support)
     r_open = open_resistance if open_resistance is not None else first_known(resistance)
     s_now, r_now = last_known(support), last_known(resistance)
-    wall_shift = 0
-    if s_open is not None and s_now is not None:
-        wall_shift += (s_now > s_open) - (s_now < s_open)
-    if r_open is not None and r_now is not None:
-        wall_shift += (r_now > r_open) - (r_now < r_open)
+
+    def wall_moved(old, new, side):
+        # A wall counts as moved only when the open interest moved it: the new
+        # strike holds more than the old one now and did not at the open. The
+        # price crossing a wall, or uncovering a bigger one, is the price.
+        if old is None or new is None or old == new:
+            return 0
+        if last_oi.get((new, side), 0) <= last_oi.get((old, side), 0):
+            return 0
+        if open_book.get((new, side), 0) > open_book.get((old, side), 0):
+            return 0
+        return 1 if new > old else -1
+
+    wall_shift = wall_moved(s_open, s_now, "PE") + wall_moved(r_open, r_now, "CE")
     wall_vote = 1 if wall_shift > 0 else -1 if wall_shift < 0 else 0
     score = direction + pcr_vote + wall_vote
     overall = 1 if score >= 2 else -1 if score <= -2 else 0

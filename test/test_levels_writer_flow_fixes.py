@@ -161,3 +161,42 @@ def test_the_market_read_opens_at_the_index_quote_when_options_start_late():
     assert read["state"]["price"]["open"] == 25000.0  # 09:15, not 09:44's 25,200
     assert read["state"]["price"]["day_low"] == 25000.0
     assert late == read["minute"] - timedelta(minutes=4)
+
+
+def _rally_rows(shift_resistance: bool):
+    oi = {
+        (24900, "PE"): 900_000,
+        (24950, "PE"): 300_000,
+        (25000, "PE"): 200_000,
+        (25050, "PE"): 600_000,
+        (25100, "PE"): 100_000,
+        (25150, "PE"): 50_000,
+        (25200, "PE"): 40_000,
+        (24900, "CE"): 50_000,
+        (24950, "CE"): 60_000,
+        (25000, "CE"): 900_000,
+        (25050, "CE"): 300_000,
+        (25100, "CE"): 200_000,
+        (25150, "CE"): 150_000,
+        (25200, "CE"): 800_000,
+    }
+    rows = []
+    for m in range(40):
+        spot = 24990 + m * 170 / 39  # a 0.7% rally across the 25000 call wall
+        for (k, s), v in oi.items():
+            if shift_resistance and (k, s) == (25200, "CE"):
+                v += m * 10_000  # call writers really building 25200
+            rows.append(_row(m, k, s, v + m % 2, spot))
+    return rows
+
+
+def test_the_price_alone_moves_neither_the_ratio_nor_the_walls_vote():
+    trend = analyse(_rally_rows(False))["trend"]
+    assert trend["resistance_now"] == 25200  # the wall shown follows the price
+    assert trend["votes"]["walls"] == 0
+    assert trend["votes"]["pcr"] == 0
+
+
+def test_a_wall_the_open_interest_moved_still_votes():
+    trend = analyse(_rally_rows(True))["trend"]
+    assert trend["votes"]["walls"] == 1

@@ -1190,9 +1190,13 @@ function trendIndicator(underlyingInput, stepInput, readInput) {
       const colour = overall > 0 ? GREEN : overall < 0 ? RED : NEUTRAL
       const since = hhmmText(v('tSince'))
       const early = v('tEarly') === 1
+      // "since" and "fading" are the writers' lean, so they are named only when
+      // the writers vote the verdict's way: a bullish day carried by the ratio
+      // and the walls printed the start of a bearish writer lean as its own.
+      const writersAgree = overall !== 0 && v('tWriters') === overall
       const head = early
         ? `${word}, early (${Math.round(v('tMinutes') || 0)} min)`
-        : `${word}${turning ? ', fading' : ''}${overall !== 0 && since ? ` since ${since}` : ''}`
+        : `${word}${writersAgree && turning ? ', fading' : ''}${writersAgree && since ? ` since ${since}` : ''}`
       const vote = (x) => (x > 0 ? 'up' : x < 0 ? 'down' : 'flat')
       const voteColour = (x) => (x > 0 ? GREEN : x < 0 ? RED : NEUTRAL)
       const pcrOpen = v('tPcrOpen')
@@ -1224,7 +1228,7 @@ function trendIndicator(underlyingInput, stepInput, readInput) {
           {
             text: pcrOpen != null && pcrNow != null ? `${pcrOpen.toFixed(2)} -> ${pcrNow.toFixed(2)}` : '-',
             textColor: voteColour(v('tPcrVote')),
-            tooltip: 'Put open interest over call open interest near the money, at the open and now. Rising means puts are being written faster: support for the underlying.',
+            tooltip: 'Put open interest over call open interest near the money, at the open and now, both read around the current price so a price move alone does not change it. Rising means puts are being written faster: support for the underlying.',
           },
         ],
         [
