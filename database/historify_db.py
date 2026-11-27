@@ -1668,7 +1668,11 @@ def _get_daily_aggregated_ohlcv(
 
         # Use continuous civil-day and absolute-month anchors. Restarting a
         # multiple at January splits one candle across two calendar years.
-        instant = f"to_timestamp(timestamp + {ist_offset})"
+        # A plain TIMESTAMP, not to_timestamp(): that returns a TIMESTAMPTZ and
+        # DATE_TRUNC on it cuts in the machine's own time zone, so on a computer
+        # set to India time every week, month and multi-month candle started
+        # 5.5 hours early (the tests, written on a UTC machine, did not see it).
+        instant = f"make_timestamp(CAST(timestamp + {ist_offset} AS BIGINT) * 1000000)"
         if interval_type in ("daily", "weekly"):
             days = interval_value * (7 if interval_type == "weekly" else 1)
             anchor = 4 if interval_type == "weekly" else 0  # Monday 1970-01-05
