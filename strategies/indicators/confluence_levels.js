@@ -361,6 +361,8 @@ export function dayZones(bars, settings, live, records = {}) {
     const today = i === ss.length - 1
     const day = ss[i]
     const start = day.bars[0].time
+    // The previous day, week and profile are read from the sessions before
+    // this one; VWAP, the one same-day source, is today's alone.
     const upTo = bars.filter((b) => b.time <= day.bars[day.bars.length - 1].time)
     const before = bars.filter((b) => b.time < start)
     let body = null
@@ -375,7 +377,7 @@ export function dayZones(bars, settings, live, records = {}) {
     }
     const spot = today ? bars[bars.length - 1].close : day.bars[0].open
     const band = (spot * (Number(settings.band) || 0.12)) / 100
-    const levels = sourceLevels(today ? upTo : [...before, day.bars[0]], body, { vwap: today }).filter((l) => keep(l.code))
+    const levels = sourceLevels(upTo, body, { vwap: today }).filter((l) => keep(l.code))
     const zones = strongest(buildZones(levels, spot, band), Number(settings.perSide) || 3, Number(settings.minScore) || 3)
     for (const z of zones) {
       if (z.role !== 'at price') z.hold = holdRate(before, z.price, z.role, band)
