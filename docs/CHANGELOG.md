@@ -6,9 +6,49 @@ Each release adds a stanza here summarising what changed and who contributed.
 The full notes for a release, with commit SHAs and the reasoning behind each
 fix, live in [docs/releases](releases/).
 
-## [Unreleased]
+## [2.0.3.6] - 2026-11-26
+
+### OpenScript Timeframes and Sandbox Charges Release
+
+22 commits since 2.0.3.5, excluding automated frontend build commits and
+including this release. Full notes:
+[version-2.0.3.6-released.md](releases/version-2.0.3.6-released.md).
+Run `cd upgrade && uv run migrate_all.py`: it adds the sandbox charge columns
+(see Upgrade notes below).
+
+### Highlights
+
+- Sandbox fills pay brokerage and statutory charges, with a brokerage plan per
+  segment, a calculator and a charges API (#2496).
+- OpenScript reads any minute timeframe on `/trading` and in backtests, with
+  intraday candles counted from the session open (`openalgo-script` and
+  `openscript` 0.9.0).
+- The pinned OpenAlgo Python SDK moves from 2.3.0 to 2.4.1.
+- openalgo-charts 2.7.5 with Pivot Points Standard on every chart.
+- The watchlist shows the price change by default (#2276).
+- Weekly and monthly charts load for brokers without native weekly or monthly
+  history (#2443).
+- Broker fixes for Flattrade, 5paisa XTS, Zerodha and SL-M stop orders on
+  Shoonya, Flattrade and Firstock.
 
 ### Added
+
+- OpenScript studies and strategies on `/trading` read any minute timeframe,
+  coarser or finer than the chart: fifteen, twenty five and three minutes on a
+  ten minute chart, where only whole multiples (twenty, thirty, forty) were
+  allowed before. `openalgo-script` 0.9.0 builds those from finer bars the
+  terminal's bars provider serves. The script settings dialog now offers every
+  intraday interval on an intraday chart. Backtests fetch the finer bars a
+  strategy needs before the run, and a backtest can now read another
+  instrument with `req.symbol`. A strategy deployed to run on the server still
+  reads whole multiples only, and says so when it starts.
+
+### Changed
+
+- OpenScript intraday timeframe reads now start at the session open. A 60
+  minute `req.timeframe` read on NSE ran 09:15 to 09:30 and then 09:30 to 10:30;
+  it now runs 09:15 to 10:15, as the broker's own hourly candles do, and so do
+  30 and 10 minute reads. Studies using those reads redraw after the update.
 
 - Sandbox trades now pay brokerage and statutory charges. Each fill is charged
   brokerage under your own plan, plus STT or CTT, exchange transaction charges,
@@ -158,6 +198,11 @@ fix, live in [docs/releases](releases/).
 
 ### Fixed
 
+- An OpenScript backtest of a script that reads a finer interval the chart's
+  divides, such as `"15m"` on an hourly chart or `"1m"` on a 5 minute one, now
+  fetches those bars; the read was absent on every bar. The same read drawn on
+  a chart still shows nothing until the next `openalgo-script` release: write
+  the minutes as a bare number (`"15"`) until then, which is fetched.
 - An instrument sitting on its previous close is no longer shown as a gain in
   the `/trading` watchlist. It read `+0.00%` in green. It now reads `0.00` and
   `0.00%` with no sign and no colour.
@@ -180,6 +225,41 @@ fix, live in [docs/releases](releases/).
   Relative Vigor Index.
 - The indicator docs called the Relative Volatility Index as `ta.rvi(close)`,
   which raises an error. They now show `ta.rvi_volatility(close)`.
+
+### Broker fixes
+
+- Flattrade: order updates stream from the market data socket instead of
+  polling, and a non-JSON order book reply after the daily rollover now answers
+  Not_Ok instead of raising (#2507, #2386). Pre-open history bars before the
+  calendar's session open are dropped, which had broken older history on
+  Muhurat day (#2482).
+- 5paisa XTS: open positions and trade book fills are read as the XTS v2 docs
+  describe them, so a smart-order exit no longer places a new order; the feed
+  and history share one market data session, so history no longer fails with
+  "Invalid Token" (#2504, #2484); history requests no longer leave gaps between
+  chunks (#2490).
+- Zerodha: holdings count pledged and T1 shares (#2503), and full-mode ticks
+  read open interest from its documented bytes (#2494, #2491).
+- Shoonya, Flattrade and Firstock: an SL-M order, sent as a stop-limit, is
+  priced off its trigger rather than the last price (#2495).
+- Weekly and monthly charts on `/trading` no longer time out for brokers
+  without native weekly or monthly history (#2443, #2384).
+
+### Dependencies
+
+- `openalgo` 2.3.0 to 2.4.1.
+- `openscript` 0.8.1 to 0.9.0.
+- Frontend: `openalgo-charts` 2.7.3 to 2.7.5, `openalgo-script` 0.8.1 to 0.9.0.
+
+### Contributors
+
+- **@marketcalls** - sandbox charges (#2496, #2497), OpenScript 0.9.0, the
+  watchlist (#2276), openalgo-charts and SDK updates, and the release.
+- **@Kalaiviswa** - Flattrade, 5paisa XTS, Zerodha and SL-M fixes (#2507,
+  #2482, #2504, #2503, #2494, #2495), weekly and monthly charts (#2443) and the
+  broker skill refresh (#2483).
+- **@nikitabhagat2307-prog (Nikita Bhagat)** - 5paisa XTS history chunk gaps
+  (#2490).
 
 ## [2.0.3.5] - 2026-11-20
 
