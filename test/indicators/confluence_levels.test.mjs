@@ -262,7 +262,7 @@ test('a wall beyond two days of priced-in move does not count', () => {
   assert.equal(codes.CW, 8000)
 })
 
-test("today's option record is asked for first, then the past days together", async (t) => {
+test("today's option record is asked for first, then the past days one at a time", async (t) => {
   t.mock.timers.enable({ apis: ['setInterval'] })
   const asked = []
   let open = 0
@@ -274,7 +274,7 @@ test("today's option record is asked for first, then the past days together", as
     most = Math.max(most, open)
     await new Promise((r) => setImmediate(r))
     open--
-    return { json: async () => ({ status: 'success', walls: [] }) }
+    return { status: 200, json: async () => ({ status: 'success', walls: [] }) }
   }
   const ctx = {
     settings: () => ({ ...defaults(indicator()), underlying: 'NIFTY' }),
@@ -288,6 +288,39 @@ test("today's option record is asked for first, then the past days together", as
   for (let k = 0; k < 6; k++) await new Promise((r) => setImmediate(r))
   assert.equal(asked[0], 'live')
   assert.deepEqual(asked.slice(1).sort(), ['2026-11-25', '2026-11-26'])
-  assert.equal(most, 2) // the two past days at once
+  assert.equal(most, 1) // the server builds one at a time
+  stop()
+})
+
+test('a server that could not read the record is asked again, and its words are shown', async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] })
+  globalThis.document = { hidden: false }
+  let calls = 0
+  globalThis.fetch = async () => {
+    calls++
+    if (calls === 1) return { status: 200, json: async () => ({ status: 'success', date: '2026-11-27', walls: [] }) }
+    return { status: 500, json: async () => ({ status: 'error', message: 'Could not read the option levels. Try again in a moment.' }) }
+  }
+  const ctx = {
+    settings: () => ({ ...defaults(indicator()), underlying: 'NIFTY' }),
+    symbol: () => 'NIFTY',
+    store: { wanted: ['2026-11-26'] },
+    requestRecompute() {},
+    addPrimitive(p) { this.layer = p },
+    removePrimitive() {},
+  }
+  const stop = indicator().attach(ctx)
+  for (let k = 0; k < 6; k++) await new Promise((r) => setImmediate(r))
+  t.mock.timers.tick(60000) // the minute's reload, which the server fails
+  for (let k = 0; k < 6; k++) await new Promise((r) => setImmediate(r))
+  assert.equal(ctx.store.levels.date, '2026-11-27') // what was drawn is kept
+  assert.equal('2026-11-26' in ctx.store.records, false) // asked again later
+  const said = []
+  const c = new Proxy(
+    { fillText: (x) => said.push(x), measureText: () => ({ width: 10 }) },
+    { get: (o, k) => o[k] ?? (() => {}), set: () => true },
+  )
+  ctx.layer.draw(c, { dpr: 1, plotWidth: 800, plotHeight: 400, priceScale: { priceToY: () => null }, timeScale: { indexToX: () => 0 }, dataLayer: { timeToIndexFloat: () => 0 } })
+  assert.ok(said.some((x) => x.includes('Try again in a moment')))
   stop()
 })

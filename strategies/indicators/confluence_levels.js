@@ -486,6 +486,10 @@ export default function ({ registerIndicator, nulls }) {
           if (body && body.status === 'success') {
             ctx.store.levels = body
             state.problem = null
+          } else if (res.status >= 500) {
+            // The server could not read it this time (a build that ran past
+            // its limit): keep what was drawn and say so in its words.
+            state.problem = `${(body && body.message) || 'option record not read'}, chart sources meanwhile`
           } else {
             ctx.store.levels = null
             state.problem = 'no option record for this symbol, chart sources only'
@@ -495,28 +499,27 @@ export default function ({ registerIndicator, nulls }) {
         }
         ctx.requestRecompute()
         // Past days' closing option records, after today's so the live levels
-        // come first, and together: one by one they held the first draw for
-        // about 20 seconds on the server (27-Nov-2026). Each is asked for
-        // once: a finished day never changes, and one with none recorded is
-        // remembered as none.
+        // come first, and one at a time: the server builds levels one at a
+        // time, and eight asked together made today's wait past its limit
+        // and fail (CRUDEOIL, 27-Nov-2026). Each finished day is asked for
+        // once and kept; one the server could not read is asked again later.
         const records = (ctx.store.records ||= {})
         const missing = (ctx.store.wanted || []).filter((d) => !(d in records))
-        if (!missing.length) return
-        for (const d of missing) records[d] = null
-        await Promise.all(
-          missing.map(async (d) => {
-            try {
-              const r = await fetch(`/writerflow/api/levels?underlying=${encodeURIComponent(u)}&date=${d}`, {
-                credentials: 'same-origin',
-              })
-              const b = await r.json().catch(() => null)
-              if (state.key === u) records[d] = b && b.status === 'success' ? b : null
-            } catch {
-              delete records[d] // unreachable: ask again next time
-            }
-          }),
-        )
-        if (state.key === u) ctx.requestRecompute()
+        for (const d of missing) {
+          if (state.key !== u) return
+          try {
+            const r = await fetch(`/writerflow/api/levels?underlying=${encodeURIComponent(u)}&date=${d}`, {
+              credentials: 'same-origin',
+            })
+            const b = await r.json().catch(() => null)
+            if (state.key !== u) return
+            if (b && b.status === 'success') records[d] = b
+            else if (r.status < 500) records[d] = null // nothing recorded that day
+          } catch {
+            // unreachable: asked again next time
+          }
+          ctx.requestRecompute()
+        }
       }
 
       const layer = {
