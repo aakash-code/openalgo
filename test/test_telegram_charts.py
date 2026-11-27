@@ -11,8 +11,17 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from datetime import datetime
 
+import pytest
+
 from database.telegram_db import create_or_update_telegram_user, get_telegram_user
 from services.telegram_bot_service import telegram_bot_service
+
+# A hand-run live script: it draws charts through a running OpenAlgo with a real API key.
+# Run it directly (uv run python test/test_telegram_charts.py), or under pytest with TELEGRAM_LIVE_TEST=1.
+pytestmark = pytest.mark.skipif(
+    os.getenv("TELEGRAM_LIVE_TEST") != "1",
+    reason="live Telegram script; run it directly, or set TELEGRAM_LIVE_TEST=1",
+)
 
 
 async def test_chart_generation():

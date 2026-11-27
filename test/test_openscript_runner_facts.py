@@ -51,8 +51,8 @@ import utils.session
 from blueprints import openscript_runner as runner_routes
 from database.engine_factory import create_db_engine
 from openscript_host.calendar_reader import CalendarReader
-from test.test_openscript_instrument_facts import MasterContract
-from test.test_openscript_runner import (
+from test_openscript_instrument_facts import MasterContract
+from test_openscript_runner import (
     Candles,
     options_for,
     stand_in_engine,

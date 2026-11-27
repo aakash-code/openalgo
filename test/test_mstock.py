@@ -1,6 +1,7 @@
 import os
 import unittest
 
+import pytest
 from dotenv import load_dotenv
 from openalgo import api as OAClient
 
@@ -8,6 +9,12 @@ from openalgo import api as OAClient
 load_dotenv()
 
 
+# A live check against a running OpenAlgo logged in to mStock: it places a real
+# order. It runs only when asked for, never as part of the suite.
+@pytest.mark.skipif(
+    os.getenv("MSTOCK_LIVE_TEST") != "1",
+    reason="live mStock session needed; set MSTOCK_LIVE_TEST=1 to run (places a real order)",
+)
 class TestMstockBroker(unittest.TestCase):
     def setUp(self):
         """Set up for the test case."""

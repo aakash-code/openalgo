@@ -19,7 +19,9 @@ from unittest.mock import patch
 import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-os.environ["DATABASE_URL"] = "sqlite:///:memory:"
+# DATABASE_URL is not changed here: conftest points the suite at its test
+# database, and setting it while this file loaded sent every database module
+# imported after it to an empty in-memory database (watchlist, broker keys).
 
 import pytz  # noqa: E402
 

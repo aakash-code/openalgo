@@ -303,9 +303,8 @@ SPECS = {
         },
         error={"head": {"status": "2", "statusDescription": "Invalid Session"}, "body": None},
     ),
-    "fivepaisaxts": Spec(
-        path="/portfolio/positions", book=_xts_book, error=XTS_ERROR, reads_flat=True
-    ),
+    # Reads held positions since #2504 (XTS answers read as the v2 docs say).
+    "fivepaisaxts": Spec(path="/portfolio/positions", book=_xts_book, error=XTS_ERROR),
     "flattrade": Spec(
         path="PositionBook",
         br_symbol="SBIN-EQ",
@@ -560,6 +559,30 @@ SPECS = {
         },
         error={"status": "error", "code": "e-101", "message": "Invalid session"},
         patches={"resolve_instrument": lambda symbol, exchange: ("NSE:SBIN", "NSE_EQ", 1)},
+    ),
+    # Sahi (#2474) arrived without an entry here, and SPECS["sahi"] stopped
+    # the whole file from loading.
+    "sahi": Spec(
+        path="/v1/positions",
+        book=lambda q: {
+            "positions": []
+            if q is None
+            else [
+                {
+                    "symbol": "SBIN",
+                    "exchange_segment": "NSE",
+                    "product": "I",
+                    "net_qty": q,
+                    "instrument_id": 3045,
+                }
+            ]
+        },
+        error={"code": "UNAUTHORIZED", "message": "Session expired"},
+        patches={
+            "sahi_request": lambda client, method, url, category, **kw: client.request(
+                method, url, **kw
+            )
+        },
     ),
     "samco": Spec(
         path="/position/getPositions",

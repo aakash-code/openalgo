@@ -60,6 +60,25 @@ def validate_legs(*legs, strict=True, **node_overrides):
     return [error["code"] for error in validate_workflow(workflow, require_name=False, strict=strict)]
 
 
+
+@pytest.fixture(autouse=True)
+def _contracts_listed_in_august(monkeypatch):
+    """The contracts these tests list expire in August to October 2026, so the
+    relative expiries are read on 24-Aug-2026. Read on the real date, "next
+    month" named a month after every listed contract once September passed,
+    and three tests failed on the calendar alone."""
+    from datetime import datetime
+
+    import services.flow_node_contracts as contracts
+
+    class _August(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return cls(2026, 8, 24, 10, 0, tzinfo=tz)
+
+    monkeypatch.setattr(contracts, "datetime", _August)
+
+
 class TestALegPicksItsStrikeEitherWay:
     def test_an_offset_leg_is_accepted(self):
         assert validate_legs({**BASE_LEG, "offset": "ATM"}) == []

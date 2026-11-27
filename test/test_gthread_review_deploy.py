@@ -39,9 +39,20 @@ from test_gthread_deploy_broker_smoke import FakeOpenAlgo, smoke
 
 ROOT = Path(__file__).resolve().parents[1]
 
+def _bash_has_mapfile() -> bool:
+    """The switch script needs bash 4 or later (mapfile), as on Ubuntu. macOS
+    ships bash 3.2, where every run stopped at "mapfile: command not found"."""
+    if shutil.which("bash") is None:
+        return False
+    import subprocess
+
+    probe = subprocess.run(["bash", "-c", "mapfile -t x < /dev/null"], capture_output=True)
+    return probe.returncode == 0
+
+
 on_linux_bash = pytest.mark.skipif(
-    sys.platform == "win32" or shutil.which("bash") is None,
-    reason="the switch script is a bash script for Linux servers",
+    sys.platform == "win32" or not _bash_has_mapfile(),
+    reason="the switch script is a bash 4+ script for Linux servers",
 )
 
 
