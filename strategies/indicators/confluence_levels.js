@@ -491,8 +491,11 @@ export default function ({ registerIndicator, nulls }) {
             // its limit): keep what was drawn and say so in its words.
             state.problem = `${(body && body.message) || 'option record not read'}, chart sources meanwhile`
           } else {
+            // Not recorded: the server says how to start, e.g. "Turn Writer
+            // Flow on for this chart to start recording it."
             ctx.store.levels = null
-            state.problem = 'no option record for this symbol, chart sources only'
+            const said = body && typeof body.message === 'string' ? body.message.replace(/\.$/, '') : ''
+            state.problem = `${said || 'no option record for this symbol'}; chart sources only`
           }
         } catch {
           state.problem = 'option record unreachable, chart sources only'
