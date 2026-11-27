@@ -831,6 +831,14 @@ class OrderManager:
                 # CNC SELL doesn't need margin (selling owned shares)
 
             if should_block_margin:
+                # The internal calculation runs when the broker's is not used,
+                # and when it fails outside strict mode: the fallback only
+                # recorded that it fell back, left the margin at zero, and a
+                # fill made that way had no margin blocked and its profit never
+                # reached the funds (an option bought at 100 and sold at 110
+                # closed with 750 realized and 0 in the funds).
+                use_internal_margin = True
+                fallback_snapshot = None
                 if self._should_use_broker_margin(symbol, exchange):
                     current_margin_positions = self._get_derivative_margin_positions()
                     projected_margin_positions = self._project_margin_positions(
@@ -869,7 +877,7 @@ class OrderManager:
                             )
 
                         margin_source = "fallback_internal"
-                        margin_snapshot = {
+                        fallback_snapshot = {
                             "mode": "fallback_internal",
                             "symbol": symbol,
                             "exchange": exchange,
@@ -888,6 +896,7 @@ class OrderManager:
                             broker_error,
                         )
                     else:
+                        use_internal_margin = False
                         actual_margin_to_block = projected_margin_required - current_margin_required
                         if actual_margin_to_block < 0:
                             actual_margin_to_block = Decimal("0")
@@ -918,7 +927,7 @@ class OrderManager:
                             projected_margin_required,
                             actual_margin_to_block,
                         )
-                else:
+                if use_internal_margin:
                     margin_required, margin_msg = self.fund_manager.calculate_margin_required(
                         symbol, exchange, product, quantity, margin_calculation_price, action
                     )
@@ -945,6 +954,9 @@ class OrderManager:
                         "reference_price": str(margin_calculation_price),
                         "margin_required": str(actual_margin_to_block),
                     }
+                    if fallback_snapshot is not None:
+                        margin_snapshot["mode"] = "fallback_internal"
+                        margin_snapshot["fallback_reason"] = fallback_snapshot["fallback_reason"]
 
                     if existing_position and existing_position.quantity != 0:
                         # Check if order is opposite to position direction
