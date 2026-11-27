@@ -15,22 +15,12 @@ import pytest
 @pytest.fixture
 def indicators_client(monkeypatch, tmp_path):
     """The blueprint alone, with the session check lifted and a temporary folder."""
-    import blueprints
     import utils.session as us
 
     monkeypatch.setattr(us, "check_session_validity", lambda f: f)
-    # Re-imported with the session check lifted; monkeypatch puts the original
-    # module back afterwards, in sys.modules and on the package.
-    # setitem first, so the entry is recorded even when it was not loaded yet:
-    # delitem alone records nothing for a missing key and undoes nothing.
-    monkeypatch.setitem(sys.modules, "blueprints.custom_indicators", sys.modules.get("blueprints.custom_indicators"))
-    monkeypatch.delitem(sys.modules, "blueprints.custom_indicators")
-    monkeypatch.setattr(
-        blueprints,
-        "custom_indicators",
-        getattr(blueprints, "custom_indicators", None),
-        raising=False,
-    )
+    for module in list(sys.modules):
+        if module == "blueprints.custom_indicators":
+            del sys.modules[module]
 
     from flask import Flask
 
@@ -44,6 +34,9 @@ def indicators_client(monkeypatch, tmp_path):
     app = Flask(__name__)
     app.register_blueprint(bp_module.custom_indicators_bp)
     yield app.test_client()
+    for module in list(sys.modules):
+        if module == "blueprints.custom_indicators":
+            del sys.modules[module]
 
 
 def test_a_versioned_module_is_cacheable_for_good(indicators_client):

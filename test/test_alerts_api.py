@@ -49,14 +49,9 @@ def _limiter_left_as_found():
     """
     from limiter import limiter
 
-    # The whole of its state, not the flag alone: init_app also hands the
-    # limiter this file's apps' storage and settings, and the broker-keys tests
-    # after it then met 429s and routes their app no longer had (67 failures
-    # in a full run, none alone).
-    saved = dict(limiter.__dict__)
+    enabled = limiter.enabled
     yield
-    limiter.__dict__.clear()
-    limiter.__dict__.update(saved)
+    limiter.enabled = enabled
 
 
 @pytest.fixture

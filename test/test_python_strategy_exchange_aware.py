@@ -19,10 +19,8 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# The calendar's in-memory database is built in the fixture below, for that
-# module alone. Setting DATABASE_URL here, while pytest loaded this file, sent
-# every database module imported after it to an empty in-memory database
-# (Shoonya's contracts: "no such table: symtoken").
+# Force in-memory DB before importing market_calendar_db
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
 import pytz  # noqa: E402
 

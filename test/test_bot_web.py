@@ -5,16 +5,8 @@ Test script to verify bot starts properly from web UI
 
 import time
 
-if __name__ != "__main__":
-    # A hand-run script that starts the configured bot as it loads; pytest
-    # collected it as a test, and it imports helpers the bot service no
-    # longer has, so loading it failed the run.
-    import pytest
-
-    pytest.skip("hand-run Telegram script, not a test", allow_module_level=True)
-
-from database.telegram_db import get_bot_config  # noqa: E402
-from services.telegram_bot_service import (  # noqa: E402
+from database.telegram_db import get_bot_config
+from services.telegram_bot_service import (
     get_telegram_bot,
     init_bot_sync,
     start_bot_sync,
