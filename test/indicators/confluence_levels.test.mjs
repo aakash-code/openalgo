@@ -181,3 +181,11 @@ test('an option record from another day than the chart is not used', () => {
   assert.equal(today.stale, false)
   assert.ok(today.zones.some((z) => z.codes.includes('PW')))
 })
+
+import { stackLabels } from '../../strategies/indicators/confluence_levels.js'
+
+test('labels keep their gap and stay above the status line', () => {
+  assert.deepEqual(stackLabels([100, 104, 300], 15, 8, 280), [100, 115, 280])
+  assert.deepEqual(stackLabels([270, 275, 279], 15, 8, 280), [250, 265, 280])
+  assert.deepEqual(stackLabels([2], 15, 8, 280), [8])
+})

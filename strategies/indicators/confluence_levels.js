@@ -280,6 +280,22 @@ export function strongest(zones, count, min) {
   return [...pick('support'), ...pick('at price').slice(0, 1), ...pick('resistance')]
 }
 
+/**
+ * Label centres, sorted top to bottom, spaced at least `gap` apart and kept
+ * within [top, bottom]: pushed down past each other, then back up from the
+ * bottom so the last one never runs off the floor.
+ */
+export function stackLabels(ys, gap, top, bottom) {
+  const out = []
+  for (const y of ys) out.push(Math.max(top, out.length ? Math.max(y, out[out.length - 1] + gap) : y))
+  let cap = bottom
+  for (let i = out.length - 1; i >= 0; i--) {
+    out[i] = Math.min(out[i], cap)
+    cap = out[i] - gap
+  }
+  return out
+}
+
 function resolveUnderlying(settings, symbol) {
   const typed = String(settings.underlying ?? '').trim().toUpperCase()
   if (typed) return typed.replace(/[^A-Z0-9&-]/g, '')
@@ -442,13 +458,22 @@ export default function ({ registerIndicator, nulls }) {
             labels.push({ y, color, text: `${fmt(z.price)}  [${z.score}]${codes}${held}` })
           }
           c.setLineDash([])
+          // Spaced 15 px apart and kept above the status line at the bottom:
+          // a put wall near the bottom printed over it (CRUDEOIL, 27-Nov-2026).
           labels.sort((a, b) => a.y - b.y)
-          let last = -1e9
+          const ys = stackLabels(
+            labels.map((l) => l.y),
+            15,
+            8,
+            rc.plotHeight - 26,
+          )
           c.font = `${10 * dpr}px sans-serif`
           c.textBaseline = 'middle'
+          labels.forEach((l, k) => {
+            l.y = ys[k]
+          })
           for (const l of labels) {
-            const y = Math.max(l.y, last + 15)
-            last = y
+            const y = l.y
             const w = c.measureText(l.text).width / dpr + 10
             // Right edge, by the price axis: the top left holds the legend.
             const x = width - 6 - w
