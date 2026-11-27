@@ -175,13 +175,9 @@ def test_bootstrap_applies_the_limits(tmp_path):
         hard = resource.getrlimit(getattr(resource, name))[1]
         return wanted if hard == resource.RLIM_INFINITY else min(wanted, hard)
 
-    # macOS refuses an address-space limit for a process, and the bootstrap
-    # passes over a limit the system will not take; Linux, where the host
-    # runs, applies it.
-    if sys.platform != "darwin":
-        assert int(limits["RLIMIT_AS"]) == expected(
-            "RLIMIT_AS", ps.STRATEGY_MEMORY_LIMIT_MB * 1024 * 1024
-        )
+    assert int(limits["RLIMIT_AS"]) == expected(
+        "RLIMIT_AS", ps.STRATEGY_MEMORY_LIMIT_MB * 1024 * 1024
+    )
     assert int(limits["RLIMIT_CPU"]) == expected("RLIMIT_CPU", ps.STRATEGY_CPU_TIME_LIMIT_SEC)
     assert int(limits["RLIMIT_NOFILE"]) == expected("RLIMIT_NOFILE", ps.STRATEGY_NOFILE_LIMIT)
     assert int(limits["RLIMIT_NPROC"]) == expected("RLIMIT_NPROC", ps.STRATEGY_NPROC_LIMIT)

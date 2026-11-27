@@ -11,17 +11,8 @@ import sys
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-import pytest
-
 from database.telegram_db import get_bot_config
 from services.telegram_bot_service import TelegramBotService
-
-# A hand-run live script: it starts the configured bot and keeps it polling until Ctrl+C.
-# Run it directly (uv run python test/test_telegram_bot.py), or under pytest with TELEGRAM_LIVE_TEST=1.
-pytestmark = pytest.mark.skipif(
-    os.getenv("TELEGRAM_LIVE_TEST") != "1",
-    reason="live Telegram script; run it directly, or set TELEGRAM_LIVE_TEST=1",
-)
 
 # Set up logging
 logging.basicConfig(

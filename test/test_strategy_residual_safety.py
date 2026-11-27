@@ -30,7 +30,7 @@ sys.path.insert(0, str(REPO_ROOT))
 from database import strategy_module_db as store  # noqa: E402
 from services.strategy_module import engine, order_events, signals, state  # noqa: E402
 from services.strategy_module.order_dispatch import DispatchResult  # noqa: E402
-import test_strategy_module_qa_edges as qa  # noqa: E402
+from test import test_strategy_module_qa_edges as qa  # noqa: E402
 
 
 def _purge() -> None:

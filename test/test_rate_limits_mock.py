@@ -89,7 +89,7 @@ class MockAPI:
         return 200, {"status": "success", "message": "Request processed"}
 
 
-def check_endpoint(api, endpoint, expected_limit, description):
+def test_endpoint(api, endpoint, expected_limit, description):
     """Test rate limiting for a specific endpoint"""
     print(f"\n{description}")
     print(f"Testing: {endpoint}")
@@ -131,7 +131,7 @@ def check_endpoint(api, endpoint, expected_limit, description):
         return False
 
 
-def check_rate_limit_reset(api, endpoint, limit):
+def test_rate_limit_reset(api, endpoint, limit):
     """Test that rate limits reset after time window"""
     print(f"\nTesting rate limit reset for {endpoint}")
     print("-" * 50)
@@ -162,7 +162,7 @@ def check_rate_limit_reset(api, endpoint, limit):
         return False
 
 
-def check_multiple_clients(api, endpoint, limit):
+def test_multiple_clients(api, endpoint, limit):
     """Test that different clients have separate rate limits"""
     print("\nTesting separate rate limits for different clients")
     print("-" * 50)
@@ -183,33 +183,6 @@ def check_multiple_clients(api, endpoint, limit):
     else:
         print("Rate limits not properly separated by client")
         return False
-
-
-# The check_* helpers above are the script's own (run it directly for the full
-# report). They were named test_*, so pytest collected them and failed for want
-# of their arguments. These run the same checks with fixed limits, so the result
-# does not depend on whatever the local .env sets.
-
-
-def _mock(limits):
-    api = MockAPI()
-    api.rate_limits = dict(limits)
-    return api
-
-
-def test_a_limit_is_enforced_at_its_count():
-    api = _mock({"/api/v1/placesmartorder": "2 per second"})
-    assert check_endpoint(api, "/api/v1/placesmartorder", 2, "Smart Order API")
-
-
-def test_a_limit_resets_after_its_window():
-    api = _mock({"/api/v1/placeorder": "10 per second"})
-    assert check_rate_limit_reset(api, "/api/v1/placeorder", 10)
-
-
-def test_each_client_has_its_own_limit():
-    api = _mock({"/api/v1/placesmartorder": "2 per second"})
-    assert check_multiple_clients(api, "/api/v1/placesmartorder", 2)
 
 
 def main():
@@ -242,15 +215,15 @@ def main():
     ]
 
     for endpoint, limit, description in tests:
-        if not check_endpoint(api, endpoint, limit, description):
+        if not test_endpoint(api, endpoint, limit, description):
             all_passed = False
 
     # Test rate limit reset
-    if not check_rate_limit_reset(api, "/api/v1/placeorder", 10):
+    if not test_rate_limit_reset(api, "/api/v1/placeorder", 10):
         all_passed = False
 
     # Test multiple clients
-    if not check_multiple_clients(api, "/api/v1/placesmartorder", 2):
+    if not test_multiple_clients(api, "/api/v1/placesmartorder", 2):
         all_passed = False
 
     # Summary

@@ -31,7 +31,7 @@ import pytest
 
 import openscript_host.live_bars as live
 import openscript_host.openscript_runner as runner
-from test_openscript_runner import (
+from test.test_openscript_runner import (
     StandInClient,
     bars,
     options_for,

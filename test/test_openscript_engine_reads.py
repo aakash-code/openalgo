@@ -35,8 +35,8 @@ from openscript.contracts import Bar
 from openscript.run import load_text
 
 import openscript_host.openscript_runner as runner
-from test_openscript_runner import options_for
-from test_openscript_runner_facts import (
+from test.test_openscript_runner import options_for
+from test.test_openscript_runner_facts import (
     MADE_UP_SESSION,
     PLATFORM_ZONE,
     REGULAR_TUESDAY,

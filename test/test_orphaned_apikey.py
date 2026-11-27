@@ -17,9 +17,8 @@ import sys
 
 sys.path.insert(0, os.path.dirname(__file__))
 
-# The in-memory database is built below, for auth_db alone. Setting
-# DATABASE_URL here, while pytest loaded this file, sent every database module
-# imported after it to an empty in-memory database.
+# Force in-memory DB for testing
+os.environ["DATABASE_URL"] = "sqlite:///:memory:"
 
 
 def setup_test_db():
