@@ -528,12 +528,18 @@ def leg_contracts_client(monkeypatch):
     Auth and live market data are not what these check; the endpoint's job is
     picking the right expiry and shaping the listing the panel reads.
     """
+    import blueprints
     import utils.session as us
 
     monkeypatch.setattr(us, "check_session_validity", lambda f: f)
-    for module in list(sys.modules):
-        if module == "blueprints.flow":
-            del sys.modules[module]
+    # Re-imported with the session check lifted, then the original put back:
+    # left in place, the unchecked copy served every later test, and the
+    # workflow tests that unwrap its views found nothing to unwrap.
+    # setitem first, so the entry is recorded even when it was not loaded yet:
+    # delitem alone records nothing for a missing key and undoes nothing.
+    monkeypatch.setitem(sys.modules, "blueprints.flow", sys.modules.get("blueprints.flow"))
+    monkeypatch.delitem(sys.modules, "blueprints.flow")
+    monkeypatch.setattr(blueprints, "flow", getattr(blueprints, "flow", None), raising=False)
 
     from flask import Flask
 

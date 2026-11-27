@@ -25,6 +25,11 @@ def fyers(monkeypatch):
     calls, sleeps = [], []
     monkeypatch.setattr(fyers_data, "get_br_symbol", lambda symbol, exchange: "NSE:SBIN-EQ")
     monkeypatch.setattr(fyers_data.time, "sleep", sleeps.append)
+    # The pacing clock is process-wide: right after another Fyers test the
+    # first call here waited 0.05 s for its slot, and that wait read as a retry.
+    from broker.fyers.api import rate_limiter as fyers_pacing
+
+    monkeypatch.setattr(fyers_pacing, "_last_call_time", 0.0)
 
     def run(replies, start="2026-11-07", end="2026-11-08"):
         queue = list(replies)
