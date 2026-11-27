@@ -82,15 +82,15 @@ test('option sources: walls on their side, a far gamma flip is left out', () => 
       { strike: 25700, put: 10, call: 2000 }, // in the money call below price: not resistance
       { strike: 26100, put: 5000, call: 10 }, // in the money put above price: not support
     ],
-    gamma: { flip: 24000, flip_far: true, walls: [{ strike: 25900, gex: 5 }], expected_move: { day: 120 } },
+    gamma: { flip: 24000, flip_far: true, walls: [{ strike: 25900, gex: 5 }], expected_move: { day: 250 } },
   }
   const codes = Object.fromEntries(sourceLevels([], body).map((l) => [l.code, l.price]))
   assert.equal(codes.PW, 25500)
   assert.equal(codes.PW2, 25600)
   assert.equal(codes.CW, 26000)
   assert.equal(codes.GW, 25900)
-  assert.equal(codes.EMH, 26000)
-  assert.equal(codes.EML, 25760)
+  assert.equal(codes.EMH, 26130)
+  assert.equal(codes.EML, 25630)
   assert.equal(codes.FLIP, undefined)
 })
 
@@ -188,4 +188,76 @@ test('labels keep their gap and stay above the status line', () => {
   assert.deepEqual(stackLabels([100, 104, 300], 15, 8, 280), [100, 115, 280])
   assert.deepEqual(stackLabels([270, 275, 279], 15, 8, 280), [250, 265, 280])
   assert.deepEqual(stackLabels([2], 15, 8, 280), [8])
+})
+
+import { dayOutcome, dayZones, isoOf } from '../../strategies/indicators/confluence_levels.js'
+
+function threeDays() {
+  // Mon 100-110, Tue 105-115, Wed falls from 112 to 95.
+  const bars = []
+  const day = (d, prices) => prices.forEach((p, k) => bars.push(bar(MON + d * 86400 + k * 300, p, p + 0.5, p - 0.5, p, 10)))
+  day(0, [100, 104, 110, 106, 103])
+  day(1, [105, 109, 115, 111, 108])
+  day(2, [112, 108, 104, 99, 95])
+  return bars
+}
+
+test('each day gets its own levels, from what was known at its open', () => {
+  const bars = threeDays()
+  const s = { ...defaults(indicator()), minScore: 1, perSide: 6 }
+  const { days } = dayZones(bars, s, null, {})
+  assert.equal(days.length, 3)
+  const wed = days[2]
+  assert.equal(wed.today, true)
+  const tue = days[1]
+  assert.equal(tue.today, false)
+  assert.equal(tue.end, days[2].start) // a day's lines stop where the next begin
+  // Tuesday's previous-day high is Monday's, never Tuesday's own 115.5.
+  const codes = tue.zones.flatMap((z) => z.codes.map((c) => [c, z.price]))
+  const pdh = codes.find(([c]) => c === 'PDH')
+  assert.ok(pdh && Math.abs(pdh[1] - 110.5) < 1e-9)
+  assert.ok(tue.zones.every((z) => !z.codes.includes('VWAP')))
+})
+
+test("a past day reads the previous session's option record, and says what it did", () => {
+  const bars = threeDays()
+  const s = { ...defaults(indicator()), minScore: 1, perSide: 6 }
+  const monday = isoOf(dayOf(MON))
+  const record = { status: 'success', date: monday, spot: 103, step: 5, walls: [{ strike: 100, put: 9, call: 0 }], gamma: {} }
+  const { days, wanted } = dayZones(bars, s, null, { [monday]: record })
+  assert.ok(wanted.includes(monday))
+  const tue = days[1]
+  assert.equal(tue.options, true)
+  assert.ok(tue.zones.some((z) => z.codes.includes('PW')))
+  assert.equal(days[2].options, false) // today waits for the live record
+})
+
+test('a zone closed through that day broke, one reached and kept held', () => {
+  const dayBars = [bar(0, 0, 106, 104, 105), bar(1, 0, 104, 99.8, 101), bar(2, 0, 103, 100, 102)]
+  assert.equal(dayOutcome(dayBars, { role: 'support', low: 100, high: 100.2 }, 0.2), 'held')
+  // One minute through and back is a poke, not a break; fifteen minutes through is.
+  const poke = [...dayBars, bar(60, 0, 99, 97, 97), bar(120, 0, 102, 100.5, 101)]
+  assert.equal(dayOutcome(poke, { role: 'support', low: 100, high: 100.2 }, 0.2), 'held')
+  const stay = [...dayBars]
+  for (let m = 1; m <= 16; m++) stay.push(bar(m * 60, 0, 99, 97, 97))
+  assert.equal(dayOutcome(stay, { role: 'support', low: 100, high: 100.2 }, 0.2), 'broke')
+  assert.equal(dayOutcome(dayBars, { role: 'resistance', low: 120, high: 120 }, 0.2), 'untouched')
+})
+
+test('a wall beyond two days of priced-in move does not count', () => {
+  const body = {
+    status: 'success',
+    spot: 7959,
+    step: 50,
+    walls: [
+      { strike: 7500, put: 7455, call: 10 },
+      { strike: 7800, put: 3418, call: 10 },
+      { strike: 8000, put: 10, call: 5146 },
+    ],
+    gamma: { walls: [{ strike: 7500, gex: -1 }, { strike: 8100, gex: 1 }], expected_move: { day: 158 } },
+  }
+  const codes = Object.fromEntries(sourceLevels([], body).map((l) => [l.code, l.price]))
+  assert.equal(codes.PW, 7800)
+  assert.equal(codes.GW, 8100)
+  assert.equal(codes.CW, 8000)
 })

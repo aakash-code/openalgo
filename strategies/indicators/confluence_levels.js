@@ -30,6 +30,7 @@ const PROFILE_ROWS = 60
 const HOLD_LOOKAHEAD = 20 // bars a touch is followed for
 const HOLD_BOUNCE = 0.0015 // a move this far away (share of price) counts as held
 const HOLD_BREAK = 0.001 // a close this far through counts as broken
+const BREAK_MINUTES = 15 // a day's zone is broken once price stays through it this long
 
 // Short names, shown on the labels and explained in the settings.
 export const SOURCES = {
@@ -131,7 +132,7 @@ export function vwapBands(bars) {
 }
 
 /** Every source level the bars and the option record give, as { price, code }. */
-export function sourceLevels(bars, body) {
+export function sourceLevels(bars, body, { vwap = true } = {}) {
   const out = []
   const add = (price, code) => {
     if (Number.isFinite(price) && price > 0) out.push({ price, code })
@@ -157,7 +158,7 @@ export function sourceLevels(bars, body) {
     add(Math.max(...prevWeek.map((b) => b.high)), 'PWH')
     add(Math.min(...prevWeek.map((b) => b.low)), 'PWL')
   }
-  if (days.length && isIntraday(bars)) {
+  if (vwap && days.length && isIntraday(bars)) {
     const vb = vwapBands(days[days.length - 1].bars)
     if (vb) {
       add(vb.vwap, 'VWAP')
@@ -173,7 +174,14 @@ export function sourceLevels(bars, body) {
     const spot = Number(body.spot)
     const half = (Number(body.step) || 0) / 2
     // The heaviest put wall at or below the price and call wall at or above it, then the next.
-    const walls = body.walls || []
+    // Only walls within reach count: two days' priced-in move, the same reach
+    // the server uses for the gamma flip. A put wall 460 points under the
+    // price (CRUDEOIL 7500 on 27-Nov-2026, the day's move 158) took the
+    // nearby 7800 wall's place.
+    const g0 = body.gamma || {}
+    const reach = g0.expected_move && g0.expected_move.day > 0 ? 2 * g0.expected_move.day : Infinity
+    const near = (k) => !Number.isFinite(spot) || Math.abs(k - spot) <= reach
+    const walls = (body.walls || []).filter((w) => near(w.strike))
     const puts = walls.filter((w) => w.strike <= spot + half).sort((a, b) => b.put - a.put)
     const calls = walls.filter((w) => w.strike >= spot - half).sort((a, b) => b.call - a.call)
     if (puts[0]) add(puts[0].strike, 'PW')
@@ -181,7 +189,7 @@ export function sourceLevels(bars, body) {
     if (calls[0]) add(calls[0].strike, 'CW')
     if (calls[1] && calls[1].call >= calls[0].call * 0.5) add(calls[1].strike, 'CW2')
     const g = body.gamma || {}
-    for (const w of g.walls || []) add(w.strike, 'GW')
+    for (const w of g.walls || []) if (near(w.strike)) add(w.strike, 'GW')
     if (g.flip != null && !g.flip_far) add(Number(g.flip), 'FLIP')
     const em = g.expected_move
     if (em && em.day > 0 && Number.isFinite(spot)) {
@@ -296,6 +304,93 @@ export function stackLabels(ys, gap, top, bottom) {
   return out
 }
 
+/** The ISO date (YYYY-MM-DD) of a session day number. */
+export const isoOf = (day) => new Date(day * DAY * 1000).toISOString().slice(0, 10)
+
+const OPTION_CODES = ['PW', 'CW', 'PW2', 'CW2', 'GW', 'FLIP', 'EMH', 'EML']
+const VOLUME_CODES = ['POC', 'VAH', 'VAL', 'VWAP', 'V+1', 'V-1', 'V+2', 'V-2']
+
+/**
+ * What a zone did on its own day: broke if a bar closed through it, held if
+ * price reached it and stayed on its side, untouched otherwise.
+ */
+export function dayOutcome(dayBars, z, band) {
+  // Broken only once price stays through it for BREAK_MINUTES, as the server's
+  // option levels judge a break: one minute's close through it read 25 of 37
+  // reached zones as broken on 18-27 Nov 2026.
+  let touched = false
+  let since = null
+  for (const b of dayBars) {
+    let through = false
+    if (z.role === 'support') {
+      through = b.close < z.low * (1 - HOLD_BREAK)
+      if (b.low <= z.high + band) touched = true
+    } else if (z.role === 'resistance') {
+      through = b.close > z.high * (1 + HOLD_BREAK)
+      if (b.high >= z.low - band) touched = true
+    }
+    if (!through) since = null
+    else {
+      if (since == null) since = b.time
+      if (b.time - since >= BREAK_MINUTES * 60) return 'broke'
+    }
+  }
+  return touched ? 'held' : 'untouched'
+}
+
+/**
+ * Each session's own levels, oldest first, for the last `days` sessions.
+ * A past day gets only what was known at its open: the previous day and week,
+ * the previous session's profile and the previous session's closing option
+ * record (`records[iso date]`). No VWAP and no hindsight, so whether it held
+ * that day is a fair test. Today adds the live option record and VWAP.
+ * Hold rates are read from the bars before each day only.
+ */
+export function dayZones(bars, settings, live, records = {}) {
+  const ss = sessions(bars)
+  const count = Math.max(1, Math.min(10, Number(settings.days) || 7))
+  const keep = (code) => {
+    if (OPTION_CODES.includes(code)) return settings.options !== false
+    if (VOLUME_CODES.includes(code)) return settings.volume !== false
+    return settings.reference !== false
+  }
+  const out = []
+  const wanted = []
+  // From the first session too: a chart holding only today still gets today's levels.
+  for (let i = Math.max(0, ss.length - count); i < ss.length; i++) {
+    const today = i === ss.length - 1
+    const day = ss[i]
+    const start = day.bars[0].time
+    const upTo = bars.filter((b) => b.time <= day.bars[day.bars.length - 1].time)
+    const before = bars.filter((b) => b.time < start)
+    let body = null
+    if (settings.options !== false) {
+      if (today && live && live.date === isoOf(day.day)) body = live
+      else {
+        const prior = i > 0 ? isoOf(ss[i - 1].day) : null
+        if (!today && prior) wanted.push(prior)
+        const r = prior ? records[prior] : null
+        if (r && r.status === 'success' && r.date === prior) body = r
+      }
+    }
+    const spot = today ? bars[bars.length - 1].close : day.bars[0].open
+    const band = (spot * (Number(settings.band) || 0.12)) / 100
+    const levels = sourceLevels(today ? upTo : [...before, day.bars[0]], body, { vwap: today }).filter((l) => keep(l.code))
+    const zones = strongest(buildZones(levels, spot, band), Number(settings.perSide) || 3, Number(settings.minScore) || 3)
+    for (const z of zones) {
+      if (z.role !== 'at price') z.hold = holdRate(before, z.price, z.role, band)
+      else {
+        const a = holdRate(before, z.price, 'support', band)
+        const b = holdRate(before, z.price, 'resistance', band)
+        z.hold = { n: a.n + b.n, held: a.held + b.held }
+      }
+      if (!today) z.outcome = dayOutcome(day.bars, z, band)
+    }
+    out.push({ day: day.day, start, end: today ? null : ss[i + 1].bars[0].time, today, zones, options: Boolean(body) })
+  }
+  return { days: out, wanted }
+}
+
 function resolveUnderlying(settings, symbol) {
   const typed = String(settings.underlying ?? '').trim().toUpperCase()
   if (typed) return typed.replace(/[^A-Z0-9&-]/g, '')
@@ -319,6 +414,10 @@ export default function ({ registerIndicator, nulls }) {
       {
         key: 'underlying', type: 'text', label: 'Underlying', default: '', group: 'Instrument',
         tooltip: "Left blank, the chart's own symbol is used: NIFTY futures read NIFTY. Option sources need Writer Flow recording it.",
+      },
+      {
+        key: 'days', type: 'number', label: 'Days Shown', default: 7, min: 1, max: 10, step: 1, group: 'Levels',
+        tooltip: "Each day draws its own levels over its own bars. A past day uses only what was known at its open (previous day and week, the previous session's profile and closing option walls), and its label says whether it held, broke or was not reached.",
       },
       { key: 'perSide', type: 'number', label: 'Zones Each Side', default: 3, min: 1, max: 6, step: 1, group: 'Levels' },
       {
@@ -349,33 +448,12 @@ export default function ({ registerIndicator, nulls }) {
       // The option record must be the chart's own last session: an old one
       // (BHEL's 27OCT26 expiry, a month gone, on 27-Nov-2026) names walls that
       // no longer exist.
-      const lastDay = dayOf(bars[bars.length - 1].time)
-      const fresh = (b) => b && typeof b.date === 'string' && dayOf(Date.parse(`${b.date}T00:00:00+05:30`) / 1000) === lastDay
-      const body = settings.options === false || !fresh(store.levels) ? null : store.levels
-      store.stale = Boolean(store.levels && settings.options !== false && !fresh(store.levels))
-      const keep = (code) => {
-        const optionCode = ['PW', 'CW', 'PW2', 'CW2', 'GW', 'FLIP', 'EMH', 'EML'].includes(code)
-        const volumeCode = ['POC', 'VAH', 'VAL', 'VWAP', 'V+1', 'V-1', 'V+2', 'V-2'].includes(code)
-        if (optionCode) return settings.options !== false
-        if (volumeCode) return settings.volume !== false
-        return settings.reference !== false
-      }
-      const spot = bars[bars.length - 1].close
-      const band = (spot * (Number(settings.band) || 0.12)) / 100
-      const levels = sourceLevels(bars, body).filter((l) => keep(l.code))
-      const zones = strongest(
-        buildZones(levels, spot, band),
-        Number(settings.perSide) || 3,
-        Number(settings.minScore) || 3,
-      )
-      for (const z of zones) {
-        if (z.role !== 'at price') z.hold = holdRate(bars, z.price, z.role, band)
-        else {
-          const a = holdRate(bars, z.price, 'support', band)
-          const b = holdRate(bars, z.price, 'resistance', band)
-          z.hold = { n: a.n + b.n, held: a.held + b.held }
-        }
-      }
+      const lastIso = isoOf(dayOf(bars[bars.length - 1].time))
+      store.stale = Boolean(store.levels && settings.options !== false && store.levels.date !== lastIso)
+      const { days, wanted } = dayZones(bars, settings, store.levels, store.records || {})
+      store.days = days
+      store.wanted = wanted
+      const zones = days.length && days[days.length - 1].today ? days[days.length - 1].zones : []
       store.zones = zones
       return out
     },
@@ -395,6 +473,23 @@ export default function ({ registerIndicator, nulls }) {
         if (u !== state.key) {
           state.key = u
           ctx.store.levels = null
+          ctx.store.records = {}
+        }
+        // Past days' closing option records, each asked for once: a finished
+        // day never changes. A day with none recorded is remembered as none.
+        const records = (ctx.store.records ||= {})
+        const missing = (ctx.store.wanted || []).filter((d) => !(d in records)).slice(0, 3)
+        for (const d of missing) {
+          records[d] = null
+          try {
+            const r = await fetch(`/writerflow/api/levels?underlying=${encodeURIComponent(u)}&date=${d}`, {
+              credentials: 'same-origin',
+            })
+            const b = await r.json().catch(() => null)
+            if (state.key === u) records[d] = b && b.status === 'success' ? b : null
+          } catch {
+            delete records[d] // unreachable: ask again next time
+          }
         }
         try {
           const res = await fetch(`/writerflow/api/levels?underlying=${encodeURIComponent(u)}`, {
@@ -421,41 +516,63 @@ export default function ({ registerIndicator, nulls }) {
         },
         draw(c, rc) {
           const settings = ctx.settings()
-          const zones = ctx.store.zones || []
+          const days = ctx.store.days || []
           const dpr = rc.dpr || 1
           const width = rc.plotWidth
-          const top = Math.max(...zones.map((z) => z.score), 1)
+          const all = days.flatMap((d) => d.zones)
+          const top = Math.max(...all.map((z) => z.score), 1)
+          const xOf = (t) => {
+            const x = rc.timeScale.indexToX(rc.dataLayer.timeToIndexFloat(t))
+            return Number.isFinite(x) ? x : null
+          }
           c.save()
           const labels = []
-          for (const z of zones) {
-            const y = yOf(rc, z.price)
-            if (y == null || y < 0 || y > rc.plotHeight) continue
-            const color =
-              z.role === 'support'
-                ? rc.theme?.upColor || GREEN
-                : z.role === 'resistance'
-                  ? rc.theme?.downColor || RED
-                  : rc.theme?.axisText || MUTED
-            const strength = z.score / top
-            // The zone's span, shaded, then a line at its centre, thicker the higher it scores.
-            const y1 = yOf(rc, z.high)
-            const y2 = yOf(rc, z.low)
-            if (y1 != null && y2 != null && Math.abs(y2 - y1) >= 1) {
-              c.globalAlpha = 0.08 + 0.1 * strength
-              c.fillStyle = color
-              c.fillRect(0, Math.min(y1, y2) * dpr, width * dpr, Math.abs(y2 - y1) * dpr)
+          for (const d of days) {
+            // Each day's levels over its own bars only, so a day's line stops
+            // where the next day's begin.
+            const x0 = Math.max(0, xOf(d.start) ?? 0)
+            const x1 = d.end == null ? width : Math.min(width, xOf(d.end) ?? width)
+            if (!(x1 > x0)) continue
+            for (const z of d.zones) {
+              const y = yOf(rc, z.price)
+              if (y == null || y < 0 || y > rc.plotHeight) continue
+              const color =
+                z.role === 'support'
+                  ? rc.theme?.upColor || GREEN
+                  : z.role === 'resistance'
+                    ? rc.theme?.downColor || RED
+                    : rc.theme?.axisText || MUTED
+              const strength = z.score / top
+              const y1 = yOf(rc, z.high)
+              const y2 = yOf(rc, z.low)
+              if (y1 != null && y2 != null && Math.abs(y2 - y1) >= 1) {
+                c.globalAlpha = 0.08 + 0.1 * strength
+                c.fillStyle = color
+                c.fillRect(x0 * dpr, Math.min(y1, y2) * dpr, (x1 - x0) * dpr, Math.abs(y2 - y1) * dpr)
+              }
+              c.globalAlpha = (0.45 + 0.5 * strength) * (z.outcome === 'broke' ? 0.6 : 1)
+              c.strokeStyle = color
+              c.lineWidth = (1 + 2.5 * strength) * dpr
+              c.setLineDash(z.score >= 5 ? [] : [6 * dpr, 4 * dpr])
+              c.beginPath()
+              c.moveTo(x0 * dpr, y * dpr)
+              c.lineTo(x1 * dpr, y * dpr)
+              c.stroke()
+              const codes = settings.codes === false ? '' : `  ${z.codes.join('+')}`
+              if (d.today) {
+                const held = z.hold && z.hold.n ? `  held ${z.hold.held}/${z.hold.n}` : ''
+                labels.push({ y, color, text: `${fmt(z.price)}  [${z.score}]${codes}${held}` })
+              } else if (x1 - x0 > 70) {
+                // A past day: its price and what it did that day, at the day's start.
+                c.setLineDash([])
+                c.globalAlpha = 0.9
+                c.font = `${9 * dpr}px sans-serif`
+                c.textBaseline = 'bottom'
+                c.fillStyle = color
+                const text = `${fmt(z.price)} ${z.outcome}`
+                c.fillText(text, (x0 + 3) * dpr, (y - 2) * dpr)
+              }
             }
-            c.globalAlpha = 0.45 + 0.5 * strength
-            c.strokeStyle = color
-            c.lineWidth = (1 + 2.5 * strength) * dpr
-            c.setLineDash(z.score >= 5 ? [] : [6 * dpr, 4 * dpr])
-            c.beginPath()
-            c.moveTo(0, y * dpr)
-            c.lineTo(width * dpr, y * dpr)
-            c.stroke()
-            const held = z.hold && z.hold.n ? `  held ${z.hold.held}/${z.hold.n}` : ''
-            const codes = settings.codes === false ? '' : `  ${z.codes.join('+')}`
-            labels.push({ y, color, text: `${fmt(z.price)}  [${z.score}]${codes}${held}` })
           }
           c.setLineDash([])
           // Spaced 15 px apart and kept above the status line at the bottom:
@@ -518,7 +635,9 @@ export default function ({ registerIndicator, nulls }) {
         if (document.hidden) return
         const settings = ctx.settings()
         const changed = resolveUnderlying(settings, ctx.symbol?.()) !== state.key
-        if (changed || Date.now() - lastLoad >= REFRESH_MS) {
+        const records = ctx.store.records || {}
+        const pending = (ctx.store.wanted || []).some((d) => !(d in records))
+        if (changed || pending || Date.now() - lastLoad >= REFRESH_MS) {
           lastLoad = Date.now()
           load()
         }
