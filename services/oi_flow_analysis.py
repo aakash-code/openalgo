@@ -35,7 +35,7 @@ import statistics
 from collections import defaultdict
 from collections.abc import Callable
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta
+from datetime import date, datetime, timedelta
 
 WRITING = "writing"
 COVERING = "covering"
@@ -363,8 +363,25 @@ def expiry_close(expiry: str, exchange: str | None) -> datetime | None:
         day = datetime.strptime(str(expiry), "%d%b%y")
     except (TypeError, ValueError):
         return None
-    hour, minute = EXPIRY_CLOSE.get(str(exchange or "").upper(), DEFAULT_EXPIRY_CLOSE)
+    if str(exchange or "").upper() == "MCX":
+        hour, minute = mcx_close(day.date())
+    else:
+        hour, minute = EXPIRY_CLOSE.get(str(exchange or "").upper(), DEFAULT_EXPIRY_CLOSE)
     return day.replace(hour=hour, minute=minute)
+
+
+def _nth_sunday(year: int, month: int, n: int) -> date:
+    first = date(year, month, 1)
+    return first + timedelta(days=(6 - first.weekday()) % 7 + 7 * (n - 1))
+
+
+def mcx_close(day: date) -> tuple[int, int]:
+    """When MCX's trading day ends: 23:30 while the US keeps summer time
+    (second Sunday of March to the first Sunday of November), 23:55 the rest
+    of the year. An expiry in winter at 23:30 left the evening's last 25
+    minutes out of the time to expiry."""
+    summer = _nth_sunday(day.year, 3, 2) <= day < _nth_sunday(day.year, 11, 1)
+    return (23, 30) if summer else (23, 55)
 
 
 def bias(side: str, cls: str) -> int:

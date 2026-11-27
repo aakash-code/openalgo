@@ -233,3 +233,18 @@ def test_gamma_walls_expected_move_and_a_far_flip_are_reported():
     assert move["day"] == round(64.0 / math.sqrt(max(1.0, years * 252)), 1)
     assert g["flip_far"] is False
     assert build(23800.0)["flip_far"] is True  # beyond two days' priced-in move
+
+
+def test_mcx_expiry_closes_at_the_session_end_of_its_season():
+    from datetime import date
+
+    from services.oi_flow_analysis import expiry_close, mcx_close
+    from services.oi_levels_service import _expiry_at
+
+    assert mcx_close(date(2026, 11, 19)) == (23, 55)  # after the first Sunday of November
+    assert mcx_close(date(2026, 10, 20)) == (23, 30)
+    assert mcx_close(date(2026, 3, 8)) == (23, 30)  # second Sunday of March 2026
+    assert mcx_close(date(2026, 3, 7)) == (23, 55)
+    assert expiry_close("17DEC26", "MCX") == datetime(2026, 12, 17, 23, 55)
+    assert _expiry_at("17DEC26", "MCX") == datetime(2026, 12, 17, 23, 55)
+    assert _expiry_at("01DEC26", "NFO").hour == 15  # index options unchanged

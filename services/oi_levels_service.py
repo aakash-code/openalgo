@@ -65,7 +65,12 @@ def _expiry_at(expiry: str, exchange: str) -> datetime | None:
         day = datetime.strptime(expiry, "%d%b%y")
     except ValueError:
         return None
-    hour, minute = get_exchange_expiry_time(exchange or "NFO")
+    if (exchange or "").upper() == "MCX":
+        from services.oi_flow_analysis import mcx_close
+
+        hour, minute = mcx_close(day.date())
+    else:
+        hour, minute = get_exchange_expiry_time(exchange or "NFO")
     return day.replace(hour=hour, minute=minute)
 
 
