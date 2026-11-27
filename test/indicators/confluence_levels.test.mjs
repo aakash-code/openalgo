@@ -261,3 +261,33 @@ test('a wall beyond two days of priced-in move does not count', () => {
   assert.equal(codes.GW, 8100)
   assert.equal(codes.CW, 8000)
 })
+
+test("today's option record is asked for first, then the past days together", async (t) => {
+  t.mock.timers.enable({ apis: ['setInterval'] })
+  const asked = []
+  let open = 0
+  let most = 0
+  globalThis.document = { hidden: false }
+  globalThis.fetch = async (url) => {
+    asked.push(url.includes('&date=') ? url.split('&date=')[1] : 'live')
+    open++
+    most = Math.max(most, open)
+    await new Promise((r) => setImmediate(r))
+    open--
+    return { json: async () => ({ status: 'success', walls: [] }) }
+  }
+  const ctx = {
+    settings: () => ({ ...defaults(indicator()), underlying: 'NIFTY' }),
+    symbol: () => 'NIFTY',
+    store: { wanted: ['2026-11-25', '2026-11-26'] },
+    requestRecompute() {},
+    addPrimitive() {},
+    removePrimitive() {},
+  }
+  const stop = indicator().attach(ctx)
+  for (let k = 0; k < 6; k++) await new Promise((r) => setImmediate(r))
+  assert.equal(asked[0], 'live')
+  assert.deepEqual(asked.slice(1).sort(), ['2026-11-25', '2026-11-26'])
+  assert.equal(most, 2) // the two past days at once
+  stop()
+})

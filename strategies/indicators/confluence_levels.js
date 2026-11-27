@@ -477,22 +477,6 @@ export default function ({ registerIndicator, nulls }) {
           ctx.store.levels = null
           ctx.store.records = {}
         }
-        // Past days' closing option records, each asked for once: a finished
-        // day never changes. A day with none recorded is remembered as none.
-        const records = (ctx.store.records ||= {})
-        const missing = (ctx.store.wanted || []).filter((d) => !(d in records)).slice(0, 3)
-        for (const d of missing) {
-          records[d] = null
-          try {
-            const r = await fetch(`/writerflow/api/levels?underlying=${encodeURIComponent(u)}&date=${d}`, {
-              credentials: 'same-origin',
-            })
-            const b = await r.json().catch(() => null)
-            if (state.key === u) records[d] = b && b.status === 'success' ? b : null
-          } catch {
-            delete records[d] // unreachable: ask again next time
-          }
-        }
         try {
           const res = await fetch(`/writerflow/api/levels?underlying=${encodeURIComponent(u)}`, {
             credentials: 'same-origin',
@@ -510,6 +494,29 @@ export default function ({ registerIndicator, nulls }) {
           state.problem = 'option record unreachable, chart sources only'
         }
         ctx.requestRecompute()
+        // Past days' closing option records, after today's so the live levels
+        // come first, and together: one by one they held the first draw for
+        // about 20 seconds on the server (27-Nov-2026). Each is asked for
+        // once: a finished day never changes, and one with none recorded is
+        // remembered as none.
+        const records = (ctx.store.records ||= {})
+        const missing = (ctx.store.wanted || []).filter((d) => !(d in records))
+        if (!missing.length) return
+        for (const d of missing) records[d] = null
+        await Promise.all(
+          missing.map(async (d) => {
+            try {
+              const r = await fetch(`/writerflow/api/levels?underlying=${encodeURIComponent(u)}&date=${d}`, {
+                credentials: 'same-origin',
+              })
+              const b = await r.json().catch(() => null)
+              if (state.key === u) records[d] = b && b.status === 'success' ? b : null
+            } catch {
+              delete records[d] // unreachable: ask again next time
+            }
+          }),
+        )
+        if (state.key === u) ctx.requestRecompute()
       }
 
       const layer = {
