@@ -165,3 +165,19 @@ test('changing the underlying reloads within seconds, not at the next minute', a
   assert.equal(asked.length, 2)
   stop()
 })
+
+test('an option record from another day than the chart is not used', () => {
+  const ind = indicator()
+  const s = defaults(ind)
+  const bars = []
+  for (let i = 0; i < 30; i++) bars.push(bar(MON + i * 60, 100, 101, 99, 100, 10))
+  const body = (date) => ({ status: 'success', date, spot: 100, step: 5, walls: [{ strike: 95, put: 9, call: 0 }], gamma: {} })
+  const old = { levels: body('2026-10-27') }
+  ind.calc(bars, { ...s, minScore: 1 }, old)
+  assert.equal(old.stale, true)
+  assert.ok(old.zones.every((z) => !z.codes.includes('PW')))
+  const today = { levels: body('2026-11-23') }
+  ind.calc(bars, { ...s, minScore: 1 }, today)
+  assert.equal(today.stale, false)
+  assert.ok(today.zones.some((z) => z.codes.includes('PW')))
+})

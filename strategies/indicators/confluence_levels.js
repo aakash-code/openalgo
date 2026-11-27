@@ -330,7 +330,13 @@ export default function ({ registerIndicator, nulls }) {
         if (store) store.zones = []
         return out
       }
-      const body = settings.options === false ? null : store.levels
+      // The option record must be the chart's own last session: an old one
+      // (BHEL's 27OCT26 expiry, a month gone, on 27-Nov-2026) names walls that
+      // no longer exist.
+      const lastDay = dayOf(bars[bars.length - 1].time)
+      const fresh = (b) => b && typeof b.date === 'string' && dayOf(Date.parse(`${b.date}T00:00:00+05:30`) / 1000) === lastDay
+      const body = settings.options === false || !fresh(store.levels) ? null : store.levels
+      store.stale = Boolean(store.levels && settings.options !== false && !fresh(store.levels))
       const keep = (code) => {
         const optionCode = ['PW', 'CW', 'PW2', 'CW2', 'GW', 'FLIP', 'EMH', 'EML'].includes(code)
         const volumeCode = ['POC', 'VAH', 'VAL', 'VWAP', 'V+1', 'V-1', 'V+2', 'V-2'].includes(code)
@@ -444,7 +450,8 @@ export default function ({ registerIndicator, nulls }) {
             const y = Math.max(l.y, last + 15)
             last = y
             const w = c.measureText(l.text).width / dpr + 10
-            const x = 6
+            // Right edge, by the price axis: the top left holds the legend.
+            const x = width - 6 - w
             c.globalAlpha = 0.9
             c.fillStyle = rc.theme?.background || '#131722'
             c.beginPath()
@@ -457,16 +464,23 @@ export default function ({ registerIndicator, nulls }) {
             c.fillStyle = l.color
             c.fillText(l.text, (x + 5) * dpr, y * dpr)
           }
+          const lv = ctx.store.levels
           const note = state.problem
             ? `Confluence levels: ${state.problem}`
-            : ctx.store.levels
-              ? `Confluence levels ${ctx.store.levels.underlying} ${ctx.store.levels.expiry}, options at ${ctx.store.levels.minute}`
-              : ''
+            : lv && ctx.store.stale
+              ? `Confluence levels: option record is from ${lv.date}, not the chart's day, so not used`
+              : lv
+                ? `Confluence levels ${lv.underlying} ${lv.expiry}, options at ${lv.minute}`
+                : ''
           if (note) {
+            // Bottom right, where the option levels note sits: the top left
+            // is the symbol's legend.
             c.globalAlpha = 0.75
             c.fillStyle = rc.theme?.axisText || MUTED
-            c.textBaseline = 'top'
-            c.fillText(note, 8 * dpr, 6 * dpr)
+            c.textBaseline = 'bottom'
+            c.font = `${11 * dpr}px sans-serif`
+            const tw = c.measureText(note).width / dpr
+            c.fillText(note, (width - 8 - tw) * dpr, (rc.plotHeight - 6) * dpr)
           }
           c.restore()
         },
