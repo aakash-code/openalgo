@@ -200,3 +200,36 @@ def test_the_price_alone_moves_neither_the_ratio_nor_the_walls_vote():
 def test_a_wall_the_open_interest_moved_still_votes():
     trend = analyse(_rally_rows(True))["trend"]
     assert trend["votes"]["walls"] == 1
+
+
+def test_gamma_walls_expected_move_and_a_far_flip_are_reported():
+    import math
+
+    def greeks(strikes, ce, pe, forward, years):
+        return [{"iv": 15.0, "gamma": 0.0005}] * len(strikes), [
+            {"iv": 15.0, "gamma": 0.0001}
+        ] * len(strikes)
+
+    rows = []
+    for m in range(6):
+        for k in range(24750, 25251, 50):
+            rows += [
+                _row(m, k, "CE", 100_000 + (k == 25100) * 900_000, 25000.0, 40.0),
+                _row(m, k, "PE", 100_000, 25000.0, 40.0),
+            ]
+    expiry_at = datetime(2026, 11, 24, 15, 30)
+
+    def build(flip_at):
+        return build_levels(
+            LevelInputs("NIFTY", rows, expiry_at=expiry_at, greeks=greeks, flip=lambda *a: flip_at)
+        )["gamma"]
+
+    g = build(25010.0)
+    assert g["walls"][0]["strike"] == 25100  # the biggest net gamma
+    assert g["regime"] == "long"
+    move = g["expected_move"]
+    assert move["atm"] == 25000 and move["straddle"] == 80.0
+    years = (expiry_at - (START + timedelta(minutes=5))).total_seconds() / (365 * 86400)
+    assert move["day"] == round(64.0 / math.sqrt(max(1.0, years * 252)), 1)
+    assert g["flip_far"] is False
+    assert build(23800.0)["flip_far"] is True  # beyond two days' priced-in move

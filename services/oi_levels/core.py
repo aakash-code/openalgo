@@ -27,6 +27,7 @@ CRUDEOIL: at NIFTY 25,000 a touch is within 10 points, a bounce 30, a break 20.
 
 from __future__ import annotations
 
+import math
 import statistics
 from collections.abc import Callable
 from dataclasses import dataclass, field
@@ -53,6 +54,8 @@ TOUCH_COOLDOWN = 15  # a level touched again sooner is the same test
 GAMMA_EVERY = 5  # minutes between gamma reads (always on the last minute)
 FLIP_POINTS = 201  # hypothetical prices tried for the gamma flip
 FLIP_RANGE = 0.05  # searched this far either side of the price
+GAMMA_WALLS = 3  # gamma walls reported, biggest net gamma near the money
+STRADDLE_SIGMA = 0.8  # the at-the-money straddle is about 1.25 standard deviations
 
 MIN_JUDGED = 20  # touches before a hold rate means anything
 CHANCE = BREAK_SHARE / (BOUNCE_SHARE + BREAK_SHARE)
@@ -309,7 +312,36 @@ def _gamma_at(book, t, inputs) -> dict | None:
             flip_legs, spot, spot * (1 - FLIP_RANGE), spot * (1 + FLIP_RANGE), FLIP_POINTS
         )
     near = set(_near(book, t, LEVEL_STEPS))
+    # Gamma walls: the strikes near the money where dealers hedge hardest,
+    # biggest net gamma either sign, so price tends to stall at them.
+    ranked = sorted((k for k in net if k in near), key=lambda k: -abs(net[k]))
+    walls = [{"strike": k, "gex": round(net[k], 1)} for k in ranked[:GAMMA_WALLS]]
+    # The move the at-the-money straddle prices in, to expiry and for one
+    # session: about 0.8 of the straddle is one standard deviation.
+    atm = min(strikes, key=lambda k: abs(k - forward))
+    straddle = legs[("CE", atm)][1] + legs[("PE", atm)][1]
+    sessions = max(1.0, years * 252.0)
+    move = None
+    if straddle > 0:
+        to_expiry = straddle * STRADDLE_SIGMA
+        move = {
+            "atm": atm,
+            "straddle": round(straddle, 2),
+            "expiry": round(to_expiry, 1),
+            "day": round(to_expiry / math.sqrt(sessions), 1),
+        }
+    # Net gamma at the price: positive, dealers are long gamma and their
+    # hedging damps moves; negative, it speeds them up. A flip further than
+    # two days' priced-in move is out of reach today (BANKNIFTY 26-Nov-2026:
+    # 60,441 under a close of 63,535, at the edge of the search).
+    total = sum(net.values())
+    reach = 2 * move["day"] if move else None
+    far = bool(flip and reach and abs(flip - spot) > reach)
     return {
+        "regime": "long" if total > 0 else "short" if total < 0 else None,
+        "flip_far": far,
+        "walls": walls,
+        "expected_move": move,
         "forward": forward,
         "top_strike": max((k for k in net if k in near), key=lambda k: abs(net[k]), default=None)
         or max(net, key=lambda k: abs(net[k])),
@@ -499,6 +531,10 @@ def build_levels(inputs: LevelInputs) -> dict | None:
             "forward": g_now["forward"] if g_now else None,
             "top_strike": g_now["top_strike"] if g_now else None,
             "flip": g_now["flip"] if g_now else None,
+            "walls": g_now["walls"] if g_now else [],
+            "regime": g_now["regime"] if g_now else None,
+            "flip_far": g_now["flip_far"] if g_now else False,
+            "expected_move": g_now["expected_move"] if g_now else None,
             "series": [{"time": m, "flip": g["flip"]} for m, g in sorted(gamma.items())],
         },
         "touches": touches,
