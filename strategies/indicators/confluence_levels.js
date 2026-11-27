@@ -545,6 +545,10 @@ export default function ({ registerIndicator, nulls }) {
             const x0 = Math.max(0, xOf(d.start) ?? 0)
             const x1 = d.end == null ? width : Math.min(width, xOf(d.end) ?? width)
             if (!(x1 > x0)) continue
+            // A past day's labels sit at its start; one closer than 11 px to
+            // another is left off (its line still drawn): three zones a few
+            // points apart printed over each other (SENSEX, 20-Nov-2026).
+            const taken = []
             for (const z of d.zones) {
               const y = yOf(rc, z.price)
               if (y == null || y < 0 || y > rc.plotHeight) continue
@@ -574,7 +578,8 @@ export default function ({ registerIndicator, nulls }) {
               if (d.today) {
                 const held = z.hold && z.hold.n ? `  held ${z.hold.held}/${z.hold.n}` : ''
                 labels.push({ y, color, text: `${fmt(z.price)}  [${z.score}]${codes}${held}` })
-              } else if (x1 - x0 > 70) {
+              } else if (x1 - x0 > 70 && taken.every((t) => Math.abs(t - y) >= 11)) {
+                taken.push(y)
                 // A past day: its price and what it did that day, at the day's start.
                 c.setLineDash([])
                 c.globalAlpha = 0.9
